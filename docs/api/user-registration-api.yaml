@@ -255,6 +255,52 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /auth/change-password:
+    post:
+      tags:
+        - Professor Management
+      summary: Initial Login & Password Change (Process 1.8)
+      description: Allows a professor to change their temporary password to a permanent one upon initial login. Corresponds to the tempPassword + newPassword arrow.
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChangeRequest'
+      responses:
+        '200':
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Invalid temporary password
+
+  /admin/generate-reset-link:
+    post:
+      tags:
+        - Professor Management
+      summary: Generate Password Reset Link (Process 1.9)
+      description: Admin generates a one-time-use password reset link for a professor. Corresponds to the resetLinkRequest arrow.
+      operationId: generateResetLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetLinkRequest'
+      responses:
+        '200':
+          description: Reset link generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetLinkResponse'
+        '404':
+          description: Professor not found
+
   /users:
     get:
       tags:
@@ -831,3 +877,52 @@ components:
         message:
           type: string
           example: Invalid input data.
+
+    PasswordChangeRequest:
+      type: object
+      required:
+        - email
+        - tempPassword
+        - newPassword
+      properties:
+        email:
+          type: string
+          format: email
+          example: "ahmet.hoca@university.edu"
+        tempPassword:
+          type: string
+          example: "admin123"
+        newPassword:
+          type: string
+          example: "SecurePass!2026"
+
+    ResetLinkRequest:
+      type: object
+      required:
+        - targetEmail
+      properties:
+        targetEmail:
+          type: string
+          format: email
+          description: Email of the professor who forgot their password.
+          example: "ahmet.hoca@university.edu"
+
+    ResetLinkResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Password reset link generated successfully.
+        resetToken:
+          type: string
+          example: "abc123xyz890"
+        resetUrl:
+          type: string
+          example: "https://system.edu/reset-password?token=abc123xyz890"
+
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Operation completed successfully.
