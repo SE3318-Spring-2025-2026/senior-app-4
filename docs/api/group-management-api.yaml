@@ -1,0 +1,1670 @@
+openapi: 3.0.3
+info:
+  title: "Process 2: Group Management & Integrations API"
+  version: 2.0.0
+  description: |
+    Senior Project Management System — Level-2 DFD Process 2
+
+    ## Sub-Processes
+    | ID  | Name |
+    |-----|------|
+    | 2.1 | Manage Project Groups |
+    | 2.2 | Manage Group Members |
+    | 2.3 | Manage GitHub Integration |
+    | 2.4 | View Project Groups |
+    | 2.5 | Notification Service |
+    | 2.6 | Manage JIRA Integration |
+    | 2.7 | Schedule Validator |
+    | 2.8 | Disband Unadvised Groups |
+    | 2.9 | Logging & Audit Trail |
+
+    ## Data Stores
+    D1 Users · D3 Groups · D8 Integrations · D9 System Logs · D10 Notifications · D11 Schedule
+
+    ## External Entities
+    Student · Professor · Coordinator · GitHub · JIRA
+
+servers:
+  - url: /api/v1
+    description: Development server
+
+tags:
+  - name: "2.1 Manage Project Groups"
+    description: "Create, update groups and coordinator operations (DFD: f1–f4, coord_f2, coord_f4)"
+  - name: "2.2 Manage Group Members"
+    description: "Add, remove, list members and leave group (DFD: f5–f8, coord_f1, ns_f1, ns_f4)"
+  - name: "2.3 Manage GitHub Integration"
+    description: "Bind, view, unbind GitHub PAT/Org (DFD: f9–f14)"
+  - name: "2.4 View Project Groups"
+    description: "List and detail queries for groups (DFD: f15–f18, f6)"
+  - name: "2.5 Notification Service"
+    description: "Advisor requests, invite responses, alerts (DFD: ns_f2–ns_f10, coord_f5)"
+  - name: "2.6 Manage JIRA Integration"
+    description: "Bind, view, unbind JIRA space (DFD: jira_f1–jira_f5)"
+  - name: "2.7 Schedule Validator"
+    description: "Coordinator deadline management (DFD: coord_f3, D11)"
+  - name: "2.8 Disband Unadvised Groups"
+    description: "Delete groups and reset roles (DFD: disb_f1–disb_f3)"
+  - name: "2.9 Logging & Audit Trail"
+    description: "Immutable audit log read (DFD: log_f1–log_f4)"
+  - name: "Integration Test"
+    description: "GitHub + JIRA connectivity test (DFD: f11, f12, jira_f2, jira_f3)"
+
+# ─────────────────────────────────────────────
+#  PATHS
+# ─────────────────────────────────────────────
+paths:
+
+  # ═══════════════════════════════════════════
+  #  2.1 / 2.4  —  /groups
+  # ═══════════════════════════════════════════
+  /groups:
+    get:
+      tags:
+        - "2.4 View Project Groups"
+      summary: "List all groups"
+      description: |
+        **P2-API-12** · Sub-process 2.4 · DFD flows: f15, f16, f17, f18
+        Returns all project groups with member counts.
+      operationId: listGroups
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Page number (zero-based)
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Page size
+      responses:
+        "200":
+          description: Groups retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - "2.1 Manage Project Groups"
+      summary: "Create a new project group"
+      description: |
+        **P2-API-01** · Sub-process 2.1 · DFD flows: f1, f2, f2b, f3, f4
+        Validates the creator against D1 Users, writes a new record to D3 Groups,
+        and auto-appoints the creator as leader.
+      operationId: createGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupCreateRequest"
+      responses:
+        "201":
+          description: Group created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupResponse"
+        "400":
+          description: Validation failed (student already in a group or invalid ID)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.1 / 2.4 / 2.8  —  /groups/{groupId}
+  # ═══════════════════════════════════════════
+  /groups/{groupId}:
+    parameters:
+      - $ref: "#/components/parameters/groupIdParam"
+
+    get:
+      tags:
+        - "2.4 View Project Groups"
+      summary: "Get group details"
+      description: |
+        **P2-API-13** · Sub-process 2.4 · DFD flows: f15, f6, f17
+        Returns full group details including members, advisor, and integration status.
+      operationId: getGroupById
+      responses:
+        "200":
+          description: Group details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags:
+        - "2.1 Manage Project Groups"
+      summary: "Update group information"
+      description: |
+        **P2-API-02** · Sub-process 2.1 · DFD flows: f1, f3
+        Updates group name or other mutable fields.
+      operationId: updateGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupUpdateRequest"
+      responses:
+        "200":
+          description: Group updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - "2.8 Disband Unadvised Groups"
+      summary: "Disband (delete) a group"
+      description: |
+        **P2-API-29** · Sub-process 2.8 · DFD flows: disb_f1, disb_f2, disb_f3
+        Deletes the group from D3, resets member roles in D1 (disb_f3),
+        and triggers a disband notification via P2.5 (disb_f2).
+      operationId: disbandGroup
+      responses:
+        "200":
+          description: Group disbanded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "403":
+          description: Forbidden — only leader or coordinator can disband
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.2  —  /groups/{groupId}/members
+  # ═══════════════════════════════════════════
+  /groups/{groupId}/members:
+    parameters:
+      - $ref: "#/components/parameters/groupIdParam"
+
+    get:
+      tags:
+        - "2.2 Manage Group Members"
+      summary: "List group members"
+      description: |
+        **P2-API-06** · Sub-process 2.2 · DFD flows: f7b, f17
+        Reads member list from D3 Groups.
+      operationId: listMembers
+      responses:
+        "200":
+          description: Members retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberListResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - "2.2 Manage Group Members"
+      summary: "Add / invite a member"
+      description: |
+        **P2-API-05** · Sub-process 2.2 · DFD flows: f5, f7, ns_f1
+        Adds or invites a student. Triggers a membership notification (ns_f1 → P2.5).
+      operationId: addMember
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberAddRequest"
+      responses:
+        "200":
+          description: Member added / invite sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Member limit reached or student already assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.2  —  /groups/{groupId}/members/{studentId}
+  # ═══════════════════════════════════════════
+  /groups/{groupId}/members/{studentId}:
+    parameters:
+      - $ref: "#/components/parameters/groupIdParam"
+      - $ref: "#/components/parameters/studentIdParam"
+
+    delete:
+      tags:
+        - "2.2 Manage Group Members"
+      summary: "Remove a member"
+      description: |
+        **P2-API-07** · Sub-process 2.2 · DFD flows: f5, f7, log_f1
+        Removes a student from the group and logs the event to P2.9.
+      operationId: removeMember
+      responses:
+        "200":
+          description: Member removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Cannot remove group leader
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Member or group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.2  —  /groups/{groupId}/leave
+  # ═══════════════════════════════════════════
+  /groups/{groupId}/leave:
+    parameters:
+      - $ref: "#/components/parameters/groupIdParam"
+
+    post:
+      tags:
+        - "2.2 Manage Group Members"
+      summary: "Leave the group"
+      description: |
+        **P2-API-08** · Sub-process 2.2 · DFD flows: ns_f3, ns_f4
+        Authenticated student leaves the group voluntarily.
+      operationId: leaveGroup
+      responses:
+        "200":
+          description: Successfully left the group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Leader cannot leave — must disband or transfer leadership first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.3  —  /groups/{groupId}/integrations/github
+  # ═══════════════════════════════════════════
+  /groups/{groupId}/integrations/github:
+    parameters:
+      - $ref: "#/components/parameters/groupIdParam"
+
+    get:
+      tags:
+        - "2.3 Manage GitHub Integration"
+      summary: "View GitHub integration status"
+      description: |
+        **P2-API-10** · Sub-process 2.3 · DFD flows: f9, f13
+        Reads current GitHub binding from D8 Integrations.
+      operationId: getGithubIntegration
+      responses:
+        "200":
+          description: GitHub integration status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationResponse"
+        "404":
+          description: Group or integration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - "2.3 Manage GitHub Integration"
+      summary: "Bind GitHub Organization via PAT"
+      description: |
+        **P2-API-09** · Sub-process 2.3 · DFD flows: f9, f10, f10b, f11, f12, f13
+        Validates group ownership (f10 → D3), calls GitHub to validate the repo (f11 → GitHub),
+        then writes integration record to D8 (f13).
+      operationId: bindGithub
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GithubBindingRequest"
+      responses:
+        "200":
+          description: GitHub bound successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid PAT or organization not accessible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - "2.3 Manage GitHub Integration"
+      summary: "Unbind GitHub Organization"
+      description: |
+        **P2-API-11** · Sub-process 2.3 · DFD flows: f13, f14
+        Removes integration record from D8 and returns a delete response (f14).
+      operationId: unbindGithub
+      responses:
+        "200":
+          description: GitHub integration removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "404":
+          description: Group or integration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.6  —  /groups/{groupId}/integrations/jira
+  # ═══════════════════════════════════════════
+  /groups/{groupId}/integrations/jira:
+    parameters:
+      - $ref: "#/components/parameters/groupIdParam"
+
+    get:
+      tags:
+        - "2.6 Manage JIRA Integration"
+      summary: "View JIRA integration status"
+      description: |
+        **P2-API-24** · Sub-process 2.6 · DFD flow: jira_f1
+        Reads current JIRA binding from D8 / D3.
+      operationId: getJiraIntegration
+      responses:
+        "200":
+          description: JIRA integration status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationResponse"
+        "404":
+          description: Group or integration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - "2.6 Manage JIRA Integration"
+      summary: "Bind JIRA space"
+      description: |
+        **P2-API-23** · Sub-process 2.6 · DFD flows: jira_f1, jira_f2, jira_f3, jira_f4
+        Sends validation request to JIRA (jira_f2), receives status (jira_f3),
+        and writes details to D3 (jira_f4). Triggers integration status alert (jira_f5 → P2.5).
+      operationId: bindJira
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JiraBindingRequest"
+      responses:
+        "200":
+          description: JIRA space bound successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid JIRA URL or connection failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - "2.6 Manage JIRA Integration"
+      summary: "Unbind JIRA space"
+      description: |
+        **P2-API-25** · Sub-process 2.6 · DFD flow: jira_f4
+        Removes JIRA integration data from D3.
+      operationId: unbindJira
+      responses:
+        "200":
+          description: JIRA integration removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "404":
+          description: Group or integration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.3 / 2.6  —  /groups/{groupId}/integrations/test
+  # ═══════════════════════════════════════════
+  /groups/{groupId}/integrations/test:
+    parameters:
+      - $ref: "#/components/parameters/groupIdParam"
+
+    post:
+      tags:
+        - "Integration Test"
+      summary: "Test GitHub + JIRA connectivity"
+      description: |
+        **P2-API-26** · Sub-process 2.3 / 2.6 · DFD flows: f11, f12, jira_f2, jira_f3
+        Validates that stored tokens can reach GitHub and JIRA external systems.
+      operationId: testIntegrations
+      responses:
+        "200":
+          description: All connections successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationTestResponse"
+        "400":
+          description: One or more connections failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationTestResponse"
+        "404":
+          description: Group or integrations not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.5  —  /groups/{groupId}/advisor-request
+  # ═══════════════════════════════════════════
+  /groups/{groupId}/advisor-request:
+    parameters:
+      - $ref: "#/components/parameters/groupIdParam"
+
+    get:
+      tags:
+        - "2.5 Notification Service"
+      summary: "View advisor request status"
+      description: |
+        **P2-API-15** · Sub-process 2.5 · DFD flow: ns_f9
+        Queries pending advisor request records from D3.
+      operationId: getAdvisorRequestStatus
+      responses:
+        "200":
+          description: Current advisor request status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdvisorRequestStatusResponse"
+        "404":
+          description: No pending request found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - "2.5 Notification Service"
+      summary: "Send advisor request to a professor"
+      description: |
+        **P2-API-14** · Sub-process 2.5 · DFD flow: ns_f5
+        Team leader requests a professor as advisor. Creates a notification
+        and alerts the professor (ns_f6).
+      operationId: requestAdvisor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdvisorRequest"
+      responses:
+        "200":
+          description: Advisor request sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Professor already requested or group already has an advisor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group or professor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - "2.5 Notification Service"
+      summary: "Cancel advisor request"
+      description: |
+        **P2-API-16** · Sub-process 2.5 · DFD flow: log_f2
+        Cancels the pending advisor request and logs the cancellation.
+      operationId: cancelAdvisorRequest
+      responses:
+        "200":
+          description: Request cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "404":
+          description: No pending request found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.1  —  /groups/{groupId}/advisor/transfer
+  # ═══════════════════════════════════════════
+  /groups/{groupId}/advisor/transfer:
+    parameters:
+      - $ref: "#/components/parameters/groupIdParam"
+
+    post:
+      tags:
+        - "2.1 Manage Project Groups"
+      summary: "Transfer / assign advisor (coordinator only)"
+      description: |
+        **P2-API-03** · Sub-process 2.1 · DFD flow: coord_f2
+        Coordinator directly assigns an advisor to a group, bypassing the request flow.
+      operationId: transferAdvisor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdvisorRequest"
+      responses:
+        "200":
+          description: Advisor assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid professor ID or group already has an advisor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — coordinator role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group or professor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.9  —  /groups/{groupId}/logs
+  # ═══════════════════════════════════════════
+  /groups/{groupId}/logs:
+    parameters:
+      - $ref: "#/components/parameters/groupIdParam"
+
+    get:
+      tags:
+        - "2.9 Logging & Audit Trail"
+      summary: "Get group-specific audit logs"
+      description: |
+        **P2-API-31** · Sub-process 2.9 · DFD flows: log_f1, log_f3
+        Reads audit entries for a specific group from D9 System Logs.
+      operationId: getGroupLogs
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Audit logs retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogListResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.5  —  /notifications
+  # ═══════════════════════════════════════════
+  /notifications:
+    get:
+      tags:
+        - "2.5 Notification Service"
+      summary: "Get current user notifications"
+      description: |
+        **P2-API-17** · Sub-process 2.5 · DFD flows: ns_f2, ns_f8
+        Reads pending notifications from D10 for the authenticated user.
+      operationId: getNotifications
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: Notifications retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - "2.5 Notification Service"
+      summary: "Clear a notification"
+      description: |
+        **P2-API-18** · Sub-process 2.5 · DFD flow: ns_f8
+        Marks a notification as read/cleared in D10.
+      operationId: clearNotification
+      parameters:
+        - name: id
+          in: query
+          required: false
+          description: "Specific notification ID to clear. Omit to clear all."
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notification(s) cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "404":
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.5  —  /notifications/{notificationId}/respond
+  # ═══════════════════════════════════════════
+  /notifications/{notificationId}/respond:
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        description: ID of the notification to respond to
+        schema:
+          type: integer
+
+    post:
+      tags:
+        - "2.5 Notification Service"
+      summary: "Respond to an invite or alert"
+      description: |
+        **P2-API-19** · Sub-process 2.5 · DFD flow: ns_f3
+        Student accepts or rejects a group membership invite.
+      operationId: respondToNotification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationRespondRequest"
+      responses:
+        "200":
+          description: Response recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid decision value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.5  —  /professors/advisor-requests
+  # ═══════════════════════════════════════════
+  /professors/advisor-requests:
+    get:
+      tags:
+        - "2.5 Notification Service"
+      summary: "List incoming advisor requests"
+      description: |
+        **P2-API-20** · Sub-process 2.5 · DFD flow: ns_f6
+        Professor views all pending advisee requests.
+      operationId: listAdvisorRequests
+      responses:
+        "200":
+          description: Advisor requests retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdvisorRequestListResponse"
+        "401":
+          description: Unauthorized — professor role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      tags:
+        - "2.5 Notification Service"
+      summary: "Approve or reject an advisor request"
+      description: |
+        **P2-API-21** · Sub-process 2.5 · DFD flows: ns_f7, ns_f8, ns_f10, autoRejectCommand
+        Professor approves or rejects. On approval, all other pending requests
+        for the same group are auto-rejected (ns_f10 → D3, autoRejectCommand → P2.2).
+      operationId: decideAdvisorRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdvisorDecisionRequest"
+      responses:
+        "200":
+          description: Decision saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid status value or request already processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.7  —  /coordinator/schedule
+  # ═══════════════════════════════════════════
+  /coordinator/schedule:
+    get:
+      tags:
+        - "2.7 Schedule Validator"
+      summary: "View current schedule configuration"
+      description: |
+        **P2-API-27** · Sub-process 2.7 · DFD flows: coord_f3, D11→P2.7
+        Reads deadline data from D11 Schedule.
+      operationId: getSchedule
+      responses:
+        "200":
+          description: Schedule retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleResponse"
+        "404":
+          description: Schedule not initialized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags:
+        - "2.7 Schedule Validator"
+      summary: "Set or update deadlines"
+      description: |
+        **P2-API-28** · Sub-process 2.7 · DFD flow: coord_f3
+        Coordinator sets group formation and advisor assignment deadlines.
+      operationId: updateSchedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleUpdateRequest"
+      responses:
+        "200":
+          description: Schedule updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid date format or past dates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — coordinator role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.1  —  /coordinator/reports/group-formation
+  # ═══════════════════════════════════════════
+  /coordinator/reports/group-formation:
+    get:
+      tags:
+        - "2.1 Manage Project Groups"
+      summary: "Group formation status report"
+      description: |
+        **P2-API-04** · Sub-process 2.1 · DFD flow: coord_f4
+        Returns a report of formed vs. unadvised groups for the coordinator.
+      operationId: getGroupFormationReport
+      responses:
+        "200":
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupFormationReportResponse"
+        "403":
+          description: Forbidden — coordinator role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.5  —  /coordinator/system-alerts
+  # ═══════════════════════════════════════════
+  /coordinator/system-alerts:
+    get:
+      tags:
+        - "2.5 Notification Service"
+      summary: "Critical system alerts for coordinator"
+      description: |
+        **P2-API-22** · Sub-process 2.5 · DFD flow: coord_f5
+        Returns critical errors and deadline-exceeded alerts.
+      operationId: getSystemAlerts
+      responses:
+        "200":
+          description: Alerts retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationListResponse"
+        "403":
+          description: Forbidden — coordinator role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ═══════════════════════════════════════════
+  #  2.9  —  /admin/logs
+  # ═══════════════════════════════════════════
+  /admin/logs:
+    get:
+      tags:
+        - "2.9 Logging & Audit Trail"
+      summary: "Global audit trail"
+      description: |
+        **P2-API-30** · Sub-process 2.9 · DFD flow: log_f4
+        Reads all immutable audit entries from D9 System Logs.
+      operationId: getGlobalLogs
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: actionType
+          in: query
+          required: false
+          description: Filter by action type
+          schema:
+            type: string
+            enum:
+              - GROUP_CREATED
+              - GROUP_UPDATED
+              - GROUP_DISBANDED
+              - MEMBER_ADDED
+              - MEMBER_REMOVED
+              - ADVISOR_ASSIGNED
+              - ADVISOR_REQUESTED
+              - ADVISOR_APPROVED
+              - ADVISOR_REJECTED
+              - INTEGRATION_BOUND
+              - INTEGRATION_REMOVED
+      responses:
+        "200":
+          description: Audit logs retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — coordinator role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+# ─────────────────────────────────────────────
+#  COMPONENTS
+# ─────────────────────────────────────────────
+components:
+
+  # ═══════════ PARAMETERS ═══════════
+  parameters:
+    groupIdParam:
+      name: groupId
+      in: path
+      required: true
+      description: Unique group identifier
+      schema:
+        type: integer
+        example: 101
+
+    studentIdParam:
+      name: studentId
+      in: path
+      required: true
+      description: Student identifier
+      schema:
+        type: string
+        example: "20210702001"
+
+  # ═══════════ SCHEMAS ═══════════
+  schemas:
+
+    # ─── Core Models ───
+    User:
+      type: object
+      properties:
+        userId:
+          type: integer
+          example: 1
+        studentId:
+          type: string
+          example: "20210702001"
+        fullName:
+          type: string
+          example: "Mete Han"
+        role:
+          type: string
+          enum:
+            - student
+            - leader
+            - professor
+            - coordinator
+          example: "student"
+        githubUsername:
+          type: string
+          nullable: true
+          example: "metehan"
+
+    Group:
+      type: object
+      properties:
+        groupId:
+          type: integer
+          example: 101
+        groupName:
+          type: string
+          example: "Team Alpha"
+        status:
+          type: string
+          enum:
+            - forming
+            - formed
+            - advised
+            - disbanded
+          example: "formed"
+        leaderId:
+          type: integer
+          example: 15
+        leaderName:
+          type: string
+          example: "Mete Han"
+        advisorId:
+          type: integer
+          nullable: true
+          example: 5
+        advisorName:
+          type: string
+          nullable: true
+          example: "Prof. Dr. Ahmet Yılmaz"
+        memberCount:
+          type: integer
+          example: 4
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        githubBound:
+          type: boolean
+          example: true
+        jiraBound:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Integration:
+      type: object
+      properties:
+        integrationId:
+          type: integer
+          example: 1
+        groupId:
+          type: integer
+          example: 101
+        type:
+          type: string
+          enum:
+            - github
+            - jira
+          example: "github"
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+            - error
+          example: "active"
+        organizationName:
+          type: string
+          nullable: true
+          example: "SE3318-Spring-2025-2026"
+        jiraSpaceUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: "https://team-alpha.atlassian.net"
+        connectedAt:
+          type: string
+          format: date-time
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 42
+        type:
+          type: string
+          enum:
+            - membership_invite
+            - advisor_request
+            - advisor_decision
+            - system_alert
+            - group_disbanded
+          example: "membership_invite"
+        message:
+          type: string
+          example: "Team Alpha invited you to join their group."
+        status:
+          type: string
+          enum:
+            - pending
+            - accepted
+            - rejected
+            - cleared
+          example: "pending"
+        fromUserId:
+          type: integer
+          nullable: true
+          example: 15
+        groupId:
+          type: integer
+          nullable: true
+          example: 101
+        createdAt:
+          type: string
+          format: date-time
+
+    AuditLog:
+      type: object
+      properties:
+        logId:
+          type: integer
+          example: 1
+        userId:
+          type: integer
+          example: 15
+        actionType:
+          type: string
+          example: "GROUP_CREATED"
+        eventDetails:
+          type: string
+          example: "Group 'Team Alpha' created by student 20210702001"
+        ipAddress:
+          type: string
+          example: "192.168.1.100"
+        timestamp:
+          type: string
+          format: date-time
+
+    AdvisorRequestRecord:
+      type: object
+      properties:
+        requestId:
+          type: integer
+          example: 10
+        groupId:
+          type: integer
+          example: 101
+        groupName:
+          type: string
+          example: "Team Alpha"
+        professorId:
+          type: integer
+          example: 5
+        professorName:
+          type: string
+          example: "Prof. Dr. Ahmet Yılmaz"
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+            - cancelled
+          example: "pending"
+        createdAt:
+          type: string
+          format: date-time
+
+    Schedule:
+      type: object
+      properties:
+        groupFormationDeadline:
+          type: string
+          format: date-time
+          example: "2026-03-15T23:59:59Z"
+        advisorAssignmentDeadline:
+          type: string
+          format: date-time
+          example: "2026-04-01T23:59:59Z"
+        updatedBy:
+          type: integer
+          example: 1
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ─── Request Bodies ───
+    GroupCreateRequest:
+      type: object
+      required:
+        - groupName
+      properties:
+        groupName:
+          type: string
+          minLength: 3
+          maxLength: 100
+          example: "Team Alpha"
+
+    GroupUpdateRequest:
+      type: object
+      properties:
+        groupName:
+          type: string
+          minLength: 3
+          maxLength: 100
+          example: "Team Alpha v2"
+
+    MemberAddRequest:
+      type: object
+      required:
+        - studentId
+      properties:
+        studentId:
+          type: string
+          example: "20210702042"
+
+    AdvisorRequest:
+      type: object
+      required:
+        - professorId
+      properties:
+        professorId:
+          type: integer
+          example: 5
+
+    AdvisorDecisionRequest:
+      type: object
+      required:
+        - groupId
+        - status
+      properties:
+        groupId:
+          type: integer
+          example: 101
+        status:
+          type: string
+          enum:
+            - approved
+            - rejected
+          example: "approved"
+
+    GithubBindingRequest:
+      type: object
+      required:
+        - githubPat
+        - organizationName
+      properties:
+        githubPat:
+          type: string
+          description: GitHub Personal Access Token
+          example: "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        organizationName:
+          type: string
+          description: GitHub Organization name
+          example: "SE3318-Spring-2025-2026"
+
+    JiraBindingRequest:
+      type: object
+      required:
+        - jiraSpaceUrl
+      properties:
+        jiraSpaceUrl:
+          type: string
+          format: uri
+          description: JIRA Cloud space URL
+          example: "https://team-alpha.atlassian.net"
+        apiKey:
+          type: string
+          description: JIRA API Key (optional if using OAuth)
+          nullable: true
+        projectKey:
+          type: string
+          description: JIRA project key
+          example: "ALPHA"
+
+    NotificationRespondRequest:
+      type: object
+      required:
+        - decision
+      properties:
+        decision:
+          type: string
+          enum:
+            - accept
+            - reject
+          example: "accept"
+
+    ScheduleUpdateRequest:
+      type: object
+      properties:
+        groupFormationDeadline:
+          type: string
+          format: date-time
+          example: "2026-03-15T23:59:59Z"
+        advisorAssignmentDeadline:
+          type: string
+          format: date-time
+          example: "2026-04-01T23:59:59Z"
+
+    # ─── Response Wrappers ───
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation completed successfully"
+        data:
+          type: object
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Student is already in a group"
+
+    DeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Resource deleted successfully"
+
+    GroupResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Group retrieved"
+        data:
+          $ref: "#/components/schemas/Group"
+
+    GroupListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+          example: 12
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Group"
+
+    MemberListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+          example: 4
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+
+    IntegrationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/Integration"
+
+    IntegrationTestResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        github:
+          type: object
+          properties:
+            connected:
+              type: boolean
+              example: true
+            message:
+              type: string
+              example: "Repository accessible"
+        jira:
+          type: object
+          properties:
+            connected:
+              type: boolean
+              example: true
+            message:
+              type: string
+              example: "Space validated"
+
+    NotificationListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+          example: 3
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+
+    AdvisorRequestStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/AdvisorRequestRecord"
+
+    AdvisorRequestListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+          example: 2
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdvisorRequestRecord"
+
+    ScheduleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/Schedule"
+
+    GroupFormationReportResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        totalGroups:
+          type: integer
+          example: 15
+        formedGroups:
+          type: integer
+          example: 12
+        unadvisedGroups:
+          type: integer
+          example: 3
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              groupId:
+                type: integer
+                example: 101
+              groupName:
+                type: string
+                example: "Team Alpha"
+              status:
+                type: string
+                example: "formed"
+              hasAdvisor:
+                type: boolean
+                example: true
+              memberCount:
+                type: integer
+                example: 4
+
+    AuditLogListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+          example: 50
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
