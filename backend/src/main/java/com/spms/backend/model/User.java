@@ -7,6 +7,7 @@ public class User {
     private Long userId;
     private String fullName;
     private String email;
+    private String passwordHash;
     private String studentId;
     private String githubUsername;
     private String role;
@@ -19,6 +20,7 @@ public class User {
         this.userId = other.userId;
         this.fullName = other.fullName;
         this.email = other.email;
+        this.passwordHash = other.passwordHash;
         this.studentId = other.studentId;
         this.githubUsername = other.githubUsername;
         this.role = other.role;
@@ -47,6 +49,14 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 
     public String getStudentId() {
