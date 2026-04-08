@@ -1,7 +1,0 @@
-com/spms/backend/controller/AuthControllerTest$StubGithubApiClient.class
-com/spms/backend/controller/UserControllerTest.class
-com/spms/backend/controller/AuthControllerTest.class
-com/spms/backend/service/StudentRegistrationServiceTest.class
-com/spms/backend/service/GithubOAuthServiceTest$StubGithubApiClient.class
-com/spms/backend/repository/SupabaseUserRepositoryTest.class
-com/spms/backend/service/GithubOAuthServiceTest.class
