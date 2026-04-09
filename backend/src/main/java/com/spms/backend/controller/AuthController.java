@@ -1,21 +1,23 @@
 package com.spms.backend.controller;
 
+import com.spms.backend.dto.request.PasswordChangeRequest;
 import com.spms.backend.dto.response.GithubCallbackResponse;
 import com.spms.backend.service.GithubOAuthService;
+import com.spms.backend.service.PasswordService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
     private final GithubOAuthService githubOAuthService;
+    private final PasswordService passwordService;
 
-    public AuthController(GithubOAuthService githubOAuthService) {
+    public AuthController(GithubOAuthService githubOAuthService,
+                          PasswordService passwordService) {
         this.githubOAuthService = githubOAuthService;
+        this.passwordService = passwordService;
     }
 
     @GetMapping("/github/callback")
@@ -24,5 +26,13 @@ public class AuthController {
             @RequestParam(required = false) String state
     ) {
         return ResponseEntity.ok(githubOAuthService.handleCallback(code, state));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<String> changePassword(@RequestBody PasswordChangeRequest request) {
+
+        passwordService.changePassword(request);
+
+        return ResponseEntity.ok("Password updated successfully.");
     }
 }

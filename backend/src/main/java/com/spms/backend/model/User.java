@@ -11,6 +11,8 @@ public class User {
     private String githubUsername;
     private String role;
     private Instant createdAt;
+    private String passwordHash;
+    private boolean requiresPasswordChange;
 
     public User() {
     }
@@ -23,6 +25,8 @@ public class User {
         this.githubUsername = other.githubUsername;
         this.role = other.role;
         this.createdAt = other.createdAt;
+        this.passwordHash = other.passwordHash;
+        this.requiresPasswordChange = other.requiresPasswordChange;
     }
 
     public Long getUserId() {
@@ -79,5 +83,21 @@ public class User {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public boolean isRequiresPasswordChange() {
+        return requiresPasswordChange;
+    }
+
+    public void setRequiresPasswordChange(boolean requiresPasswordChange) {
+        this.requiresPasswordChange = requiresPasswordChange;
     }
 }
