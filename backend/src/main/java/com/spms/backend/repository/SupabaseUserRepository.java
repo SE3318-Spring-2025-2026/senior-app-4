@@ -44,6 +44,15 @@ public class SupabaseUserRepository implements UserRepository {
     }
 
     @Override
+public Optional<User> findByUserId(Long userId) {
+    if (userId == null) {
+        return Optional.empty();
+    }
+
+    return Optional.ofNullable(usersById.get(userId)).map(User::new);
+}
+
+    @Override
     public Optional<User> findByGithubUsername(String githubUsername) {
         String normalizedGithubUsername = normalizeGithubUsername(githubUsername);
         if (normalizedGithubUsername == null) {
