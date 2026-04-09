@@ -11,6 +11,8 @@ import com.spms.backend.dto.request.GithubAuthRequest;
 import com.spms.backend.dto.response.GithubAuthResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import com.spms.backend.dto.request.AuthTokenRequest;
+import com.spms.backend.dto.response.AuthTokenResponse;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -37,6 +39,14 @@ public ResponseEntity<GithubAuthResponse> startGithubAuth(
     String authorizationUrl = githubOAuthService.generateGithubAuthorizationUrl(request.studentId());
 
     return ResponseEntity.ok(new GithubAuthResponse(authorizationUrl));
+}
+
+@PostMapping("/token")
+public ResponseEntity<AuthTokenResponse> generateToken(
+        @RequestBody AuthTokenRequest request
+) {
+    AuthTokenResponse response = githubOAuthService.generateToken(request.userId());
+    return ResponseEntity.ok(response);
 }
 
 }
