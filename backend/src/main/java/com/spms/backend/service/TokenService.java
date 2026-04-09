@@ -40,6 +40,7 @@ public class TokenService {
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("sub", user.getStudentId());
+        payload.put("userId", user.getUserId());
         payload.put("studentId", user.getStudentId());
         payload.put("githubUsername", user.getGithubUsername());
         payload.put("role", user.getRole());
@@ -79,4 +80,9 @@ public class TokenService {
     private String base64UrlEncode(byte[] value) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(value);
     }
+
+    public long getExpirationSeconds() {
+    return tokenProperties.getExpirationSeconds();
+    }
+
 }

@@ -105,4 +105,9 @@ public class StudentRegistrationService {
         }
         return value.trim();
     }
+
+    public boolean validateStudent(String studentId) {
+    String validatedStudentId = requireText(studentId, "studentId is required.");
+    return userRepository.findByStudentId(validatedStudentId).isPresent();
+    }
 }
