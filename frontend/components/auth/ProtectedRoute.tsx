@@ -1,42 +1,26 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { isAuthenticated } from "@/lib/auth";
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
-  allowedRoles?: string[];
+  readonly children: React.ReactNode;
 }
 
-export default function ProtectedRoute({
-  children,
-  allowedRoles,
-}: ProtectedRouteProps) {
-  const { data: session, status } = useSession();
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    // We are waiting for the session to load.
-    if (status === "loading") return;
-
-    // If you are not logged in, redirect to login
-    if (status === "unauthenticated") {
+    if (isAuthenticated()) {
+      setChecked(true);
+    } else {
       router.push("/auth/login");
-      return;
     }
+  }, [router]);
 
-    // Role control — Check if allowedRoles has been granted
-    if (allowedRoles && session?.user) {
-      const userRole = (session.user as { role?: string }).role;
-      if (!userRole || !allowedRoles.includes(userRole)) {
-        router.push("/unauthorized");
-      }
-    }
-  }, [status, session, router, allowedRoles]);
-
-  // Show spinner while loading
-  if (status === "loading") {
+  if (!checked) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -66,9 +50,6 @@ export default function ProtectedRoute({
       </div>
     );
   }
-
-  // Show nothing if logged in or unauthorized
-  if (status === "unauthenticated") return null;
 
   return <>{children}</>;
 }
