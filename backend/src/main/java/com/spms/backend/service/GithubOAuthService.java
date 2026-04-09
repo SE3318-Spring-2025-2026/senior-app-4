@@ -7,6 +7,7 @@ import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.model.User;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import com.spms.backend.config.GithubProperties;
 
 @Service
 public class GithubOAuthService {
@@ -14,15 +15,18 @@ public class GithubOAuthService {
     private final GithubApiClient githubApiClient;
     private final StudentRegistrationService studentRegistrationService;
     private final TokenService tokenService;
+    private final GithubProperties githubProperties;
 
     public GithubOAuthService(
             GithubApiClient githubApiClient,
             StudentRegistrationService studentRegistrationService,
-            TokenService tokenService
+            TokenService tokenService,
+            GithubProperties githubProperties
     ) {
         this.githubApiClient = githubApiClient;
         this.studentRegistrationService = studentRegistrationService;
         this.tokenService = tokenService;
+        this.githubProperties = githubProperties;
     }
 
     public GithubCallbackResponse handleCallback(String code, String state) {
@@ -52,4 +56,27 @@ public class GithubOAuthService {
         }
         return value.trim();
     }
+
+    public String generateGithubAuthorizationUrl(String studentId) {
+    String validatedStudentId = requireText(studentId, "studentId is required.");
+
+    // student var mı kontrol
+    boolean exists = studentRegistrationService.validateStudent(validatedStudentId);
+    if (!exists) {
+        throw new BadRequestException("Student ID not found.");
+    }
+
+    String clientId = githubProperties.getClientId();
+    String redirectUri = githubProperties.getRedirectUri();
+
+    String scope = "read:user";
+    String state = validatedStudentId;
+
+    return "https://github.com/login/oauth/authorize"
+            + "?client_id=" + clientId
+            + "&redirect_uri=" + redirectUri
+            + "&scope=" + scope
+            + "&state=" + state;
+    }
+
 }
