@@ -17,7 +17,7 @@
 | MAIN PROCESS & SUB-PROCESS STEPS | SYSTEM COMPONENT | DATA REQUIRED | API NEEDED |
 | :--- | :--- | :--- | :--- |
 | **1. Authentication & Registration** | | | |
-| Validate student against uploaded IDs  | Backend + DB | Student ID | `GET /api/students/validate` |
+| Validate student against uploaded IDs  | Backend + DB | Student ID | `POST /api/students/validate` |
 | Execute GitHub OAuth login  | Frontend + NextAuth.js | User Credentials | **External: GitHub OAuth API** |
 | Fetch and register GitHub username  | Backend + DB | Auth Token, GitHub Username | `POST /api/users/profile` |
 | **2. Group Management & Integration Setup** | | | |
