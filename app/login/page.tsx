@@ -12,14 +12,14 @@ export default function StudentLoginPage() {
     e.preventDefault();
     setError("");
 
-    // 11 haneli numeric kontrolü
+    // 11-digit numeric check
     if (!/^\d{11}$/.test(studentId)) {
-      setError("Lütfen 11 haneli geçerli bir öğrenci numarası giriniz.");
+      setError("Please enter a valid 11-digit student ID.");
       return;
     }
 
     try {
-      // API Entegrasyonu (YAML: POST /students/validate)
+      // API Integration (YAML: POST /students/validate)
       const response = await fetch("/api/v1/students/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -29,41 +29,41 @@ export default function StudentLoginPage() {
       const data = await response.json();
 
       if (response.ok && data.valid) {
-        setIsValidated(true); // Başarılıysa GitHub butonunu göster
+        setIsValidated(true); // Show GitHub button if successful
       } else {
-        setError(data.message || "Öğrenci numarası sistemde bulunamadı.");
+        setError(data.message || "Student ID not found in the system.");
       }
     } catch (err) {
-      setError("Bağlantı hatası oluştu.");
+      setError("Connection error occurred. Please try again.");
     }
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white text-black">
       <div className="border p-10 rounded-lg shadow-sm w-full max-w-sm">
-        <h1 className="text-xl font-bold mb-6 text-center">Öğrenci Doğrulama</h1>
+        <h1 className="text-xl font-bold mb-6 text-center">Student Validation</h1>
         {!isValidated ? (
           <form onSubmit={handleValidate} className="space-y-4">
             <input
               type="text"
-              placeholder="Öğrenci No"
-              className="w-full p-3 border rounded border-gray-300"
+              placeholder="Student ID"
+              className="w-full p-3 border rounded border-gray-300 outline-none focus:ring-2 focus:ring-blue-500"
               value={studentId}
               onChange={(e) => setStudentId(e.target.value)}
             />
-            {error && <p className="text-red-500 text-xs">{error}</p>}
-            <button type="submit" className="w-full bg-blue-600 text-white p-3 rounded font-medium">
-              Devam Et
+            {error && <p className="text-red-500 text-xs font-medium">{error}</p>}
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded font-medium transition-colors">
+              Validate
             </button>
           </form>
         ) : (
           <div className="space-y-4">
-            <p className="text-green-600 text-sm text-center font-medium">✓ Numara Onaylandı</p>
+            <p className="text-green-600 text-sm text-center font-medium">✓ ID Validated</p>
             <button 
               onClick={() => signIn("github")}
-              className="w-full bg-black text-white p-3 rounded font-medium"
+              className="w-full bg-black hover:bg-gray-800 text-white p-3 rounded font-medium transition-colors flex items-center justify-center gap-2"
             >
-              GitHub ile Giriş Yap
+              Sign in with GitHub
             </button>
           </div>
         )}
