@@ -3,17 +3,17 @@ spring:
     name: spms-backend
 
 server:
-  port: 8080
+  port: 8081
 
 github:
-  client-id: ${GITHUB_CLIENT_ID:placeholder-client-id}
-  client-secret: ${GITHUB_CLIENT_SECRET:placeholder-client-secret}
-  redirect-uri: ${GITHUB_REDIRECT_URI:http://localhost:8080/api/v1/auth/github/callback}
+  client-id: YOUR_REAL_GITHUB_CLIENT_ID
+  client-secret: YOUR_REAL_GITHUB_CLIENT_SECRET
+  redirect-uri: http://localhost:8081/api/v1/auth/github/callback
 
 token:
-  secret: ${TOKEN_SECRET:spms-issue-7-dev-secret}
-  expiration-seconds: ${TOKEN_EXPIRATION_SECONDS:3600}
+  secret: spms-issue-7-dev-secret
+  expiration-seconds: 3600
 
 supabase:
-  url: ${SUPABASE_URL:placeholder-supabase-url}
-  service-key: ${SUPABASE_SERVICE_KEY:placeholder-supabase-service-key}
+  url: placeholder-supabase-url
+  service-key: placeholder-supabase-service-key

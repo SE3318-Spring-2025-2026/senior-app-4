@@ -8,6 +8,7 @@ import com.spms.backend.exception.GithubAuthenticationException;
 import com.spms.backend.exception.GlobalExceptionHandler;
 import com.spms.backend.repository.SupabaseUserRepository;
 import com.spms.backend.service.GithubOAuthService;
+import com.spms.backend.service.PasswordService;
 import com.spms.backend.service.StudentRegistrationService;
 import com.spms.backend.service.TokenService;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +41,12 @@ class AuthControllerTest {
         GithubOAuthService githubOAuthService =
                 new GithubOAuthService(githubApiClient, studentRegistrationService, tokenService);
 
-        mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(githubOAuthService))
+        PasswordService passwordService =
+                new PasswordService(new SupabaseUserRepository());
+
+        mockMvc = MockMvcBuilders.standaloneSetup(
+                        new AuthController(githubOAuthService, passwordService)
+                )
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
