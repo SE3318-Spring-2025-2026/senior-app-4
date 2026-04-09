@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -24,9 +25,25 @@ public class SupabaseUserRepository implements UserRepository {
      * and credentials are finalized by the team.
      */
     private final Map<Long, User> usersById = new ConcurrentHashMap<>();
+    private final Map<String, Long> emailIndex = new ConcurrentHashMap<>();
     private final Map<String, Long> studentIdIndex = new ConcurrentHashMap<>();
     private final Map<String, Long> githubUsernameIndex = new ConcurrentHashMap<>();
     private final AtomicLong idSequence = new AtomicLong(1L);
+
+    @Override
+    public Optional<User> findByEmail(String email) {
+        String normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail == null) {
+            return Optional.empty();
+        }
+
+        Long userId = emailIndex.get(normalizedEmail);
+        if (userId == null) {
+            return Optional.empty();
+        }
+
+        return Optional.ofNullable(usersById.get(userId)).map(User::new);
+    }
 
     @Override
     public Optional<User> findByStudentId(String studentId) {
@@ -80,8 +97,9 @@ public Optional<User> findByUserId(Long userId) {
         } else {
             User existingUser = usersById.get(userToStore.getUserId());
             if (existingUser != null) {
-                removeIndex(studentIdIndex, existingUser.getStudentId());
-                removeIndex(githubUsernameIndex, existingUser.getGithubUsername());
+                removeEmailIndex(existingUser.getEmail());
+                removeStudentIdIndex(existingUser.getStudentId());
+                removeGithubUsernameIndex(existingUser.getGithubUsername());
                 if (userToStore.getCreatedAt() == null) {
                     userToStore.setCreatedAt(existingUser.getCreatedAt());
                 }
@@ -91,29 +109,59 @@ public Optional<User> findByUserId(Long userId) {
         }
 
         usersById.put(userToStore.getUserId(), new User(userToStore));
-        putIndex(studentIdIndex, userToStore.getStudentId(), userToStore.getUserId());
-        putIndex(githubUsernameIndex, userToStore.getGithubUsername(), userToStore.getUserId());
+        putEmailIndex(userToStore.getEmail(), userToStore.getUserId());
+        putStudentIdIndex(userToStore.getStudentId(), userToStore.getUserId());
+        putGithubUsernameIndex(userToStore.getGithubUsername(), userToStore.getUserId());
         return new User(userToStore);
     }
 
-    private void putIndex(Map<String, Long> index, String rawValue, Long userId) {
-        String normalizedValue = index == githubUsernameIndex
-                ? normalizeGithubUsername(rawValue)
-                : normalizeStudentId(rawValue);
-
+    private void putEmailIndex(String rawValue, Long userId) {
+        String normalizedValue = normalizeEmail(rawValue);
         if (normalizedValue != null) {
-            index.put(normalizedValue, userId);
+            emailIndex.put(normalizedValue, userId);
         }
     }
 
-    private void removeIndex(Map<String, Long> index, String rawValue) {
-        String normalizedValue = index == githubUsernameIndex
-                ? normalizeGithubUsername(rawValue)
-                : normalizeStudentId(rawValue);
-
+    private void putStudentIdIndex(String rawValue, Long userId) {
+        String normalizedValue = normalizeStudentId(rawValue);
         if (normalizedValue != null) {
-            index.remove(normalizedValue);
+            studentIdIndex.put(normalizedValue, userId);
         }
+    }
+
+    private void putGithubUsernameIndex(String rawValue, Long userId) {
+        String normalizedValue = normalizeGithubUsername(rawValue);
+        if (normalizedValue != null) {
+            githubUsernameIndex.put(normalizedValue, userId);
+        }
+    }
+
+    private void removeEmailIndex(String rawValue) {
+        String normalizedValue = normalizeEmail(rawValue);
+        if (normalizedValue != null) {
+            emailIndex.remove(normalizedValue);
+        }
+    }
+
+    private void removeStudentIdIndex(String rawValue) {
+        String normalizedValue = normalizeStudentId(rawValue);
+        if (normalizedValue != null) {
+            studentIdIndex.remove(normalizedValue);
+        }
+    }
+
+    private void removeGithubUsernameIndex(String rawValue) {
+        String normalizedValue = normalizeGithubUsername(rawValue);
+        if (normalizedValue != null) {
+            githubUsernameIndex.remove(normalizedValue);
+        }
+    }
+
+    private String normalizeEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            return null;
+        }
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     private String normalizeStudentId(String studentId) {
@@ -127,6 +175,6 @@ public Optional<User> findByUserId(Long userId) {
         if (!StringUtils.hasText(githubUsername)) {
             return null;
         }
-        return githubUsername.trim().toLowerCase();
+        return githubUsername.trim().toLowerCase(Locale.ROOT);
     }
 }
