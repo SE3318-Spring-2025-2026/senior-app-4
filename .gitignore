@@ -1,3 +1,16 @@
 backend/target/
 .DS_Store
-notlar.txt
+
+# Environment files
+.env
+.env.local
+.env.production
+backend/application.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+Thumbs.db

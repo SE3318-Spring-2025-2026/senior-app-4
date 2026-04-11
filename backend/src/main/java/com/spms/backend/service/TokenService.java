@@ -39,11 +39,12 @@ public class TokenService {
         header.put("typ", "JWT");
 
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("sub", user.getStudentId());
+        payload.put("sub", user.getUserId() != null ? user.getUserId().toString() : "");
         payload.put("userId", user.getUserId());
         payload.put("studentId", user.getStudentId());
         payload.put("githubUsername", user.getGithubUsername());
         payload.put("role", user.getRole());
+        payload.put("requiresPasswordChange", user.isRequiresPasswordChange());
         payload.put("iat", issuedAt.getEpochSecond());
         payload.put("exp", expiresAt.getEpochSecond());
 

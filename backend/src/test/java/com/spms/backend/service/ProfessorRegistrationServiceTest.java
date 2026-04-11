@@ -5,7 +5,8 @@ import com.spms.backend.dto.response.ProfessorRegisterResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.DuplicateUserException;
 import com.spms.backend.model.User;
-import com.spms.backend.repository.SupabaseUserRepository;
+import com.spms.backend.repository.InMemoryUserRepository;
+import com.spms.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -17,13 +18,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ProfessorRegistrationServiceTest {
 
-    private SupabaseUserRepository userRepository;
+    private UserRepository userRepository;
     private ProfessorRegistrationService professorRegistrationService;
+    private PasswordHashingService passwordHashingService;
 
     @BeforeEach
     void setUp() {
-        userRepository = new SupabaseUserRepository();
-        professorRegistrationService = new ProfessorRegistrationService(userRepository);
+        userRepository = new InMemoryUserRepository();
+        passwordHashingService = new PasswordHashingService();
+        professorRegistrationService = new ProfessorRegistrationService(
+                userRepository, passwordHashingService);
     }
 
     @Test
@@ -43,7 +47,7 @@ class ProfessorRegistrationServiceTest {
         assertEquals("coordinator", response.role());
         assertNotNull(savedUser.getPasswordHash());
         assertNotEquals("SecurePass123!", savedUser.getPasswordHash());
-        assertTrue(professorRegistrationService.matchesPassword("SecurePass123!", savedUser.getPasswordHash()));
+        assertTrue(passwordHashingService.matchesPassword("SecurePass123!", savedUser.getPasswordHash()));
     }
 
     @Test

@@ -3,7 +3,8 @@ package com.spms.backend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.dto.request.StudentUserCreateRequest;
 import com.spms.backend.exception.GlobalExceptionHandler;
-import com.spms.backend.repository.SupabaseUserRepository;
+import com.spms.backend.repository.InMemoryUserRepository;
+import com.spms.backend.repository.InMemoryValidStudentIdRepository;
 import com.spms.backend.service.StudentRegistrationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,8 +28,12 @@ class UserControllerTest {
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
 
+        InMemoryUserRepository userRepository = new InMemoryUserRepository();
         UserController userController = new UserController(
-                new StudentRegistrationService(new SupabaseUserRepository())
+                new StudentRegistrationService(
+                        userRepository,
+                        new InMemoryValidStudentIdRepository()),
+                userRepository
         );
 
         mockMvc = MockMvcBuilders.standaloneSetup(userController)

@@ -3,7 +3,8 @@ package com.spms.backend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.dto.request.ProfessorRegisterRequest;
 import com.spms.backend.exception.GlobalExceptionHandler;
-import com.spms.backend.repository.SupabaseUserRepository;
+import com.spms.backend.repository.InMemoryUserRepository;
+import com.spms.backend.service.PasswordHashingService;
 import com.spms.backend.service.ProfessorRegistrationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,7 @@ class ProfessorControllerTest {
         validator.afterPropertiesSet();
 
         ProfessorController professorController = new ProfessorController(
-                new ProfessorRegistrationService(new SupabaseUserRepository())
+                new ProfessorRegistrationService(new InMemoryUserRepository(), new PasswordHashingService())
         );
 
         mockMvc = MockMvcBuilders.standaloneSetup(professorController)
