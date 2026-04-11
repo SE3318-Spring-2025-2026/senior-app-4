@@ -1,17 +1,39 @@
 package com.spms.backend.model;
 
+import jakarta.persistence.*;
 import java.time.Instant;
 
+@Entity
+@Table(name = "users")
 public class User {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
     private Long userId;
+
+    @Column(name = "full_name")
     private String fullName;
+
+    @Column(name = "email", unique = true)
     private String email;
+
+    @Column(name = "password_hash")
     private String passwordHash;
+
+    @Column(name = "student_id", unique = true)
     private String studentId;
+
+    @Column(name = "github_username", unique = true)
     private String githubUsername;
+
+    @Column(name = "role")
     private String role;
+
+    @Column(name = "created_at")
     private Instant createdAt;
+
+    @Column(name = "requires_password_change")
     private boolean requiresPasswordChange;
 
     public User() {
@@ -92,7 +114,7 @@ public class User {
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
-  
+
     public boolean isRequiresPasswordChange() {
         return requiresPasswordChange;
     }

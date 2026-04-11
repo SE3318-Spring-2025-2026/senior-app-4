@@ -1,23 +1,24 @@
 package com.spms.backend.repository;
 
-import java.util.List;
-import java.util.Map;
+import com.spms.backend.model.ValidStudentId;
+import org.springframework.data.jpa.repository.JpaRepository;
 
-/**
- * D2 Data Store — Geçerli Öğrenci ID'leri deposu.
- *
- * Koordinatör tarafından CSV ile yüklenen öğrenci ID'lerini saklar.
- * Student validation işlemi bu repository üzerinden yapılır.
- */
-public interface ValidStudentIdRepository {
+import java.util.Optional;
+
+public interface ValidStudentIdRepository extends JpaRepository<ValidStudentId, Long> {
 
     boolean existsByStudentId(String studentId);
 
-    void save(String studentId);
+    Optional<ValidStudentId> findByStudentId(String studentId);
 
-    Map<String, String> findByStudentId(String studentId);
+    default void saveStudentId(String studentId) {
+        save(new ValidStudentId(studentId));
+    }
 
-    List<Map<String, String>> findAll();
-
-    boolean deleteByStudentId(String studentId);
+    default boolean deleteByStudentId(String studentId) {
+        Optional<ValidStudentId> entity = findByStudentId(studentId);
+        if (entity.isEmpty()) return false;
+        delete(entity.get());
+        return true;
+    }
 }
