@@ -12,7 +12,6 @@ public class User {
     private String githubUsername;
     private String role;
     private Instant createdAt;
-    private String passwordHash;
     private boolean requiresPasswordChange;
 
     public User() {
@@ -53,14 +52,6 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
     }
 
     public String getStudentId() {
