@@ -1,11 +1,12 @@
 package com.spms.backend.repository;
 
 import com.spms.backend.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
 
-public interface UserRepository {
+public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByUserId(Long userId);
 
@@ -15,11 +16,11 @@ public interface UserRepository {
 
     Optional<User> findByGithubUsername(String githubUsername);
 
-    List<User> findAll();
-
     List<User> findAllByRole(String role);
 
-    User save(User user);
-
-    boolean deleteByUserId(Long userId);
+    default boolean deleteByUserId(Long userId) {
+        if (userId == null || findByUserId(userId).isEmpty()) return false;
+        deleteById(userId);
+        return true;
+    }
 }

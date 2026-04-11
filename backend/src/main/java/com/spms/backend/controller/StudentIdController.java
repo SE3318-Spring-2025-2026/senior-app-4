@@ -6,6 +6,7 @@ import com.spms.backend.dto.response.StudentIdListResponse;
 import com.spms.backend.dto.response.StudentIdResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.DuplicateUserException;
+import com.spms.backend.model.ValidStudentId;
 import com.spms.backend.repository.ValidStudentIdRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -14,12 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-/**
- * D2 Data Store — Geçerli Öğrenci ID'leri CRUD endpoint'leri.
- *
- * Spec: /api/v1/student-ids
- */
 @RestController
 @RequestMapping("/api/v1/student-ids")
 public class StudentIdController {
@@ -33,7 +30,9 @@ public class StudentIdController {
     // ── GET /api/v1/student-ids ──
     @GetMapping
     public ResponseEntity<StudentIdListResponse> getAllStudentIds() {
-        List<Map<String, String>> data = validStudentIdRepository.findAll();
+        List<Map<String, String>> data = validStudentIdRepository.findAll().stream()
+                .map(e -> Map.of("studentId", e.getStudentId(), "status", e.getStatus()))
+                .collect(Collectors.toList());
         return ResponseEntity.ok(new StudentIdListResponse(
                 "Student IDs retrieved successfully.", data.size(), data
         ));
@@ -47,7 +46,7 @@ public class StudentIdController {
         if (validStudentIdRepository.existsByStudentId(request.studentId())) {
             throw new DuplicateUserException("Student ID already exists.");
         }
-        validStudentIdRepository.save(request.studentId());
+        validStudentIdRepository.saveStudentId(request.studentId());
         Map<String, String> data = Map.of(
                 "studentId", request.studentId(),
                 "status", "valid"
@@ -60,10 +59,12 @@ public class StudentIdController {
     // ── GET /api/v1/student-ids/{studentId} ──
     @GetMapping("/{studentId}")
     public ResponseEntity<StudentIdResponse> getStudentId(@PathVariable String studentId) {
-        Map<String, String> data = validStudentIdRepository.findByStudentId(studentId);
-        if (data == null) {
-            throw new BadRequestException("Student ID not found.");
-        }
+        ValidStudentId entity = validStudentIdRepository.findByStudentId(studentId)
+                .orElseThrow(() -> new BadRequestException("Student ID not found."));
+        Map<String, String> data = Map.of(
+                "studentId", entity.getStudentId(),
+                "status", entity.getStatus()
+        );
         return ResponseEntity.ok(new StudentIdResponse(
                 "Student ID retrieved successfully.", data
         ));

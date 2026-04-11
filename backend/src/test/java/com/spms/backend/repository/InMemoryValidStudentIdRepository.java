@@ -1,13 +1,16 @@
 package com.spms.backend.repository;
 
-import java.util.*;
+import com.spms.backend.model.ValidStudentId;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * TEST İÇİN — valid_student_ids tablosunun in-memory implementasyonu.
  */
-public class InMemoryValidStudentIdRepository implements ValidStudentIdRepository {
+public class InMemoryValidStudentIdRepository extends AbstractStubJpaRepository<ValidStudentId, Long> implements ValidStudentIdRepository {
 
     private final Set<String> validIds = ConcurrentHashMap.newKeySet();
 
@@ -18,25 +21,25 @@ public class InMemoryValidStudentIdRepository implements ValidStudentIdRepositor
     }
 
     @Override
-    public void save(String studentId) {
-        if (studentId != null) {
-            validIds.add(studentId.trim());
-        }
+    public Optional<ValidStudentId> findByStudentId(String studentId) {
+        if (studentId == null || !validIds.contains(studentId.trim())) return Optional.empty();
+        ValidStudentId entity = new ValidStudentId(studentId.trim());
+        return Optional.of(entity);
     }
 
     @Override
-    public Map<String, String> findByStudentId(String studentId) {
-        if (studentId == null || !validIds.contains(studentId.trim())) {
-            return null;
+    public ValidStudentId save(ValidStudentId entity) {
+        if (entity != null && entity.getStudentId() != null) {
+            validIds.add(entity.getStudentId().trim());
         }
-        return Map.of("studentId", studentId.trim(), "status", "valid");
+        return entity;
     }
 
     @Override
-    public List<Map<String, String>> findAll() {
+    public List<ValidStudentId> findAll() {
         return validIds.stream()
-                .map(id -> Map.of("studentId", id, "status", "valid"))
-                .collect(Collectors.toList());
+                .map(ValidStudentId::new)
+                .toList();
     }
 
     @Override
@@ -45,8 +48,23 @@ public class InMemoryValidStudentIdRepository implements ValidStudentIdRepositor
         return validIds.remove(studentId.trim());
     }
 
+    @Override
+    public Optional<ValidStudentId> findById(Long id) { return Optional.empty(); }
+
+    @Override
+    public void deleteById(Long id) { /* not used in tests */ }
+
+    @Override
+    public void delete(ValidStudentId entity) { if (entity != null) validIds.remove(entity.getStudentId()); }
+
+    @Override
+    public void deleteAll() { validIds.clear(); }
+
+    @Override
+    public long count() { return validIds.size(); }
+
     /** Test kolaylığı */
     public void addId(String studentId) {
-        save(studentId);
+        validIds.add(studentId);
     }
 }

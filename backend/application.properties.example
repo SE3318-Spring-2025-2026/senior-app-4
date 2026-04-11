@@ -5,3 +5,8 @@
 github.client-id=your-github-client-id
 github.client-secret=your-github-client-secret
 github.redirect-uri=http://localhost:3000/auth/callback
+
+# Supabase PostgreSQL direct connection
+# Find this in: Supabase Dashboard → Project Settings → Database → Connection string
+# Copy the URI format and prefix it with "jdbc:"
+db.url=jdbc:postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres

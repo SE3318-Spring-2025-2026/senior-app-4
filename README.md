@@ -30,66 +30,61 @@ npm install
 npm run dev
 ```
 
-## Backend OAuth Setup
+## Backend Setup
 
-For backend local development, copy the example file:
+The backend connects directly to Supabase PostgreSQL via JDBC. There is no Supabase REST API or service key involved.
+
+Copy the example file:
 
 ```bash
 cd backend
 cp application.properties.example application.properties
 ```
 
-Then open `backend/application.properties` and fill these values:
+Then open `backend/application.properties` and fill all values:
 
 ```properties
 github.client-id=your-shared-team-client-id
 github.client-secret=your-shared-team-client-secret
 github.redirect-uri=http://localhost:3000/auth/callback
+
+db.url=jdbc:postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
 ```
+
+You can find the connection string in:
+**Supabase Dashboard → Project Settings → Database → Connection string → URI**
+
+Copy the URI value and prefix it with `jdbc:` before pasting into `db.url`.
 
 Important notes:
 
 - `backend/application.properties` is local-only and gitignored.
 - Spring Boot auto-loads `application.properties` when you run the backend from the `backend/` directory.
-- Share real GitHub OAuth credentials privately with teammates. Do not commit them to GitHub.
+- Share real credentials privately with teammates. Do not commit them to GitHub.
 - The GitHub OAuth App must use `http://localhost:3000/auth/callback` as its callback URL.
-- This replaces the old `source .env.example` workflow.
-- For the current setup, do not add placeholder `SUPABASE_URL` or `SUPABASE_SERVICE_KEY` values into `backend/application.properties`.
 
-Start the backend from the terminal like this:
+Start the backend:
 
 ```bash
 cd backend
 mvn spring-boot:run
 ```
 
-### Why This Works
+## API Documentation (Swagger)
 
-Spring Boot automatically reads `application.properties` from the current working directory as part of its normal external configuration system.
+Once the backend is running, you can access:
 
-That means:
-
-- `backend/application.properties` is picked up automatically
-- no manual `export` step is needed
-- no `set -a`, `source`, or shell-specific setup is needed anymore
-
-The old `.env.example` approach required manual shell loading because Spring Boot does not auto-read `.env.example`.
-
-## Supabase Note
-
-For the current project state, teammates do not need to manually set `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` as long as the existing backend fallback configuration in `application.yml` remains unchanged.
-
-If those fallback values are removed later, teammates will also need the private Supabase values before the backend can work correctly.
-
-If you decide to add `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` into your local backend config later, they must be real values. Placeholder values will break student validation and GitHub login.
+- **Swagger UI** → http://localhost:8080/swagger-ui.html
+- **OpenAPI JSON** → http://localhost:8080/v3/api-docs
 
 ## Running The Full Project
 
-1. Start the frontend with `npm run dev` inside `frontend/`.
+1. Create `frontend/.env.local` with the API URL.
 2. Copy `backend/application.properties.example` to `backend/application.properties`.
-3. Fill the three GitHub values in `backend/application.properties`.
+3. Fill all five values in `backend/application.properties` (3 GitHub + 2 database).
 4. Start the backend with `mvn spring-boot:run` inside `backend/`.
-5. Open `http://localhost:3000/auth/login`.
+5. Start the frontend with `npm run dev` inside `frontend/`.
+6. Open `http://localhost:3000/auth/login`.
 
 ## Student OAuth Test Flow
 
@@ -120,10 +115,8 @@ An old backend process is still running or the backend was started with old conf
 
 Most likely causes:
 
-- backend was started with broken or placeholder Supabase runtime values
-- the local `backend/application.properties` file contains extra invalid values
-
-For the current setup, keep only the three GitHub properties in `backend/application.properties` unless you also have real Supabase values.
+- `db.url`, `db.username`, or `db.password` is missing or incorrect in `backend/application.properties`
+- The database tables (`users`, `valid_student_ids`) do not exist in the Supabase project
 
 ### Backend does not start on `8080`
 
@@ -131,6 +124,6 @@ Another process may already be using the port. Stop the old backend process and 
 
 ## Security Note
 
-Before pushing this repository, make sure no real GitHub OAuth secrets remain inside tracked files.
+Before pushing this repository, make sure no real credentials remain inside tracked files.
 
-`backend/application.properties` is intended to stay local and gitignored. If a real secret was ever written into a tracked file, rotate it in GitHub and replace the committed value with a placeholder.
+`backend/application.properties` is intended to stay local and gitignored. If a real secret was ever written into a tracked file, rotate it and replace the committed value with a placeholder.

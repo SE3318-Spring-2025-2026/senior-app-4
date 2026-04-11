@@ -85,7 +85,7 @@ public class StudentController {
         // Geçerli ID'leri veritabanına kaydet
         for (String studentId : validLines) {
             if (!validStudentIdRepository.existsByStudentId(studentId)) {
-                validStudentIdRepository.save(studentId);
+                validStudentIdRepository.saveStudentId(studentId);
             }
         }
 

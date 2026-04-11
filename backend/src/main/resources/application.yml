@@ -1,6 +1,16 @@
 spring:
   application:
     name: spms-backend
+  datasource:
+    url: ${DB_URL}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: public
 
 server:
   port: 8080
@@ -13,8 +23,3 @@ github:
 token:
   secret: ${TOKEN_SECRET:spms-issue-7-dev-secret}
   expiration-seconds: ${TOKEN_EXPIRATION_SECONDS:3600}
-
-supabase:
-  url: ${SUPABASE_URL:https://bgiaklbblfrjaobyumky.supabase.co}
-  service-key: ${SUPABASE_SERVICE_KEY:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJnaWFrbGJibGZyamFvYnl1bWt5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTc3NzAzNCwiZXhwIjoyMDkxMzUzMDM0fQ.5azo_AxzkvgHFCaBYKwKXnPT8cuc7qQR28AdpgLH2UM}
-
