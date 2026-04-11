@@ -4,16 +4,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.client.GithubApiClient;
 import com.spms.backend.config.GithubProperties;
 import com.spms.backend.config.TokenProperties;
+import com.spms.backend.dto.external.GithubUserResponse;
 import com.spms.backend.dto.response.GithubCallbackResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.GithubAuthenticationException;
-import com.spms.backend.repository.SupabaseUserRepository;
+import com.spms.backend.repository.InMemoryValidStudentIdRepository;
+import com.spms.backend.repository.InMemoryUserRepository;
+import com.spms.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class GithubOAuthServiceTest {
@@ -25,15 +29,22 @@ class GithubOAuthServiceTest {
     void setUp() {
         githubApiClient = new StubGithubApiClient();
 
+        UserRepository userRepository = new InMemoryUserRepository();
+        InMemoryValidStudentIdRepository validStudentIdRepo = new InMemoryValidStudentIdRepository();
+        validStudentIdRepo.addId("11070001000");
         StudentRegistrationService studentRegistrationService =
-                new StudentRegistrationService(new SupabaseUserRepository());
+                new StudentRegistrationService(userRepository, validStudentIdRepo);
 
         TokenProperties tokenProperties = new TokenProperties();
         tokenProperties.setSecret("test-token-secret");
         tokenProperties.setExpirationSeconds(3600);
 
         TokenService tokenService = new TokenService(tokenProperties, new ObjectMapper());
-        githubOAuthService = new GithubOAuthService(githubApiClient, studentRegistrationService, tokenService);
+        GithubProperties githubProperties = new GithubProperties();
+        githubProperties.setClientId("test-client-id");
+        githubProperties.setClientSecret("test-client-secret");
+        githubProperties.setRedirectUri("http://localhost:3000/auth/callback");
+        githubOAuthService = new GithubOAuthService(githubApiClient, studentRegistrationService, tokenService, githubProperties, userRepository);
     }
 
     @Test
@@ -76,6 +87,17 @@ class GithubOAuthServiceTest {
         assertNotNull(response.token());
     }
 
+    @Test
+    void generateGithubAuthorizationUrlUsesFrontendCallback() {
+        String authorizationUrl = githubOAuthService.generateGithubAuthorizationUrl("11070001000");
+
+        assertTrue(authorizationUrl.startsWith("https://github.com/login/oauth/authorize"));
+        assertTrue(authorizationUrl.contains("client_id=test-client-id"));
+        assertTrue(authorizationUrl.contains("redirect_uri=http://localhost:3000/auth/callback"));
+        assertTrue(authorizationUrl.contains("scope=read:user"));
+        assertTrue(authorizationUrl.contains("state=11070001000"));
+    }
+
     private static final class StubGithubApiClient extends GithubApiClient {
 
         private RuntimeException tokenException;
@@ -94,11 +116,11 @@ class GithubOAuthServiceTest {
         }
 
         @Override
-        public String fetchGithubUsername(String accessToken) {
+        public GithubUserResponse fetchGithubUser(String accessToken) {
             if (userException != null) {
                 throw userException;
             }
-            return "furkangncr";
+            return new GithubUserResponse("furkangncr", "Furkan Guncur");
         }
     }
 }

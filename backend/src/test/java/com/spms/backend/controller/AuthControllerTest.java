@@ -4,10 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.client.GithubApiClient;
 import com.spms.backend.config.GithubProperties;
 import com.spms.backend.config.TokenProperties;
+import com.spms.backend.dto.external.GithubUserResponse;
 import com.spms.backend.exception.GithubAuthenticationException;
 import com.spms.backend.exception.GlobalExceptionHandler;
-import com.spms.backend.repository.SupabaseUserRepository;
+import com.spms.backend.repository.InMemoryUserRepository;
+import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.GithubOAuthService;
+import com.spms.backend.service.JwtValidationService;
+import com.spms.backend.service.PasswordHashingService;
+import com.spms.backend.service.PasswordService;
 import com.spms.backend.service.StudentRegistrationService;
 import com.spms.backend.service.TokenService;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,18 +34,30 @@ class AuthControllerTest {
     void setUp() {
         githubApiClient = new StubGithubApiClient();
 
+        UserRepository userRepository = new InMemoryUserRepository();
+        com.spms.backend.repository.InMemoryValidStudentIdRepository validStudentIdRepo =
+                new com.spms.backend.repository.InMemoryValidStudentIdRepository();
         StudentRegistrationService studentRegistrationService =
-                new StudentRegistrationService(new SupabaseUserRepository());
+                new StudentRegistrationService(userRepository, validStudentIdRepo);
 
         TokenProperties tokenProperties = new TokenProperties();
         tokenProperties.setSecret("test-token-secret");
         tokenProperties.setExpirationSeconds(3600);
 
-        TokenService tokenService = new TokenService(tokenProperties, new ObjectMapper());
-        GithubOAuthService githubOAuthService =
-                new GithubOAuthService(githubApiClient, studentRegistrationService, tokenService);
+        ObjectMapper objectMapper = new ObjectMapper();
+        TokenService tokenService = new TokenService(tokenProperties, objectMapper);
+        JwtValidationService jwtValidationService = new JwtValidationService(tokenProperties, objectMapper);
 
-        mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(githubOAuthService))
+        GithubProperties githubProperties = new GithubProperties();
+        GithubOAuthService githubOAuthService =
+                new GithubOAuthService(githubApiClient, studentRegistrationService, tokenService, githubProperties, userRepository);
+
+        PasswordHashingService passwordHashingService = new PasswordHashingService();
+        PasswordService passwordService = new PasswordService(userRepository, passwordHashingService);
+
+        mockMvc = MockMvcBuilders.standaloneSetup(
+                        new AuthController(githubOAuthService, passwordService, userRepository,
+                                passwordHashingService, tokenService, jwtValidationService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -90,7 +107,6 @@ class AuthControllerTest {
     private static final class StubGithubApiClient extends GithubApiClient {
 
         private RuntimeException tokenException;
-        private RuntimeException userException;
 
         private StubGithubApiClient() {
             super(RestClient.builder(), new GithubProperties());
@@ -105,11 +121,8 @@ class AuthControllerTest {
         }
 
         @Override
-        public String fetchGithubUsername(String accessToken) {
-            if (userException != null) {
-                throw userException;
-            }
-            return "furkangncr";
+        public GithubUserResponse fetchGithubUser(String accessToken) {
+            return new GithubUserResponse("furkangncr", "Furkan Güncür");
         }
     }
 }

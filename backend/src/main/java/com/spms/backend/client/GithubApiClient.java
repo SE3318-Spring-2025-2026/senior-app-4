@@ -54,7 +54,7 @@ public class GithubApiClient {
         }
     }
 
-    public String fetchGithubUsername(String accessToken) {
+    public GithubUserResponse fetchGithubUser(String accessToken) {
         try {
             GithubUserResponse response = restClient.get()
                     .uri(GITHUB_USER_URL)
@@ -67,9 +67,13 @@ public class GithubApiClient {
                 throw new GithubAuthenticationException("GitHub authentication failed.");
             }
 
-            return response.login().trim();
+            return response;
         } catch (RestClientException exception) {
             throw new GithubAuthenticationException("GitHub authentication failed.", exception);
         }
+    }
+
+    public String fetchGithubUsername(String accessToken) {
+        return fetchGithubUser(accessToken).login().trim();
     }
 }

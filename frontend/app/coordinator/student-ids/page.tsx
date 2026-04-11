@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { getToken, getUser } from "@/lib/auth";
 
 interface UploadResponse {
   message: string;
@@ -12,13 +14,33 @@ interface UploadResponse {
 
 type UploadStatus = "idle" | "dragging" | "uploading" | "success" | "error";
 
-function useRole() {
-  return "coordinator";
-}
-
 export default function StudentIdUploadPage() {
-  const role = useRole();
-  if (role !== "coordinator" && role !== "admin") return <AccessDenied />;
+  const router = useRouter();
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = getToken();
+    const user = getUser();
+    if (!token || !user) {
+      router.replace("/auth/login");
+      return;
+    }
+    if (user.requiresPasswordChange) {
+      router.replace("/auth/change-password");
+      return;
+    }
+    setRole(user.role);
+  }, [router]);
+
+  if (role === null) return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <svg className="w-6 h-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+    </div>
+  );
+  if (role !== "coordinator") return <AccessDenied />;
   return <DashboardLayout />;
 }
 
@@ -166,7 +188,10 @@ function UploadCard() {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await fetch("/api/v1/students/ids/upload", { method: "POST", body: formData });
+      const token = typeof window !== "undefined" ? localStorage.getItem("spms_token") : null;
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students/ids/upload`, { method: "POST", headers, body: formData });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || `Upload failed (${res.status})`); }
       const data: UploadResponse = await res.json();
       setResult(data); setStatus("success");

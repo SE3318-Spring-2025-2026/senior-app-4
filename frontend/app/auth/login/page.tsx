@@ -163,15 +163,13 @@ export default function LoginPage() {
                 <div className="flex-1 h-px bg-white/5" />
               </div>
 
-              {/* Professor note */}
-              <div className="rounded-xl bg-blue-500/5 border border-blue-500/15 px-4 py-3 flex gap-3">
-                <svg className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                </svg>
-                <p className="text-xs text-blue-400/80 leading-relaxed">
-                  Professors and Coordinators are registered manually by the Admin and receive login credentials via email.
-                </p>
-              </div>
+              {/* Professor login link */}
+              <a
+                href="/auth/professor-login"
+                className="w-full flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors border border-white/5"
+              >
+                Sign in as Professor / Coordinator
+              </a>
             </>
           )}
         </div>

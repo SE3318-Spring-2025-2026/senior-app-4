@@ -2,8 +2,11 @@ const TOKEN_KEY = "spms_token";
 const USER_KEY = "spms_user";
 
 export interface AuthUser {
-  studentId: string;
-  githubUsername: string;
+  userId?: number;
+  studentId?: string;
+  githubUsername?: string;
+  role: string;
+  requiresPasswordChange: boolean;
 }
 
 export function getToken(): string | null {
@@ -34,4 +37,15 @@ export function clearAuth(): void {
 
 export function isAuthenticated(): boolean {
   return !!getToken();
+}
+
+/** JWT payload'ını decode eder (imza doğrulaması yapmaz — sadece frontend için) */
+export function decodeToken(token: string): Record<string, unknown> | null {
+  try {
+    const payload = token.split(".")[1];
+    const decoded = atob(payload.replaceAll("-", "+").replaceAll("_", "/"));
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
 }

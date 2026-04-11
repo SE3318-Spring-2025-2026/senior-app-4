@@ -1,18 +1,13 @@
 package com.spms.backend.dto.request;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-
 public record PasswordChangeRequest(
 
-        @Email(message = "Email must be valid.")
-        @NotBlank(message = "Email is required.")
+        // Optional — required only when no JWT token is provided
         String email,
 
-        @NotBlank(message = "Temporary password is required.")
+        // Optional — required only when no JWT token is provided
         String tempPassword,
 
-        @NotBlank(message = "New password is required.")
         String newPassword
 
 ) {

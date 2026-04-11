@@ -1,0 +1,7 @@
+# Copy this file to `backend/application.properties` for local development.
+# Spring Boot loads `application.properties` automatically when you run:
+# mvn spring-boot:run
+
+github.client-id=your-github-client-id
+github.client-secret=your-github-client-secret
+github.redirect-uri=http://localhost:3000/auth/callback

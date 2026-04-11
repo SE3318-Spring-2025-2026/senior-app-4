@@ -7,6 +7,7 @@ import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.DuplicateUserException;
 import com.spms.backend.model.User;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.repository.ValidStudentIdRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -20,16 +21,17 @@ public class StudentRegistrationService {
     private static final String STUDENT_ROLE = "student";
 
     private final UserRepository userRepository;
+    private final ValidStudentIdRepository validStudentIdRepository;
 
-    public StudentRegistrationService(UserRepository userRepository) {
+    public StudentRegistrationService(UserRepository userRepository,
+                                      ValidStudentIdRepository validStudentIdRepository) {
         this.userRepository = userRepository;
+        this.validStudentIdRepository = validStudentIdRepository;
     }
 
     public UserCreateResponse registerStudent(StudentUserCreateRequest request) {
         String studentId = requireText(request.studentId(), "studentId is required.");
         String githubUsername = requireText(request.githubUsername(), "githubUsername is required.");
-
-        // accessToken is accepted to keep the current API contract, but it is not persisted in Issue #7.
         requireText(request.accessToken(), "accessToken is required.");
 
         if (userRepository.findByStudentId(studentId).isPresent()) {
@@ -40,17 +42,18 @@ public class StudentRegistrationService {
             throw new DuplicateUserException("A student user already exists for the given githubUsername.");
         }
 
-        User savedUser = userRepository.save(buildStudentUser(studentId, githubUsername));
+        User savedUser = userRepository.save(buildStudentUser(studentId, githubUsername, null));
         return toCreateResponse(savedUser);
     }
 
     public User findOrCreateFromCallback(StudentRegistrationData registrationData) {
         String studentId = requireText(registrationData.studentId(), "Validated studentId is required in state.");
         String githubUsername = requireText(registrationData.githubUsername(), "githubUsername is required.");
+        String fullName = registrationData.fullName();
 
         Optional<User> existingByStudentId = userRepository.findByStudentId(studentId);
         if (existingByStudentId.isPresent()) {
-            return reconcileExistingStudent(existingByStudentId.get(), githubUsername);
+            return reconcileExistingStudent(existingByStudentId.get(), githubUsername, fullName);
         }
 
         Optional<User> existingByGithubUsername = userRepository.findByGithubUsername(githubUsername);
@@ -58,32 +61,40 @@ public class StudentRegistrationService {
             throw new BadRequestException("The fetched GitHub username is already linked to another student.");
         }
 
-        return userRepository.save(buildStudentUser(studentId, githubUsername));
+        return userRepository.save(buildStudentUser(studentId, githubUsername, fullName));
     }
 
-    private User reconcileExistingStudent(User existingUser, String githubUsername) {
+    private User reconcileExistingStudent(User existingUser, String githubUsername, String fullName) {
+        // fullName varsa güncelle
+        if (StringUtils.hasText(fullName) && !StringUtils.hasText(existingUser.getFullName())) {
+            existingUser.setFullName(fullName);
+        }
+
         if (!StringUtils.hasText(existingUser.getGithubUsername())) {
             Optional<User> conflictingGithubUser = userRepository.findByGithubUsername(githubUsername);
             if (conflictingGithubUser.isPresent()
                     && !Objects.equals(conflictingGithubUser.get().getUserId(), existingUser.getUserId())) {
                 throw new BadRequestException("The fetched GitHub username is already linked to another student.");
             }
-
             existingUser.setGithubUsername(githubUsername);
             return userRepository.save(existingUser);
         }
 
         if (existingUser.getGithubUsername().trim().equalsIgnoreCase(githubUsername)) {
+            if (StringUtils.hasText(fullName) && !StringUtils.hasText(existingUser.getFullName())) {
+                return userRepository.save(existingUser);
+            }
             return existingUser;
         }
 
         throw new BadRequestException("The validated studentId is already linked to a different GitHub username.");
     }
 
-    private User buildStudentUser(String studentId, String githubUsername) {
+    private User buildStudentUser(String studentId, String githubUsername, String fullName) {
         User user = new User();
         user.setStudentId(studentId);
         user.setGithubUsername(githubUsername);
+        if (StringUtils.hasText(fullName)) user.setFullName(fullName);
         user.setRole(STUDENT_ROLE);
         user.setCreatedAt(Instant.now());
         return user;
@@ -107,7 +118,7 @@ public class StudentRegistrationService {
     }
 
     public boolean validateStudent(String studentId) {
-    String validatedStudentId = requireText(studentId, "studentId is required.");
-    return userRepository.findByStudentId(validatedStudentId).isPresent();
+        String validatedStudentId = requireText(studentId, "studentId is required.");
+        return validStudentIdRepository.existsByStudentId(validatedStudentId);
     }
 }

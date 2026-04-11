@@ -6,7 +6,9 @@ import com.spms.backend.dto.response.UserCreateResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.DuplicateUserException;
 import com.spms.backend.model.User;
-import com.spms.backend.repository.SupabaseUserRepository;
+import com.spms.backend.repository.InMemoryUserRepository;
+import com.spms.backend.repository.InMemoryValidStudentIdRepository;
+import com.spms.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -17,13 +19,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StudentRegistrationServiceTest {
 
-    private SupabaseUserRepository userRepository;
+    private UserRepository userRepository;
+    private InMemoryValidStudentIdRepository validStudentIdRepository;
     private StudentRegistrationService studentRegistrationService;
 
     @BeforeEach
     void setUp() {
-        userRepository = new SupabaseUserRepository();
-        studentRegistrationService = new StudentRegistrationService(userRepository);
+        userRepository = new InMemoryUserRepository();
+        validStudentIdRepository = new InMemoryValidStudentIdRepository();
+        studentRegistrationService = new StudentRegistrationService(userRepository, validStudentIdRepository);
     }
 
     @Test
@@ -68,7 +72,7 @@ class StudentRegistrationServiceTest {
     @Test
     void findOrCreateFromCallbackCreatesNewUserWhenMissing() {
         User user = studentRegistrationService.findOrCreateFromCallback(
-                new StudentRegistrationData("11070001000", "furkangncr", "gho_valid")
+                new StudentRegistrationData("11070001000", "furkangncr", "Furkan Güncür", "gho_valid")
         );
 
         assertNotNull(user.getUserId());
@@ -80,11 +84,11 @@ class StudentRegistrationServiceTest {
     @Test
     void findOrCreateFromCallbackReusesExistingStudent() {
         User createdUser = studentRegistrationService.findOrCreateFromCallback(
-                new StudentRegistrationData("11070001000", "furkangncr", "gho_valid")
+                new StudentRegistrationData("11070001000", "furkangncr", "Furkan Güncür", "gho_valid")
         );
 
         User reusedUser = studentRegistrationService.findOrCreateFromCallback(
-                new StudentRegistrationData("11070001000", "furkangncr", "gho_valid")
+                new StudentRegistrationData("11070001000", "furkangncr", "Furkan Güncür", "gho_valid")
         );
 
         assertEquals(createdUser.getUserId(), reusedUser.getUserId());
@@ -93,13 +97,13 @@ class StudentRegistrationServiceTest {
     @Test
     void findOrCreateFromCallbackRejectsGithubUsernameConflict() {
         studentRegistrationService.findOrCreateFromCallback(
-                new StudentRegistrationData("11070001000", "furkangncr", "gho_valid")
+                new StudentRegistrationData("11070001000", "furkangncr", "Furkan Güncür", "gho_valid")
         );
 
         assertThrows(
                 BadRequestException.class,
                 () -> studentRegistrationService.findOrCreateFromCallback(
-                        new StudentRegistrationData("11070001001", "furkangncr", "gho_other")
+                        new StudentRegistrationData("11070001001", "furkangncr", null, "gho_other")
                 )
         );
     }

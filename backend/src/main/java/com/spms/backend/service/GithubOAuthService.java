@@ -27,8 +27,7 @@ public class GithubOAuthService {
             StudentRegistrationService studentRegistrationService,
             TokenService tokenService,
             GithubProperties githubProperties,
-            UserRepository userRepository
-    ) {
+            UserRepository userRepository) {
         this.githubApiClient = githubApiClient;
         this.studentRegistrationService = studentRegistrationService;
         this.tokenService = tokenService;
@@ -38,23 +37,24 @@ public class GithubOAuthService {
 
     public GithubCallbackResponse handleCallback(String code, String state) {
         String authorizationCode = requireText(code, "GitHub authorization code is required.");
-        // OpenAPI currently marks state optional, but Issue #7 requires it to recover validated studentId.
+        // OpenAPI currently marks state optional, but Issue #7 requires it to recover
+        // validated studentId.
         String studentId = requireText(state, "state is required and must contain the validated studentId.");
 
         String accessToken = githubApiClient.exchangeCodeForAccessToken(authorizationCode);
-        String githubUsername = githubApiClient.fetchGithubUsername(accessToken);
+        var githubUser = githubApiClient.fetchGithubUser(accessToken);
+        String githubUsername = githubUser.login().trim();
+        String fullName = StringUtils.hasText(githubUser.name()) ? githubUser.name().trim() : githubUsername;
 
         User user = studentRegistrationService.findOrCreateFromCallback(
-                new StudentRegistrationData(studentId, githubUsername, accessToken)
-        );
+                new StudentRegistrationData(studentId, githubUsername, fullName, accessToken));
         String token = tokenService.generateToken(user);
 
         return new GithubCallbackResponse(
                 "Authentication successful.",
                 user.getStudentId(),
                 user.getGithubUsername(),
-                token
-        );
+                token);
     }
 
     private String requireText(String value, String message) {
@@ -65,42 +65,41 @@ public class GithubOAuthService {
     }
 
     public String generateGithubAuthorizationUrl(String studentId) {
-    String validatedStudentId = requireText(studentId, "studentId is required.");
+        String validatedStudentId = requireText(studentId, "studentId is required.");
 
-    // student var mı kontrol
-    boolean exists = studentRegistrationService.validateStudent(validatedStudentId);
-    if (!exists) {
-        throw new BadRequestException("Student ID not found.");
+        // student var mı kontrol
+        boolean exists = studentRegistrationService.validateStudent(validatedStudentId);
+        if (!exists) {
+            throw new BadRequestException("Student ID not found.");
+        }
+
+        String clientId = githubProperties.getClientId();
+        String redirectUri = githubProperties.getRedirectUri();
+
+        String scope = "read:user";
+        String state = validatedStudentId;
+
+        return "https://github.com/login/oauth/authorize"
+                + "?client_id=" + clientId
+                + "&redirect_uri=" + redirectUri
+                + "&scope=" + scope
+                + "&state=" + state;
     }
 
-    String clientId = githubProperties.getClientId();
-    String redirectUri = githubProperties.getRedirectUri();
+    public AuthTokenResponse generateToken(Long userId) {
+        if (userId == null) {
+            throw new BadRequestException("userId is required.");
+        }
 
-    String scope = "read:user";
-    String state = validatedStudentId;
+        User user = userRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
 
-    return "https://github.com/login/oauth/authorize"
-            + "?client_id=" + clientId
-            + "&redirect_uri=" + redirectUri
-            + "&scope=" + scope
-            + "&state=" + state;
+        String token = tokenService.generateToken(user);
+
+        return new AuthTokenResponse(
+                token,
+                "Bearer",
+                tokenService.getExpirationSeconds());
     }
-
-   public AuthTokenResponse generateToken(Long userId) {
-    if (userId == null) {
-        throw new BadRequestException("userId is required.");
-    }
-
-    User user = userRepository.findByUserId(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
-
-    String token = tokenService.generateToken(user);
-
-    return new AuthTokenResponse(
-            token,
-            "Bearer",
-            tokenService.getExpirationSeconds()
-    );
-   }
 
 }

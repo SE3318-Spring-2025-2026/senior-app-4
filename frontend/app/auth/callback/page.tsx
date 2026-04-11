@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { setAuth } from "@/lib/auth";
+import { setAuth, decodeToken } from "@/lib/auth";
 
 type Status = "loading" | "error";
 
@@ -36,12 +36,15 @@ export default function CallbackPage() {
         }
 
         const data = await res.json();
+        const claims = decodeToken(data.token) ?? {};
         setAuth(data.token, {
           studentId: data.studentId,
           githubUsername: data.githubUsername,
+          role: (claims.role as string) ?? "student",
+          requiresPasswordChange: (claims.requiresPasswordChange as boolean) ?? false,
         });
 
-        router.replace("/coordinator/student-ids");
+        router.replace("/dashboard");
       } catch {
         setErrorMsg("Unable to connect to the server. Please try again later.");
         setStatus("error");

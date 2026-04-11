@@ -12,11 +12,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SupabaseUserRepositoryTest {
 
-    private SupabaseUserRepository userRepository;
+    private InMemoryUserRepository userRepository;
 
     @BeforeEach
     void setUp() {
-        userRepository = new SupabaseUserRepository();
+        userRepository = new InMemoryUserRepository();
     }
 
     @Test

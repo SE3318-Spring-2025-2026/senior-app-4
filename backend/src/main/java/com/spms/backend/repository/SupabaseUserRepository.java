@@ -1,180 +1,236 @@
 package com.spms.backend.repository;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spms.backend.config.SupabaseProperties;
 import com.spms.backend.model.User;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Repository
 public class SupabaseUserRepository implements UserRepository {
 
-    /*
-     * TEMPORARY STUB:
-     * This class keeps the Supabase-oriented repository boundary required by the project,
-     * but uses in-memory storage until the real Supabase schema and connectivity are ready.
-     *
-     * TODO:
-     * Replace the map-based storage with real Supabase CRUD operations once the table design
-     * and credentials are finalized by the team.
-     */
-    private final Map<Long, User> usersById = new ConcurrentHashMap<>();
-    private final Map<String, Long> emailIndex = new ConcurrentHashMap<>();
-    private final Map<String, Long> studentIdIndex = new ConcurrentHashMap<>();
-    private final Map<String, Long> githubUsernameIndex = new ConcurrentHashMap<>();
-    private final AtomicLong idSequence = new AtomicLong(1L);
+    private static final String TABLE_PATH = "/rest/v1/users";
+
+    private final RestClient restClient;
+    private final SupabaseProperties supabaseProperties;
+    private final ObjectMapper objectMapper;
+
+    public SupabaseUserRepository(RestClient.Builder restClientBuilder,
+                                  SupabaseProperties supabaseProperties,
+                                  ObjectMapper objectMapper) {
+        this.restClient = restClientBuilder.build();
+        this.supabaseProperties = supabaseProperties;
+        this.objectMapper = objectMapper;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  FIND METOTLARI
+    // ═══════════════════════════════════════════════════════════════
 
     @Override
     public Optional<User> findByEmail(String email) {
-        String normalizedEmail = normalizeEmail(email);
-        if (normalizedEmail == null) {
-            return Optional.empty();
-        }
-
-        Long userId = emailIndex.get(normalizedEmail);
-        if (userId == null) {
-            return Optional.empty();
-        }
-
-        return Optional.ofNullable(usersById.get(userId)).map(User::new);
+        if (!StringUtils.hasText(email)) return Optional.empty();
+        return findOneByColumn("email", email.trim().toLowerCase(Locale.ROOT));
     }
 
     @Override
     public Optional<User> findByStudentId(String studentId) {
-        String normalizedStudentId = normalizeStudentId(studentId);
-        if (normalizedStudentId == null) {
-            return Optional.empty();
-        }
-
-        Long userId = studentIdIndex.get(normalizedStudentId);
-        if (userId == null) {
-            return Optional.empty();
-        }
-
-        return Optional.ofNullable(usersById.get(userId)).map(User::new);
+        if (!StringUtils.hasText(studentId)) return Optional.empty();
+        return findOneByColumn("student_id", studentId.trim());
     }
 
     @Override
-public Optional<User> findByUserId(Long userId) {
-    if (userId == null) {
-        return Optional.empty();
+    public Optional<User> findByUserId(Long userId) {
+        if (userId == null) return Optional.empty();
+        return findOneByColumn("user_id", userId.toString());
     }
-
-    return Optional.ofNullable(usersById.get(userId)).map(User::new);
-}
 
     @Override
     public Optional<User> findByGithubUsername(String githubUsername) {
-        String normalizedGithubUsername = normalizeGithubUsername(githubUsername);
-        if (normalizedGithubUsername == null) {
-            return Optional.empty();
-        }
-
-        Long userId = githubUsernameIndex.get(normalizedGithubUsername);
-        if (userId == null) {
-            return Optional.empty();
-        }
-
-        return Optional.ofNullable(usersById.get(userId)).map(User::new);
+        if (!StringUtils.hasText(githubUsername)) return Optional.empty();
+        return findOneByColumn("github_username", githubUsername.trim().toLowerCase(Locale.ROOT));
     }
 
     @Override
-    public synchronized User save(User user) {
+    public List<User> findAll() {
+        String url = tableUrl() + "?select=*";
+        String json = doGet(url);
+        return parseJsonArray(json).stream()
+                .map(this::mapToUser)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<User> findAllByRole(String role) {
+        String url = tableUrl() + "?role=eq." + role + "&select=*";
+        String json = doGet(url);
+        return parseJsonArray(json).stream()
+                .map(this::mapToUser)
+                .collect(Collectors.toList());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  SAVE METODU
+    // ═══════════════════════════════════════════════════════════════
+
+    @Override
+    public User save(User user) {
         Objects.requireNonNull(user, "user must not be null");
-
-        User userToStore = new User(user);
-        if (userToStore.getUserId() == null) {
-            userToStore.setUserId(idSequence.getAndIncrement());
-            if (userToStore.getCreatedAt() == null) {
-                userToStore.setCreatedAt(Instant.now());
+        if (user.getUserId() == null) {
+            if (user.getCreatedAt() == null) {
+                user.setCreatedAt(Instant.now());
             }
+            return insertUser(user);
         } else {
-            User existingUser = usersById.get(userToStore.getUserId());
-            if (existingUser != null) {
-                removeEmailIndex(existingUser.getEmail());
-                removeStudentIdIndex(existingUser.getStudentId());
-                removeGithubUsernameIndex(existingUser.getGithubUsername());
-                if (userToStore.getCreatedAt() == null) {
-                    userToStore.setCreatedAt(existingUser.getCreatedAt());
-                }
-            } else if (userToStore.getCreatedAt() == null) {
-                userToStore.setCreatedAt(Instant.now());
-            }
-        }
-
-        usersById.put(userToStore.getUserId(), new User(userToStore));
-        putEmailIndex(userToStore.getEmail(), userToStore.getUserId());
-        putStudentIdIndex(userToStore.getStudentId(), userToStore.getUserId());
-        putGithubUsernameIndex(userToStore.getGithubUsername(), userToStore.getUserId());
-        return new User(userToStore);
-    }
-
-    private void putEmailIndex(String rawValue, Long userId) {
-        String normalizedValue = normalizeEmail(rawValue);
-        if (normalizedValue != null) {
-            emailIndex.put(normalizedValue, userId);
+            return updateUser(user);
         }
     }
 
-    private void putStudentIdIndex(String rawValue, Long userId) {
-        String normalizedValue = normalizeStudentId(rawValue);
-        if (normalizedValue != null) {
-            studentIdIndex.put(normalizedValue, userId);
+    // ═══════════════════════════════════════════════════════════════
+    //  DELETE METODU
+    // ═══════════════════════════════════════════════════════════════
+
+    @Override
+    public boolean deleteByUserId(Long userId) {
+        if (userId == null) return false;
+
+        String url = tableUrl() + "?user_id=eq." + userId;
+
+        restClient.delete()
+                .uri(url)
+                .header("apikey", supabaseProperties.getServiceKey())
+                .header("Authorization", "Bearer " + supabaseProperties.getServiceKey())
+                .retrieve()
+                .toBodilessEntity();
+
+        return true;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  YARDIMCI METOTLAR
+    // ═══════════════════════════════════════════════════════════════
+
+    private String tableUrl() {
+        return supabaseProperties.getUrl() + TABLE_PATH;
+    }
+
+    private String doGet(String url) {
+        return restClient.get()
+                .uri(url)
+                .header("apikey", supabaseProperties.getServiceKey())
+                .header("Authorization", "Bearer " + supabaseProperties.getServiceKey())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(String.class);
+    }
+
+    private Optional<User> findOneByColumn(String columnName, String value) {
+        String url = tableUrl() + "?" + columnName + "=eq." + value + "&select=*";
+        String json = doGet(url);
+        List<Map<String, Object>> rows = parseJsonArray(json);
+        if (rows == null || rows.isEmpty()) return Optional.empty();
+        return Optional.of(mapToUser(rows.get(0)));
+    }
+
+    private User insertUser(User user) {
+        Map<String, Object> body = userToMap(user);
+
+        String json = restClient.post()
+                .uri(tableUrl())
+                .header("apikey", supabaseProperties.getServiceKey())
+                .header("Authorization", "Bearer " + supabaseProperties.getServiceKey())
+                .header("Prefer", "return=representation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(toJson(body))
+                .retrieve()
+                .body(String.class);
+
+        List<Map<String, Object>> rows = parseJsonArray(json);
+        if (rows == null || rows.isEmpty()) {
+            throw new RuntimeException("Supabase INSERT did not return data.");
+        }
+        return mapToUser(rows.get(0));
+    }
+
+    private User updateUser(User user) {
+        Map<String, Object> body = userToMap(user);
+        String url = tableUrl() + "?user_id=eq." + user.getUserId();
+
+        String json = restClient.patch()
+                .uri(url)
+                .header("apikey", supabaseProperties.getServiceKey())
+                .header("Authorization", "Bearer " + supabaseProperties.getServiceKey())
+                .header("Prefer", "return=representation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(toJson(body))
+                .retrieve()
+                .body(String.class);
+
+        List<Map<String, Object>> rows = parseJsonArray(json);
+        if (rows == null || rows.isEmpty()) {
+            throw new RuntimeException("Supabase UPDATE did not return data.");
+        }
+        return mapToUser(rows.get(0));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  JSON ↔ Java DÖNÜŞÜM
+    // ═══════════════════════════════════════════════════════════════
+
+    private Map<String, Object> userToMap(User user) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        if (user.getUserId() != null) map.put("user_id", user.getUserId());
+        if (user.getFullName() != null) map.put("full_name", user.getFullName());
+        if (user.getEmail() != null) map.put("email", user.getEmail());
+        if (user.getPasswordHash() != null) map.put("password_hash", user.getPasswordHash());
+        if (user.getStudentId() != null) map.put("student_id", user.getStudentId());
+        if (user.getGithubUsername() != null) map.put("github_username", user.getGithubUsername());
+        if (user.getRole() != null) map.put("role", user.getRole());
+        map.put("requires_password_change", user.isRequiresPasswordChange());
+        if (user.getCreatedAt() != null) map.put("created_at", user.getCreatedAt().toString());
+        return map;
+    }
+
+    private User mapToUser(Map<String, Object> row) {
+        User user = new User();
+        if (row.get("user_id") != null) user.setUserId(((Number) row.get("user_id")).longValue());
+        user.setFullName((String) row.get("full_name"));
+        user.setEmail((String) row.get("email"));
+        user.setPasswordHash((String) row.get("password_hash"));
+        user.setStudentId((String) row.get("student_id"));
+        user.setGithubUsername((String) row.get("github_username"));
+        user.setRole((String) row.get("role"));
+        if (row.get("requires_password_change") != null) {
+            user.setRequiresPasswordChange((Boolean) row.get("requires_password_change"));
+        }
+        if (row.get("created_at") != null) {
+            user.setCreatedAt(Instant.parse(row.get("created_at").toString()));
+        }
+        return user;
+    }
+
+    private List<Map<String, Object>> parseJsonArray(String json) {
+        if (!StringUtils.hasText(json)) return Collections.emptyList();
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {});
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to parse Supabase response: " + json, e);
         }
     }
 
-    private void putGithubUsernameIndex(String rawValue, Long userId) {
-        String normalizedValue = normalizeGithubUsername(rawValue);
-        if (normalizedValue != null) {
-            githubUsernameIndex.put(normalizedValue, userId);
+    private String toJson(Map<String, Object> map) {
+        try {
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize to JSON.", e);
         }
-    }
-
-    private void removeEmailIndex(String rawValue) {
-        String normalizedValue = normalizeEmail(rawValue);
-        if (normalizedValue != null) {
-            emailIndex.remove(normalizedValue);
-        }
-    }
-
-    private void removeStudentIdIndex(String rawValue) {
-        String normalizedValue = normalizeStudentId(rawValue);
-        if (normalizedValue != null) {
-            studentIdIndex.remove(normalizedValue);
-        }
-    }
-
-    private void removeGithubUsernameIndex(String rawValue) {
-        String normalizedValue = normalizeGithubUsername(rawValue);
-        if (normalizedValue != null) {
-            githubUsernameIndex.remove(normalizedValue);
-        }
-    }
-
-    private String normalizeEmail(String email) {
-        if (!StringUtils.hasText(email)) {
-            return null;
-        }
-        return email.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private String normalizeStudentId(String studentId) {
-        if (!StringUtils.hasText(studentId)) {
-            return null;
-        }
-        return studentId.trim();
-    }
-
-    private String normalizeGithubUsername(String githubUsername) {
-        if (!StringUtils.hasText(githubUsername)) {
-            return null;
-        }
-        return githubUsername.trim().toLowerCase(Locale.ROOT);
     }
 }
