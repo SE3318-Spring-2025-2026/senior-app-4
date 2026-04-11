@@ -6,6 +6,8 @@ import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.model.User;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.PasswordHashingService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +20,7 @@ import java.util.UUID;
  * POST /api/v1/admin/generate-reset-link — Process 1.9
  * Admin, şifresini unutan profesör için tek kullanımlık sıfırlama linki üretir.
  */
+@Tag(name = "Admin")
 @RestController
 @RequestMapping("/api/v1/admin")
 public class AdminController {
@@ -31,6 +34,7 @@ public class AdminController {
         this.passwordHashingService = passwordHashingService;
     }
 
+    @Operation(summary = "Generate one-time password reset link for a professor")
     @PostMapping("/generate-reset-link")
     public ResponseEntity<ResetLinkResponse> generateResetLink(
             @Valid @RequestBody ResetLinkRequest request

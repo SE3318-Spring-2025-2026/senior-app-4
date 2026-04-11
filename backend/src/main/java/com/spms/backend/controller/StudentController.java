@@ -5,6 +5,8 @@ import com.spms.backend.dto.response.StudentValidationResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.repository.ValidStudentIdRepository;
 import com.spms.backend.service.StudentRegistrationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +25,7 @@ import java.util.Map;
  * POST /api/v1/students/validate    — ID doğrulama
  * POST /api/v1/students/ids/upload  — CSV ile toplu ID yükleme
  */
+@Tag(name = "Student Authentication")
 @RestController
 @RequestMapping("/api/v1/students")
 public class StudentController {
@@ -36,7 +39,7 @@ public class StudentController {
         this.validStudentIdRepository = validStudentIdRepository;
     }
 
-    // ── POST /api/v1/students/validate ──
+    @Operation(summary = "Validate student ID")
     @PostMapping("/validate")
     public ResponseEntity<StudentValidationResponse> validateStudent(
             @RequestBody StudentValidationRequest request
@@ -52,7 +55,7 @@ public class StudentController {
                 .body(new StudentValidationResponse(false));
     }
 
-    // ── POST /api/v1/students/ids/upload ──
+    @Operation(summary = "Upload valid student ID list via CSV file")
     @PostMapping("/ids/upload")
     public ResponseEntity<Map<String, Object>> uploadStudentIds(
             @RequestParam("file") MultipartFile file

@@ -28,6 +28,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             "/api/v1/professors/register"
     );
 
+    private static final Set<String> PUBLIC_PREFIXES = Set.of(
+            "/swagger-ui",
+            "/v3/api-docs",
+            "/swagger-resources",
+            "/webjars"
+    );
+
     private final JwtValidationService jwtValidationService;
 
     public JwtAuthFilter(JwtValidationService jwtValidationService) {
@@ -70,7 +77,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     private boolean isPublic(String path) {
-        return PUBLIC_PATHS.contains(path);
+        if (PUBLIC_PATHS.contains(path)) return true;
+        return PUBLIC_PREFIXES.stream().anyMatch(path::startsWith);
     }
 
     private void sendUnauthorized(HttpServletResponse response, String message) throws IOException {

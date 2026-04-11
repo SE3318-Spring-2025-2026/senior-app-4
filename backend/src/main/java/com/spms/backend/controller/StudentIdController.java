@@ -8,6 +8,8 @@ import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.DuplicateUserException;
 import com.spms.backend.model.ValidStudentId;
 import com.spms.backend.repository.ValidStudentIdRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Tag(name = "Student ID Store")
 @RestController
 @RequestMapping("/api/v1/student-ids")
 public class StudentIdController {
@@ -27,7 +30,7 @@ public class StudentIdController {
         this.validStudentIdRepository = validStudentIdRepository;
     }
 
-    // ── GET /api/v1/student-ids ──
+    @Operation(summary = "List all valid student IDs")
     @GetMapping
     public ResponseEntity<StudentIdListResponse> getAllStudentIds() {
         List<Map<String, String>> data = validStudentIdRepository.findAll().stream()
@@ -38,7 +41,7 @@ public class StudentIdController {
         ));
     }
 
-    // ── POST /api/v1/student-ids ──
+    @Operation(summary = "Add a single valid student ID")
     @PostMapping
     public ResponseEntity<StudentIdResponse> addStudentId(
             @Valid @RequestBody StudentIdCreateRequest request
@@ -56,7 +59,7 @@ public class StudentIdController {
         );
     }
 
-    // ── GET /api/v1/student-ids/{studentId} ──
+    @Operation(summary = "Get a student ID by value")
     @GetMapping("/{studentId}")
     public ResponseEntity<StudentIdResponse> getStudentId(@PathVariable String studentId) {
         ValidStudentId entity = validStudentIdRepository.findByStudentId(studentId)
@@ -70,7 +73,7 @@ public class StudentIdController {
         ));
     }
 
-    // ── DELETE /api/v1/student-ids/{studentId} ──
+    @Operation(summary = "Delete a student ID by value")
     @DeleteMapping("/{studentId}")
     public ResponseEntity<DeleteResponse> deleteStudentId(@PathVariable String studentId) {
         boolean deleted = validStudentIdRepository.deleteByStudentId(studentId);

@@ -2,7 +2,7 @@ spring:
   application:
     name: spms-backend
   datasource:
-    url: ${DB_URL}
+    url: ${db.url}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
