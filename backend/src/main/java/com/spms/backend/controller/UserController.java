@@ -11,6 +11,8 @@ import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.model.User;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.StudentRegistrationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -22,6 +24,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Tag(name = "User Store")
 @RestController
 @RequestMapping("/api/v1/users")
 public class UserController {
@@ -37,7 +40,7 @@ public class UserController {
         this.userRepository = userRepository;
     }
 
-    // ── GET /api/v1/users/me ──
+    @Operation(summary = "Get the currently authenticated user's profile")
     @GetMapping("/me")
     public ResponseEntity<UserResponse> getMe(HttpServletRequest request) {
         Object userIdAttr = request.getAttribute("jwt_userId");
@@ -50,7 +53,7 @@ public class UserController {
         return ResponseEntity.ok(UserResponse.from("Profile retrieved successfully.", user));
     }
 
-    // ── POST /api/v1/users/register/student ──
+    @Operation(summary = "Register a student user after GitHub OAuth")
     @PostMapping("/register/student")
     public ResponseEntity<UserCreateResponse> registerStudent(
             @Valid @RequestBody StudentUserCreateRequest request
@@ -59,7 +62,7 @@ public class UserController {
                 .body(studentRegistrationService.registerStudent(request));
     }
 
-    // ── GET /api/v1/users?role=student ──
+    @Operation(summary = "List all users, optionally filtered by role")
     @GetMapping
     public ResponseEntity<UserListResponse> getAllUsers(
             @RequestParam(required = false) String role
@@ -84,7 +87,7 @@ public class UserController {
         ));
     }
 
-    // ── POST /api/v1/users ──
+    @Operation(summary = "Create a user directly (admin use)")
     @PostMapping
     public ResponseEntity<UserCreateResponse> createUser(
             @Valid @RequestBody UserCreateDirectRequest request
@@ -117,7 +120,7 @@ public class UserController {
         );
     }
 
-    // ── GET /api/v1/users/{userId} ──
+    @Operation(summary = "Get a user by ID")
     @GetMapping("/{userId}")
     public ResponseEntity<UserResponse> getUserById(@PathVariable Long userId) {
         User user = userRepository.findByUserId(userId)
@@ -125,7 +128,7 @@ public class UserController {
         return ResponseEntity.ok(UserResponse.from("User retrieved successfully.", user));
     }
 
-    // ── PUT /api/v1/users/{userId} ──
+    @Operation(summary = "Update a user by ID")
     @PutMapping("/{userId}")
     public ResponseEntity<UserResponse> updateUser(
             @PathVariable Long userId,
@@ -143,7 +146,7 @@ public class UserController {
         return ResponseEntity.ok(UserResponse.from("User updated successfully.", updated));
     }
 
-    // ── DELETE /api/v1/users/{userId} ──
+    @Operation(summary = "Delete a user by ID")
     @DeleteMapping("/{userId}")
     public ResponseEntity<DeleteResponse> deleteUser(@PathVariable Long userId) {
         boolean deleted = userRepository.deleteByUserId(userId);

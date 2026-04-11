@@ -44,7 +44,7 @@ class GithubOAuthServiceTest {
         githubProperties.setClientId("test-client-id");
         githubProperties.setClientSecret("test-client-secret");
         githubProperties.setRedirectUri("http://localhost:3000/auth/callback");
-        githubOAuthService = new GithubOAuthService(githubApiClient, studentRegistrationService, tokenService, githubProperties, userRepository);
+        githubOAuthService = new GithubOAuthService(githubApiClient, studentRegistrationService, tokenService, githubProperties);
     }
 
     @Test

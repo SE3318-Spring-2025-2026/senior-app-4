@@ -50,7 +50,7 @@ class AuthControllerTest {
 
         GithubProperties githubProperties = new GithubProperties();
         GithubOAuthService githubOAuthService =
-                new GithubOAuthService(githubApiClient, studentRegistrationService, tokenService, githubProperties, userRepository);
+                new GithubOAuthService(githubApiClient, studentRegistrationService, tokenService, githubProperties);
 
         PasswordHashingService passwordHashingService = new PasswordHashingService();
         PasswordService passwordService = new PasswordService(userRepository, passwordHashingService);
