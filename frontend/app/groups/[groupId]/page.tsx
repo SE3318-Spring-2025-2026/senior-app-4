@@ -23,7 +23,7 @@ export default function GroupDetailPage() {
 
     if (!group) {
         return (
-            <main className="min-h-screen bg-gray-950 flex items-center justify-center text-white">
+            <main className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
                 Group not found
             </main>
         );
@@ -36,7 +36,7 @@ export default function GroupDetailPage() {
                     ← Back to groups
                 </Link>
 
-                <div className="mt-6 mb-6 flex items-start justify-between gap-4">
+                <div className="mb-6 mt-6 flex items-start justify-between gap-4">
                     <div>
                         <h1 className="text-4xl font-bold tracking-tight">{group.groupName}</h1>
                         <p className="mt-2 text-lg text-gray-400">
@@ -47,34 +47,50 @@ export default function GroupDetailPage() {
                     <StatusBadge status={group.status} />
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2 mb-8">
+                <div className="mb-8 grid gap-6 md:grid-cols-2">
+                    <Link href={`/groups/${group.groupId}/integrations/github`}>
+                        <div className="cursor-pointer rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur transition-all hover:border-blue-500/40 hover:shadow-blue-500/10">
+                            <p className="mb-2 text-sm text-gray-400">GitHub</p>
+                            <p
+                                className={
+                                    group.githubBound
+                                        ? "font-medium text-green-400"
+                                        : "font-medium text-gray-500"
+                                }
+                            >
+                                {group.githubBound ? "Bound ✔" : "Not Connected ✖"}
+                            </p>
+                        </div>
+                    </Link>
+
+                    <Link href={`/groups/${group.groupId}/integrations/jira`}>
+                        <div className="cursor-pointer rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur transition-all hover:border-blue-500/40 hover:shadow-blue-500/10">
+                            <p className="mb-2 text-sm text-gray-400">JIRA</p>
+                            <p
+                                className={
+                                    group.jiraBound
+                                        ? "font-medium text-green-400"
+                                        : "font-medium text-gray-500"
+                                }
+                            >
+                                {group.jiraBound ? "Bound ✔" : "Not Connected ✖"}
+                            </p>
+                        </div>
+                    </Link>
+
                     <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
-                        <p className="text-sm text-gray-400 mb-2">GitHub</p>
-                        <p className={group.githubBound ? "text-green-400 font-medium" : "text-gray-500 font-medium"}>
-                            {group.githubBound ? "Bound ✔" : "Not Connected ✖"}
-                        </p>
+                        <p className="mb-2 text-sm text-gray-400">Created At</p>
+                        <p className="font-medium text-white">{formatDate(group.createdAt)}</p>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
-                        <p className="text-sm text-gray-400 mb-2">JIRA</p>
-                        <p className={group.jiraBound ? "text-green-400 font-medium" : "text-gray-500 font-medium"}>
-                            {group.jiraBound ? "Bound ✔" : "Not Connected ✖"}
-                        </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
-                        <p className="text-sm text-gray-400 mb-2">Created At</p>
-                        <p className="text-white font-medium">{formatDate(group.createdAt)}</p>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
-                        <p className="text-sm text-gray-400 mb-2">Updated At</p>
-                        <p className="text-white font-medium">{formatDate(group.updatedAt)}</p>
+                        <p className="mb-2 text-sm text-gray-400">Updated At</p>
+                        <p className="font-medium text-white">{formatDate(group.updatedAt)}</p>
                     </div>
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-7 shadow-lg shadow-black/20 backdrop-blur">
-                    <h2 className="text-2xl font-semibold mb-5">Members</h2>
+                    <h2 className="mb-5 text-2xl font-semibold">Members</h2>
 
                     <div className="space-y-4">
                         {group.members.map((member) => (
@@ -84,7 +100,7 @@ export default function GroupDetailPage() {
                             >
                                 <div>
                                     <p className="text-lg font-medium">{member.fullName}</p>
-                                    <p className="text-sm text-gray-400 mt-1">{member.studentId}</p>
+                                    <p className="mt-1 text-sm text-gray-400">{member.studentId}</p>
                                 </div>
 
                                 <span
