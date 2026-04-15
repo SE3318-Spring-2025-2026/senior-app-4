@@ -55,4 +55,20 @@ public class GroupController {
     public ResponseEntity<GroupDetailDto> getGroupDetails(@PathVariable Long groupId) {
         return ResponseEntity.ok(groupService.getGroupDetails(groupId));
     }
+
+    @DeleteMapping("/{groupId}")
+    public ResponseEntity<?> disbandGroup(
+            @PathVariable Long groupId,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+
+        Long requesterId = Long.valueOf(userId.toString());
+        String requesterRole = role.toString();
+        groupService.disbandGroup(groupId, requesterId, requesterRole);
+
+        return ResponseEntity.ok().body(java.util.Map.of(
+                "success", true,
+                "message", "Group disbanded successfully"
+        ));
+    }
 }
