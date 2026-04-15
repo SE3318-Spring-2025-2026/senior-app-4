@@ -7,15 +7,19 @@ import GithubBindForm from "@/components/GithubBindForm";
 import GithubStatusCard from "@/components/GithubStatusCard";
 import IntegrationTestCard from "@/components/IntegrationTestCard";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import AppTopbar from "@/components/AppTopbar";
 import {
     mockGithubIntegrations,
     mockIntegrationTests,
 } from "@/lib/mock-github";
 import { mockGroups } from "@/lib/mock-groups";
+import { useNotifications } from "@/components/NotificationProvider";
 
 export default function GithubIntegrationPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
+
+    const { unreadOrPendingCount } = useNotifications();
 
     const group = mockGroups.find((g) => g.groupId === groupId);
     const integration = mockGithubIntegrations.find((i) => i.groupId === groupId);
@@ -60,6 +64,11 @@ export default function GithubIntegrationPage() {
         <>
             <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
                 <div className="mx-auto max-w-4xl space-y-8">
+                    <AppTopbar
+                        title="GitHub Integration"
+                        notificationCount={unreadOrPendingCount}
+                    />
+
                     <Link
                         href={`/groups/${groupId}`}
                         className="text-sm text-blue-400 hover:underline"

@@ -3,14 +3,18 @@
 import { useEffect, useState } from "react";
 import GroupCard from "@/components/GroupCard";
 import GroupCardSkeleton from "@/components/GroupCardSkeleton";
+import AppTopbar from "@/components/AppTopbar";
 import { mockGroups } from "@/lib/mock-groups";
 import { Group } from "@/lib/group-types";
+import { useNotifications } from "@/components/NotificationProvider";
 
 export default function GroupsPage() {
     const [groups, setGroups] = useState<Group[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(0);
     const pageSize = 6;
+
+    const { unreadOrPendingCount } = useNotifications();
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -21,9 +25,11 @@ export default function GroupsPage() {
         return () => clearTimeout(timer);
     }, []);
 
+    const CURRENT_USER_ID = "2201999"; // senin current user id
+
     const sortedGroups = [...groups].sort((a, b) => {
-        const aOwn = a.leaderName === "Miray Yıldırım";
-        const bOwn = b.leaderName === "Miray Yıldırım";
+        const aOwn = a.members.some(m => m.studentId === CURRENT_USER_ID);
+        const bOwn = b.members.some(m => m.studentId === CURRENT_USER_ID);
 
         if (aOwn) return -1;
         if (bOwn) return 1;
@@ -38,6 +44,8 @@ export default function GroupsPage() {
     return (
         <main className="min-h-screen bg-gray-950 px-6 py-10">
             <div className="mx-auto max-w-6xl">
+                <AppTopbar title="Groups" notificationCount={unreadOrPendingCount} />
+
                 <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-white">Project Groups</h1>
@@ -74,7 +82,7 @@ export default function GroupsPage() {
                                 <GroupCard
                                     key={group.groupId}
                                     group={group}
-                                    isOwnGroup={group.leaderName === "Miray Yıldırım"}
+                                    isOwnGroup={group.members.some(m => m.studentId === CURRENT_USER_ID)}
                                 />
                             ))}
                         </div>
