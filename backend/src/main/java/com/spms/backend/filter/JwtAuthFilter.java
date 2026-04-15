@@ -47,6 +47,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     @NonNull FilterChain filterChain)
             throws ServletException, IOException {
 
+        // --- YENİ EKLENEN KISIM: CORS ÖN KONTROLÜ (PREFLIGHT) ---
+        // OPTIONS isteklerini Security/Token filtresinden geçirmez, CORS confignize gönderir.
+        if (request.getMethod().equalsIgnoreCase("OPTIONS")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        // --------------------------------------------------------
+
         String path = request.getRequestURI();
 
         if (isPublic(path)) {

@@ -1,9 +1,13 @@
 spring:
+  config:
+    import: "optional:file:./backend/application.properties, optional:file:./application.properties"
   application:
     name: spms-backend
   datasource:
     url: ${db.url}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 2
   jpa:
     hibernate:
       ddl-auto: validate
