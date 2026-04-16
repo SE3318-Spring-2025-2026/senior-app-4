@@ -3,8 +3,10 @@ package com.spms.backend.controller;
 
 import com.spms.backend.dto.request.GroupCreateRequestDto;
 import com.spms.backend.dto.request.GroupUpdateRequestDto;
+import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.GroupDetailDto;
 import com.spms.backend.dto.response.GroupResponseDto;
+import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.service.GroupService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -54,6 +56,43 @@ public class GroupController {
     @GetMapping("/{groupId}")
     public ResponseEntity<GroupDetailDto> getGroupDetails(@PathVariable Long groupId) {
         return ResponseEntity.ok(groupService.getGroupDetails(groupId));
+    }
+
+
+    @PostMapping("/{groupId}/integrations/jira")
+    public ResponseEntity<?> bindJiraIntegration(
+            @PathVariable Long groupId,
+            @Valid @RequestBody JiraBindingRequest request,
+            @RequestAttribute("jwt_userId") Object userId) {
+
+        Long requesterId = Long.valueOf(userId.toString());
+        groupService.bindJiraIntegration(groupId, requesterId, request);
+
+        return ResponseEntity.ok().body(java.util.Map.of(
+                "success", true,
+                "message", "JIRA space bound successfully"
+        ));
+    }
+
+    @GetMapping("/{groupId}/integrations/jira")
+    public ResponseEntity<JiraIntegrationResponse> getJiraIntegration(
+            @PathVariable Long groupId,
+            @RequestAttribute("jwt_userId") Object userId) {
+        Long requesterId = Long.valueOf(userId.toString());
+        return ResponseEntity.ok(groupService.getJiraIntegration(groupId, requesterId));
+    }
+
+    @DeleteMapping("/{groupId}/integrations/jira")
+    public ResponseEntity<?> unbindJiraIntegration(
+            @PathVariable Long groupId,
+            @RequestAttribute("jwt_userId") Object userId) {
+        Long requesterId = Long.valueOf(userId.toString());
+        groupService.unbindJiraIntegration(groupId, requesterId);
+
+        return ResponseEntity.ok().body(java.util.Map.of(
+                "success", true,
+                "message", "JIRA integration removed successfully"
+        ));
     }
 
     @DeleteMapping("/{groupId}")
