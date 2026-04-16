@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { toast } from 'sonner';
+import { showToast } from '../components/toast/ToastContext';
 
 // Create API Client with Base URL
 const apiClient = axios.create({
@@ -25,27 +25,27 @@ apiClient.interceptors.response.use(
           window.location.href = '/login';
           break;
         case 403:
-          toast.error("You don't have permission");
+          showToast("You don't have permission", 'error');
           break;
         case 404:
-          toast.error("Resource not found");
+          showToast("Resource not found", 'error');
           break;
         case 400: {
           // Extract specific API error message if available, fallback otherwise
           const errorMessage = responseData?.message || responseData?.error || "Bad Request";
-          toast.error(errorMessage);
+          showToast(errorMessage, 'error');
           break;
         }
         case 500:
-          toast.error("Server error, please try again");
+          showToast("Server error, please try again", 'error');
           break;
         default:
-          toast.error(responseData?.message || "An unexpected error occurred");
+          showToast(responseData?.message || "An unexpected error occurred", 'error');
       }
     } else if (error.request) {
-      toast.error("Network error. Please check your connection.");
+      showToast("Network error. Please check your connection.", 'error');
     } else {
-      toast.error(error.message || "An unexpected error occurred");
+      showToast(error.message || "An unexpected error occurred", 'error');
     }
 
     return Promise.reject(error);
