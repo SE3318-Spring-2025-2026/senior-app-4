@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.List;
 
 @Service
 public class NotificationServiceImpl implements NotificationService {
@@ -147,6 +148,28 @@ public class NotificationServiceImpl implements NotificationService {
         }
 
         return Page.empty(pageable);
+    }
+
+    @Override
+    @Transactional
+    public void sendGroupDisbandedNotification(Long groupId, Long actorUserId, String groupName, List<Long> memberIds) {
+        User actor = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new BadRequestException("User not found."));
+
+        for (Long memberId : memberIds) {
+            User recipient = userRepository.findById(memberId)
+                    .orElseThrow(() -> new BadRequestException("Notification recipient not found."));
+
+            Notification notification = new Notification();
+            notification.setType(NotificationType.GROUP_DISBANDED);
+            notification.setStatus(NotificationStatus.PENDING);
+            notification.setMessage("Group '" + groupName + "' has been disbanded.");
+            notification.setGroupId(groupId);
+            notification.setFromUser(actor);
+            notification.setToUser(recipient);
+
+            notificationRepository.save(notification);
+        }
     }
 
 

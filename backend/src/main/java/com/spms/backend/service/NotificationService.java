@@ -6,6 +6,8 @@ import com.spms.backend.dto.response.NotificationDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
+
 public interface NotificationService {
     void requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId);
     AdvisorRequestStatusDto getAdvisorRequestStatus(Long groupId);
@@ -15,4 +17,5 @@ public interface NotificationService {
     void clearAllNotifications(Long userId);
     void respondToNotification(Long notificationId, String decision, Long userId);
     Page<NotificationDto> getSystemAlerts(Pageable pageable, String role);
+    void sendGroupDisbandedNotification(Long groupId, Long actorUserId, String groupName, List<Long> memberIds);
 }
