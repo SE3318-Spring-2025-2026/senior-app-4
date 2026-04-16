@@ -8,6 +8,7 @@ import com.spms.backend.dto.response.GroupResponseDto;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
+import com.spms.backend.exception.UnauthorizedException;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.model.User;
 import com.spms.backend.model.Group;
@@ -20,6 +21,7 @@ import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.service.GroupService;
 import com.spms.backend.service.NotificationService;
 import com.spms.backend.service.StudentAuthorizationService;
+import com.spms.backend.service.ValidationResult;
 import com.spms.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,9 +64,18 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public GroupResponseDto createGroup(GroupCreateRequestDto request, Long creatorId) {
-        User creator = authService.validateStudentExists(creatorId);
-        authService.validateNotInGroup(creatorId);
+        ValidationResult studentExists = authService.validateStudentExists(creatorId);
+        if (!studentExists.valid()) {
+            throw new BadRequestException(studentExists.reason());
+        }
 
+        ValidationResult notInGroup = authService.validateNotInGroup(creatorId);
+        if (!notInGroup.valid()) {
+            throw new BadRequestException(notInGroup.reason());
+        }
+
+        User creator = userRepository.findById(creatorId)
+                .orElseThrow(() -> new BadRequestException("Student not found."));
 
         Group group = new Group();
         group.setGroupName(request.groupName());
@@ -87,8 +98,16 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void updateGroupName(Long groupId, GroupUpdateRequestDto request, Long requesterId) {
+        ValidationResult isLeader = authService.validateIsGroupLeader(requesterId, groupId);
+        if (!isLeader.valid()) {
+            if ("Group not found.".equals(isLeader.reason())) {
+                throw new BadRequestException(isLeader.reason());
+            }
+            throw new UnauthorizedException(isLeader.reason());
+        }
 
-        Group group = authService.validateIsGroupLeader(requesterId, groupId);
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new BadRequestException("Group not found."));
 
         group.setGroupName(request.groupName());
         group.setUpdatedAt(Instant.now());
