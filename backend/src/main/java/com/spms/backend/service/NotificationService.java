@@ -18,4 +18,7 @@ public interface NotificationService {
     void respondToNotification(Long notificationId, String decision, Long userId);
     Page<NotificationDto> getSystemAlerts(Pageable pageable, String role);
     void sendGroupDisbandedNotification(Long groupId, Long actorUserId, String groupName, List<Long> memberIds);
+    com.spms.backend.model.notification.Notification createSystemAlert(Long toUserId, String message, String alertType, String metadata);
+    List<com.spms.backend.model.notification.Notification> getSystemAlertsByUserId(Long userId);
+    boolean systemAlertExists(Long toUserId, String alertType);
 }

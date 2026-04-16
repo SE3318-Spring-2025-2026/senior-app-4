@@ -173,6 +173,33 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
 
+    @Override
+    @Transactional
+    public Notification createSystemAlert(Long toUserId, String message, String alertType, String metadata) {
+        User recipient = userRepository.findById(toUserId)
+                .orElseThrow(() -> new BadRequestException("Notification recipient not found."));
+        Notification n = new Notification();
+        n.setType(NotificationType.SYSTEM_ALERT);
+        n.setMessage(message + (metadata != null ? " | " + metadata : ""));
+        n.setStatus(NotificationStatus.PENDING);
+        n.setToUser(recipient);
+        notificationRepository.save(n);
+        return n;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Notification> getSystemAlertsByUserId(Long userId) {
+        return notificationRepository.findByToUser_UserIdAndTypeOrderByCreatedAtDesc(userId, NotificationType.SYSTEM_ALERT);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean systemAlertExists(Long toUserId, String alertType) {
+        return notificationRepository.existsByToUser_UserIdAndTypeAndStatusAndMessageContaining(
+                toUserId, NotificationType.SYSTEM_ALERT, NotificationStatus.PENDING, alertType);
+    }
+
     private NotificationDto mapToDto(Notification notif) {
         return new NotificationDto(
                 notif.getId(),

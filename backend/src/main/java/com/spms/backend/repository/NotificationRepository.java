@@ -15,4 +15,6 @@ public interface NotificationRepository extends JpaRepository<Notification,Long>
     Optional<Notification> findByGroupIdAndTypeAndStatus(Long groupId, NotificationType type, NotificationStatus status);
 
     void deleteByToUser_UserId(Long userId);
+    java.util.List<Notification> findByToUser_UserIdAndTypeOrderByCreatedAtDesc(Long toUserId, NotificationType type);
+    boolean existsByToUser_UserIdAndTypeAndStatusAndMessageContaining(Long toUserId, NotificationType type, NotificationStatus status, String messageSnippet);
 }
