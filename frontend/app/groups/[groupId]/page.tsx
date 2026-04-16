@@ -4,6 +4,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { mockGroups } from "@/lib/mock-groups";
 import StatusBadge from "@/components/StatusBadge";
+import AppTopbar from "@/components/AppTopbar";
+import { useNotifications } from "@/components/NotificationProvider";
 
 function formatDate(dateString: string) {
     return new Date(dateString).toLocaleString("en-US", {
@@ -19,6 +21,8 @@ export default function GroupDetailPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
 
+    const { unreadOrPendingCount } = useNotifications();
+
     const group = mockGroups.find((g) => g.groupId === groupId);
 
     if (!group) {
@@ -32,6 +36,8 @@ export default function GroupDetailPage() {
     return (
         <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
             <div className="mx-auto max-w-5xl">
+                <AppTopbar title="Group Details" notificationCount={unreadOrPendingCount} />
+
                 <Link href="/groups" className="text-sm text-blue-400 hover:underline">
                     ← Back to groups
                 </Link>
