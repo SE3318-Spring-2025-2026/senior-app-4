@@ -92,13 +92,5 @@ public class NotificationController {
     }
 
 
-    @GetMapping("/api/v1/coordinator/system-alerts")
-    public ResponseEntity<Page<NotificationDto>> getSystemAlerts(
-            Pageable pageable,
-            @RequestAttribute("jwt_role") Object role) {
 
-        String userRole = role.toString();
-        Page<NotificationDto> alerts = notificationService.getSystemAlerts(pageable, userRole);
-        return ResponseEntity.ok(alerts);
-    }
 }
