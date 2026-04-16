@@ -2,6 +2,8 @@ package com.spms.backend.model;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "groups")
@@ -9,35 +11,95 @@ public class Group {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
     private Long id;
 
-    @Column(name = "group_name", nullable = false, length = 255)
-    private String name;
+    @Column(name = "group_name", nullable = false, length = 100)
+    private String groupName;
 
-    @Column(name = "status", nullable = false, length = 50)
-    private String status;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "leader_id", nullable = false)
+    private User leader;
 
-    @Column(name = "advisor_id")
-    private Long advisorId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "advisor_id")
+    private User advisor;
 
-    @Column(name = "created_at")
-    private Instant createdAt;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private GroupStatus status = GroupStatus.FORMING;
+
+    @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<GroupMember> members = new ArrayList<>();
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
+
+    @Column(name = "updated_at")
+    private Instant updatedAt = Instant.now();
 
     public Group() {}
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public String getGroupName() {
+        return groupName;
+    }
 
-    public Long getAdvisorId() { return advisorId; }
-    public void setAdvisorId(Long advisorId) { this.advisorId = advisorId; }
+    public void setGroupName(String groupName) {
+        this.groupName = groupName;
+    }
 
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+    public User getLeader() {
+        return leader;
+    }
+
+    public void setLeader(User leader) {
+        this.leader = leader;
+    }
+
+    public User getAdvisor() {
+        return advisor;
+    }
+
+    public void setAdvisor(User advisor) {
+        this.advisor = advisor;
+    }
+
+    public GroupStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(GroupStatus status) {
+        this.status = status;
+    }
+
+    public List<GroupMember> getMembers() {
+        return members;
+    }
+
+    public void setMembers(List<GroupMember> members) {
+        this.members = members;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }

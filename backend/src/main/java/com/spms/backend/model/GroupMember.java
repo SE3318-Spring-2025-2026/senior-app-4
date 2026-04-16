@@ -1,61 +1,68 @@
 package com.spms.backend.model;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Table;
 import jakarta.persistence.*;
-import java.io.Serializable;
-import java.util.Objects;
+import java.time.Instant;
 
 @Entity
 @Table(name = "group_members")
 public class GroupMember {
 
-    @EmbeddedId
-    private GroupMemberId id;
-
-    @Column(name = "role", length = 50, nullable = false)
-    private String role;
-
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id", nullable = false)
+    private Group group;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    private User user;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private GroupRole role;
+    @Column(name = "joined_at", nullable = false, updatable = false)
+    private Instant joinedAt = Instant.now();
     public GroupMember() {}
 
-    public GroupMemberId getId() { return id; }
-    public void setId(GroupMemberId id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getRole() { return role; }
-    public void setRole(String role) { this.role = role; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    @Embeddable
-    public static class GroupMemberId implements Serializable {
+    public Group getGroup() {
+        return group;
+    }
 
-        @Column(name = "group_id", nullable = false)
-        private Long groupId;
+    public void setGroup(Group group) {
+        this.group = group;
+    }
 
-        @Column(name = "user_id", nullable = false)
-        private Long userId;
+    public User getUser() {
+        return user;
+    }
 
-        public GroupMemberId() {}
+    public void setUser(User user) {
+        this.user = user;
+    }
 
-        public GroupMemberId(Long groupId, Long userId) {
-            this.groupId = groupId;
-            this.userId = userId;
-        }
+    public GroupRole getRole() {
+        return role;
+    }
 
-        public Long getGroupId() { return groupId; }
-        public void setGroupId(Long groupId) { this.groupId = groupId; }
+    public void setRole(GroupRole role) {
+        this.role = role;
+    }
 
-        public Long getUserId() { return userId; }
-        public void setUserId(Long userId) { this.userId = userId; }
+    public Instant getJoinedAt() {
+        return joinedAt;
+    }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof GroupMemberId)) return false;
-            GroupMemberId that = (GroupMemberId) o;
-            return Objects.equals(groupId, that.groupId) &&
-                   Objects.equals(userId, that.userId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(groupId, userId);
-        }
+    public void setJoinedAt(Instant joinedAt) {
+        this.joinedAt = joinedAt;
     }
 }
