@@ -1,52 +1,24 @@
 package com.spms.backend.service;
 
-import com.spms.backend.model.Notification;
-import com.spms.backend.repository.NotificationRepository;
-import org.springframework.stereotype.Service;
+import com.spms.backend.dto.request.AdvisorRequestDto;
+import com.spms.backend.dto.response.AdvisorRequestStatusDto;
+import com.spms.backend.dto.response.NotificationDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
-import java.time.Instant;
 import java.util.List;
 
-@Service
-public class NotificationService {
-
-    private final NotificationRepository notificationRepository;
-
-    public NotificationService(NotificationRepository notificationRepository) {
-        this.notificationRepository = notificationRepository;
-    }
-
-    /**
-     * Koordinatöre sistem uyarısı bildirim kaydı oluşturur (D10).
-     * alertType örn: "formation_deadline_missed", "advisor_deadline_missed"
-     */
-    public Notification createSystemAlert(Long toUserId,
-                                          String message,
-                                          String alertType,
-                                          String metadata) {
-        Notification n = new Notification();
-        n.setType("system_alert");
-        n.setMessage(message);
-        n.setStatus("pending");
-        n.setToUserId(toUserId);
-        n.setMetadata(metadata);
-        n.setCreatedAt(Instant.now());
-        return notificationRepository.save(n);
-    }
-
-    /**
-     * Belirli bir kullanıcıya ait tüm sistem uyarılarını getirir.
-     */
-    public List<Notification> getSystemAlerts(Long userId) {
-        return notificationRepository
-                .findByToUserIdAndTypeOrderByCreatedAtDesc(userId, "system_alert");
-    }
-
-    /**
-     * Belirli bir bildirim zaten var mı kontrol et (idempotency).
-     */
-    public boolean systemAlertExists(Long toUserId, String alertType) {
-        return notificationRepository
-                .existsByToUserIdAndTypeAndStatus(toUserId, alertType, "pending");
-    }
+public interface NotificationService {
+    void requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId);
+    AdvisorRequestStatusDto getAdvisorRequestStatus(Long groupId);
+    void cancelAdvisorRequest(Long groupId);
+    Page<NotificationDto> getUserNotifications(Long userId, Pageable pageable);
+    void clearNotification(Long notificationId, Long userId);
+    void clearAllNotifications(Long userId);
+    void respondToNotification(Long notificationId, String decision, Long userId);
+    Page<NotificationDto> getSystemAlerts(Pageable pageable, String role);
+    void sendGroupDisbandedNotification(Long groupId, Long actorUserId, String groupName, List<Long> memberIds);
+    com.spms.backend.model.notification.Notification createSystemAlert(Long toUserId, String message, String alertType, String metadata);
+    List<com.spms.backend.model.notification.Notification> getSystemAlertsByUserId(Long userId);
+    boolean systemAlertExists(Long toUserId, String alertType);
 }

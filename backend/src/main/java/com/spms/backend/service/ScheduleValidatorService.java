@@ -93,12 +93,12 @@ public class ScheduleValidatorService {
         }
 
         // Yetersiz üyeli aktif grupları bul ve 'incomplete' yap
-        List<Group> activeGroups = groupRepository.findByStatus("active");
+        List<Group> activeGroups = groupRepository.findByStatus(com.spms.backend.model.GroupStatus.FORMED);
         long incompleteCount = 0;
         for (Group g : activeGroups) {
-            long memberCount = groupMemberRepository.countByIdGroupId(g.getId());
+            long memberCount = g.getMembers().size();
             if (memberCount < MIN_GROUP_MEMBERS) {
-                g.setStatus("incomplete");
+                g.setStatus(com.spms.backend.model.GroupStatus.FORMING);
                 groupRepository.save(g);
                 incompleteCount++;
             }
@@ -129,11 +129,11 @@ public class ScheduleValidatorService {
 
         // Danışman atanmamış, disbanded olmayan grupları bul
         List<Group> unadvisedGroups = groupRepository
-                .findByAdvisorIdIsNullAndStatusNot("disbanded");
+                .findByAdvisorIsNullAndStatusNot(com.spms.backend.model.GroupStatus.DISBANDED);
 
         // Bu grupları 'advisor_needed' statüsüne al
         for (Group g : unadvisedGroups) {
-            g.setStatus("advisor_needed");
+            g.setStatus(com.spms.backend.model.GroupStatus.FORMING);
             groupRepository.save(g);
         }
 

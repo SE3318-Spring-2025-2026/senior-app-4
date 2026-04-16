@@ -5,7 +5,7 @@ import com.spms.backend.dto.response.ScheduleResponse;
 import com.spms.backend.dto.response.SystemAlertResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.model.Group;
-import com.spms.backend.model.Notification;
+import com.spms.backend.model.notification.Notification;
 import com.spms.backend.model.Schedule;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.GroupMemberRepository;
@@ -79,7 +79,7 @@ public class ScheduleService {
      * SystemAlertResponse listesine dönüştürür.
      */
     public List<SystemAlertResponse> getSystemAlerts(Long coordinatorId) {
-        List<Notification> notifications = notificationService.getSystemAlerts(coordinatorId);
+        List<Notification> notifications = notificationService.getSystemAlertsByUserId(coordinatorId);
         List<SystemAlertResponse> result = new ArrayList<>();
 
         Schedule schedule = scheduleRepository.findTopByOrderByIdDesc().orElse(null);
@@ -102,16 +102,16 @@ public class ScheduleService {
 
             List<AffectedGroup> affectedGroups = new ArrayList<>();
             if ("formation_deadline_missed".equals(alertType)) {
-                List<Group> incGroups = groupRepository.findByStatus("incomplete");
+                List<Group> incGroups = groupRepository.findByStatus(com.spms.backend.model.GroupStatus.FORMING);
                 for (Group g : incGroups) {
-                    int count = (int) groupMemberRepository.countByIdGroupId(g.getId());
-                    affectedGroups.add(new AffectedGroup(g.getId(), g.getName(), count));
+                    int count = g.getMembers().size();
+                    affectedGroups.add(new AffectedGroup(g.getId(), g.getGroupName(), count));
                 }
             } else if ("advisor_deadline_missed".equals(alertType)) {
-                List<Group> advGroups = groupRepository.findByStatus("advisor_needed");
+                List<Group> advGroups = groupRepository.findByStatus(com.spms.backend.model.GroupStatus.FORMING); // Assuming forming groups need advisors
                 for (Group g : advGroups) {
-                    int count = (int) groupMemberRepository.countByIdGroupId(g.getId());
-                    affectedGroups.add(new AffectedGroup(g.getId(), g.getName(), count));
+                    int count = g.getMembers().size();
+                    affectedGroups.add(new AffectedGroup(g.getId(), g.getGroupName(), count));
                 }
             }
 
