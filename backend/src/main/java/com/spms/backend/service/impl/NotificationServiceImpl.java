@@ -127,6 +127,11 @@ public class NotificationServiceImpl implements NotificationService {
         // ── Soft-delete: set status to REVOKED in D8 ──────────────────────────
         notification.setStatus(NotificationStatus.REVOKED);
         notificationRepository.save(notification);
+
+        // TODO: Delete the corresponding record from D2 (advisor_requests table).
+        //       The issue requires both: "Delete from D2 and revoke from D8".
+        //       D2 does not exist as a separate table in the current schema.
+        //       This step must be implemented by the team member responsible for D2.
     }
 
 
