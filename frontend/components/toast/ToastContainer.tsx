@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { useToast } from './ToastContext';
 
@@ -7,13 +9,13 @@ export const ToastContainer: React.FC = () => {
   const getBackgroundColor = (type: string) => {
     switch (type) {
       case 'success':
-        return '#4caf50'; // green
+        return '#4caf50';
       case 'error':
-        return '#f44336'; // red
+        return '#f44336';
       case 'warning':
-        return '#ff9800'; // yellow
+        return '#ff9800';
       case 'info':
-        return '#2196f3'; // blue
+        return '#2196f3';
       default:
         return '#333';
     }
@@ -47,10 +49,12 @@ export const ToastContainer: React.FC = () => {
             justifyContent: 'space-between',
             minWidth: '300px',
             fontFamily: 'sans-serif',
-            transition: 'all 0.3s ease',
           }}
         >
-          <span style={{ fontSize: '14px', lineHeight: '1.4' }}>{toast.message}</span>
+          <span style={{ fontSize: '14px', lineHeight: '1.4' }}>
+            {toast.message}
+          </span>
+
           <button
             onClick={() => removeToast(toast.id)}
             style={{
@@ -65,8 +69,6 @@ export const ToastContainer: React.FC = () => {
               padding: 0,
               lineHeight: 1,
             }}
-            onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.opacity = '1'; }}
-            onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.opacity = '0.8'; }}
           >
             &times;
           </button>
