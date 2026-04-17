@@ -13,4 +13,7 @@ public interface GroupService {
     Page<GroupResponseDto> getAllGroups(Pageable pageable);
     GroupDetailDto getGroupDetails(Long groupId);
     void disbandGroup(Long groupId, Long requesterId, String requesterRole);
+
+    /** coordinator_fX: Retrieve all system group-advisor mappings. */
+    java.util.List<com.spms.backend.dto.response.GroupAdvisorAssignmentDto> getAdvisorAssignments();
 }
