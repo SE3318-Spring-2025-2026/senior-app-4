@@ -87,6 +87,49 @@ public class NotificationServiceImpl implements NotificationService {
         // TODO: (Optional) If Process P2.9 requires saving to an Audit Log table, add it here
     }
 
+    /**
+     * withdrawRequest / revokeNotification (Related: Issue #80)
+     * Allows the group leader to withdraw a PENDING advisor request by notification ID.
+     * Soft-deletes the notification in D8 by setting its status to REVOKED.
+     *
+     * @param notificationId  ID of the ADVISOR_REQUEST notification to revoke.
+     * @param requesterId     JWT userId of the caller; must be the original sender (fromUser).
+     */
+    @Override
+    @Transactional
+    public void withdrawAdvisorRequest(Long notificationId, Long requesterId) {
+
+        // ── Locate the notification in D8 ─────────────────────────────────────
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new com.spms.backend.exception.NotFoundException(
+                        "Advisor request not found with id: " + notificationId));
+
+        // ── Validate it is an ADVISOR_REQUEST ─────────────────────────────────
+        if (notification.getType() != NotificationType.ADVISOR_REQUEST) {
+            throw new com.spms.backend.exception.BadRequestException(
+                    "Notification is not an advisor request.");
+        }
+
+        // ── Only PENDING requests can be withdrawn ─────────────────────────────
+        if (notification.getStatus() != NotificationStatus.PENDING) {
+            throw new com.spms.backend.exception.BadRequestException(
+                    "Only pending advisor requests can be withdrawn. Current status: "
+                            + notification.getStatus().name());
+        }
+
+        // ── Ownership check: only the student who sent the request can withdraw ─
+        if (notification.getFromUser() == null
+                || !notification.getFromUser().getUserId().equals(requesterId)) {
+            throw new com.spms.backend.exception.ForbiddenException(
+                    "You are not authorized to withdraw this advisor request.");
+        }
+
+        // ── Soft-delete: set status to REVOKED in D8 ──────────────────────────
+        notification.setStatus(NotificationStatus.REVOKED);
+        notificationRepository.save(notification);
+    }
+
+
     @Override
     @Transactional(readOnly = true)
     public Page<NotificationDto> getUserNotifications(Long userId, Pageable pageable) {

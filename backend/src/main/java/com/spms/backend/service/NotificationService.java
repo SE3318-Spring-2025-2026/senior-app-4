@@ -12,6 +12,8 @@ public interface NotificationService {
     void requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId);
     AdvisorRequestStatusDto getAdvisorRequestStatus(Long groupId);
     void cancelAdvisorRequest(Long groupId);
+    /** withdrawRequest / revokeNotification — sets notification status to REVOKED (soft-delete). */
+    void withdrawAdvisorRequest(Long notificationId, Long requesterId);
     Page<NotificationDto> getUserNotifications(Long userId, Pageable pageable);
     void clearNotification(Long notificationId, Long userId);
     void clearAllNotifications(Long userId);
