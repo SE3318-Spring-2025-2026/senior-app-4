@@ -48,6 +48,16 @@ export default function GroupDetailPage() {
                 </div>
 
                 <div className="mb-8 grid gap-6 md:grid-cols-2">
+                    <Link href={`/groups/${group.groupId}/submissions/new`}>
+                        <div className="cursor-pointer rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">
+                            <p className="mb-2 text-sm text-blue-200">Deliverables</p>
+                            <p className="font-medium text-white">Submit Proposal / SoW</p>
+                            <p className="mt-2 text-sm text-blue-100/70">
+                                Open the student submission form for Process 3 deliverables.
+                            </p>
+                        </div>
+                    </Link>
+
                     <Link href={`/groups/${group.groupId}/integrations/github`}>
                         <div className="cursor-pointer rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur transition-all hover:border-blue-500/40 hover:shadow-blue-500/10">
                             <p className="mb-2 text-sm text-gray-400">GitHub</p>
