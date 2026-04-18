@@ -1,45 +1,81 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import GroupCard from "@/components/GroupCard";
 import GroupCardSkeleton from "@/components/GroupCardSkeleton";
 import AppTopbar from "@/components/AppTopbar";
-import { mockGroups } from "@/lib/mock-groups";
-import { Group } from "@/lib/group-types";
 import { useNotifications } from "@/components/NotificationProvider";
+import { fetchGroups, ApiGroupListItem } from "@/lib/groups-api";
+import { Group } from "@/lib/group-types";
+
+function mapApiGroupToUiGroup(apiGroup: ApiGroupListItem): Group {
+    return {
+        groupId: apiGroup.id,
+        groupName: apiGroup.groupName,
+        status: apiGroup.status.toLowerCase() as Group["status"],
+        leaderId: apiGroup.leaderId,
+        leaderName: `Leader #${apiGroup.leaderId}`,
+        advisorId: apiGroup.advisorId ?? null,
+        advisorName: apiGroup.advisorId ? `Advisor #${apiGroup.advisorId}` : "Not Assigned",
+        memberCount: apiGroup.memberCount,
+        members: [],
+        githubBound: false,
+        jiraBound: false,
+        createdAt: apiGroup.createdAt,
+        updatedAt: apiGroup.createdAt,
+    };
+}
 
 export default function GroupsPage() {
     const [groups, setGroups] = useState<Group[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(0);
-    const pageSize = 6;
+    const [totalPages, setTotalPages] = useState(1);
+    const [error, setError] = useState("");
 
+    const pageSize = 6;
     const { unreadOrPendingCount } = useNotifications();
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setGroups(mockGroups);
-            setLoading(false);
-        }, 1200);
+        let cancelled = false;
 
-        return () => clearTimeout(timer);
-    }, []);
+        async function loadGroups() {
+            try {
+                setLoading(true);
+                setError("");
 
-    const CURRENT_USER_ID = "2201999"; // senin current user id
+                const response = await fetchGroups(page, pageSize);
 
-    const sortedGroups = [...groups].sort((a, b) => {
-        const aOwn = a.members.some(m => m.studentId === CURRENT_USER_ID);
-        const bOwn = b.members.some(m => m.studentId === CURRENT_USER_ID);
+                if (cancelled) return;
 
-        if (aOwn) return -1;
-        if (bOwn) return 1;
-        return a.groupName.localeCompare(b.groupName);
-    });
+                const mappedGroups = response.content.map(mapApiGroupToUiGroup);
+                setGroups(mappedGroups);
+                setTotalPages(Math.max(response.totalPages, 1));
+            } catch (err) {
+                if (cancelled) return;
 
-    const start = page * pageSize;
-    const end = start + pageSize;
-    const paginatedGroups = sortedGroups.slice(start, end);
-    const totalPages = Math.ceil(sortedGroups.length / pageSize);
+                const message =
+                    err instanceof Error ? err.message : "Failed to load groups.";
+                setError(message);
+                setGroups([]);
+                setTotalPages(1);
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        }
+
+        loadGroups();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [page]);
+
+    const sortedGroups = useMemo(() => {
+        return [...groups].sort((a, b) => a.groupName.localeCompare(b.groupName));
+    }, [groups]);
 
     return (
         <main className="min-h-screen bg-gray-950 px-6 py-10">
@@ -66,6 +102,15 @@ export default function GroupsPage() {
                             <GroupCardSkeleton key={i} />
                         ))}
                     </div>
+                ) : error ? (
+                    <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-16 text-center shadow-lg shadow-black/20">
+                        <div className="mx-auto max-w-md">
+                            <h2 className="text-xl font-semibold text-red-300">
+                                Could not load groups
+                            </h2>
+                            <p className="mt-2 text-red-200/80">{error}</p>
+                        </div>
+                    </div>
                 ) : sortedGroups.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 bg-gray-900 px-6 py-16 text-center shadow-lg shadow-black/20">
                         <div className="mx-auto max-w-md">
@@ -78,11 +123,11 @@ export default function GroupsPage() {
                 ) : (
                     <>
                         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                            {paginatedGroups.map((group) => (
+                            {sortedGroups.map((group) => (
                                 <GroupCard
                                     key={group.groupId}
                                     group={group}
-                                    isOwnGroup={group.members.some(m => m.studentId === CURRENT_USER_ID)}
+                                    isOwnGroup={false}
                                 />
                             ))}
                         </div>
@@ -102,7 +147,9 @@ export default function GroupsPage() {
                             </span>
 
                             <button
-                                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages - 1))}
+                                onClick={() =>
+                                    setPage((prev) => Math.min(prev + 1, totalPages - 1))
+                                }
                                 disabled={page >= totalPages - 1}
                                 className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
                             >

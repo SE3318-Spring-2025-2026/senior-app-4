@@ -1,8 +1,5 @@
 package com.spms.backend.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Table;
 import jakarta.persistence.*;
 import java.time.Instant;
 
@@ -19,12 +16,16 @@ public class GroupMember {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
-    @Enumerated(EnumType.STRING)
+
+    @Convert(converter = GroupRoleConverter.class)
     @Column(nullable = false)
     private GroupRole role;
+
     @Column(name = "joined_at", nullable = false, updatable = false)
     private Instant joinedAt = Instant.now();
-    public GroupMember() {}
+
+    public GroupMember() {
+    }
 
     public Long getId() {
         return id;

@@ -20,10 +20,12 @@ server:
   port: 8080
 
 github:
-  client-id: ${GITHUB_CLIENT_ID}
-  client-secret: ${GITHUB_CLIENT_SECRET}
-  redirect-uri: ${GITHUB_REDIRECT_URI}
+  client-id: ${Ov23liBp0P26wwpCX9xr}
+  client-secret: ${2668412ff76aedad5d1d77626b7968c401cca7c7}
+  redirect-uri: ${http://localhost:3000/auth/callback}
 
 token:
-  secret: ${TOKEN_SECRET:spms-issue-7-dev-secret}
+  secret: ${eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNzgiLCJ1c2VySWQiOjE3OCwic3R1ZGVudElkIjoiNjU0MzIxIiwiZ2l0aHViVXNlcm5hbWUiOiJEaWxhcmFLdXlhciIsInJvbGUiOiJzdHVkZW50IiwicmVxdWlyZXNQYXNzd29yZENoYW5nZSI6ZmFsc2UsImlhdCI6MTc3NjQxNzQ1MywiZXhwIjoxNzc2NDIxMDUzfQ.W7DSZRQtU1wKspGGwwY0za1bKTOa1S1LxPWNCAjXsWc}
   expiration-seconds: ${TOKEN_EXPIRATION_SECONDS:3600}
+
+
