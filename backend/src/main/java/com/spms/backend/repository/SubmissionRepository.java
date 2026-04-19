@@ -8,6 +8,8 @@ public interface SubmissionRepository {
 
     Optional<Submission> findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(Long groupId, DeliverableType type);
 
+    Optional<Submission> findById(Long id);
+
     Submission save(Submission submission);
     
 }

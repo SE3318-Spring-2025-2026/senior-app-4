@@ -23,6 +23,13 @@ public class MockSubmissionRepository implements SubmissionRepository {
     }
 
     @Override
+    public Optional<Submission> findById(Long id) {
+        return submissions.stream()
+                .filter(s -> s.getId().equals(id))
+                .findFirst();
+    }
+
+    @Override
     public Submission save(Submission submission) {
         if (submission.getId() == null) {
             submission.setId(idGenerator.getAndIncrement());

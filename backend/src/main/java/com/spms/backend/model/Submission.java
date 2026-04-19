@@ -12,6 +12,7 @@ public class Submission {
     private String content;
     private SubmissionStatus status;
     private Long committeeId;
+    private Double finalGrade;
     private LocalDateTime createdAt;
 
     public Submission() {
