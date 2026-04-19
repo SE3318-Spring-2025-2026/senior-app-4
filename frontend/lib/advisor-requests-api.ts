@@ -69,6 +69,66 @@ export async function fetchPendingRequests(): Promise<AdvisorRequestSummary[]> {
     return body.data ?? [];
 }
 
+export type AdvisorAssignment = {
+    teamId: string;
+    teamName: string;
+    advisorId: string | null;
+    advisorName: string | null;
+    assignedAt: string | null;
+    assignmentType: "REQUESTED" | "OVERRIDDEN" | null;
+};
+
+export type AdvisorAssignmentListResponse = {
+    status: string;
+    data: AdvisorAssignment[];
+};
+
+export type OverrideAssignmentRequest = {
+    teamId: string;
+    advisorId: string;
+    reason?: string;
+};
+
+export async function fetchAdvisorAssignments(): Promise<AdvisorAssignment[]> {
+    const res = await fetch(`${API_BASE}/advisor-assignments`, {
+        method: "GET",
+        headers: buildHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    const body: AdvisorAssignmentListResponse = await res.json();
+    return body.data ?? [];
+}
+
+export async function overrideAdvisorAssignment(
+    payload: OverrideAssignmentRequest
+): Promise<void> {
+    const res = await fetch(`${API_BASE}/advisor-assignments/override`, {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+export async function releaseAdviseeGroup(groupId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/advisor-assignments/${groupId}/release`, {
+        method: "POST",
+        headers: buildHeaders(),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
 export async function submitAdvisorDecision(
     requestId: string,
     payload: AdvisorDecisionRequest
