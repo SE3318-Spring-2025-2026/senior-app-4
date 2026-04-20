@@ -4,9 +4,17 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
+import GithubStatusCard from "@/components/GithubStatusCard";
+import JiraStatusCard from "@/components/JiraStatusCard";
 import { fetchGroupDetail } from "@/lib/groups-api";
 import { inviteMemberApi } from "@/lib/notifications-api";
 import { getUser } from "@/lib/auth";
+import {
+    fetchGithubIntegration,
+    fetchJiraIntegration,
+    type GithubIntegrationApiResponse,
+    type JiraIntegrationApiResponse,
+} from "@/lib/integrations-api";
 
 function formatDate(dateString: string) {
     return new Date(dateString).toLocaleString("en-US", {
@@ -23,6 +31,8 @@ export default function GroupDetailPage() {
     const groupId = Number(params.groupId);
 
     const [group, setGroup] = useState<any>(null);
+    const [githubIntegration, setGithubIntegration] = useState<GithubIntegrationApiResponse | null>(null);
+    const [jiraIntegration, setJiraIntegration] = useState<JiraIntegrationApiResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -43,9 +53,17 @@ export default function GroupDetailPage() {
             try {
                 setLoading(true);
                 setError("");
-                const data = await fetchGroupDetail(groupId);
+
+                const [groupData, githubData, jiraData] = await Promise.all([
+                    fetchGroupDetail(groupId),
+                    fetchGithubIntegration(groupId),
+                    fetchJiraIntegration(groupId),
+                ]);
+
                 if (cancelled) return;
-                setGroup(data);
+                setGroup(groupData);
+                setGithubIntegration(githubData);
+                setJiraIntegration(jiraData);
             } catch (err) {
                 if (cancelled) return;
                 const message =
@@ -122,15 +140,21 @@ export default function GroupDetailPage() {
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2 mb-8">
-                    <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
-                        <p className="text-sm text-gray-400 mb-2">GitHub</p>
-                        <p className="text-gray-500 font-medium">Unknown</p>
-                    </div>
+                    <GithubStatusCard
+                        integration={
+                            githubIntegration?.data?.status === "inactive"
+                                ? undefined
+                                : githubIntegration?.data
+                        }
+                    />
 
-                    <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
-                        <p className="text-sm text-gray-400 mb-2">JIRA</p>
-                        <p className="text-gray-500 font-medium">Unknown</p>
-                    </div>
+                    <JiraStatusCard
+                        integration={
+                            jiraIntegration?.data?.status === "inactive"
+                                ? undefined
+                                : jiraIntegration?.data
+                        }
+                    />
 
                     <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
                         <p className="text-sm text-gray-400 mb-2">Created At</p>

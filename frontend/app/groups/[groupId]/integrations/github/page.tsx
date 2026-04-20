@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import GithubBindForm from "@/components/GithubBindForm";
@@ -8,25 +8,64 @@ import GithubStatusCard from "@/components/GithubStatusCard";
 import IntegrationTestCard from "@/components/IntegrationTestCard";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import AppTopbar from "@/components/AppTopbar";
-import {
-    mockGithubIntegrations,
-    mockIntegrationTests,
-} from "@/lib/mock-github";
-import { mockGroups } from "@/lib/mock-groups";
 import { useNotifications } from "@/components/NotificationProvider";
+import { fetchGroupDetail } from "@/lib/groups-api";
+import { fetchGithubIntegration, type GithubIntegrationApiResponse } from "@/lib/integrations-api";
+import { getUser } from "@/lib/auth";
 
 export default function GithubIntegrationPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
 
     const { unreadOrPendingCount } = useNotifications();
+    const currentUser = getUser();
 
-    const group = mockGroups.find((g) => g.groupId === groupId);
-    const integration = mockGithubIntegrations.find((i) => i.groupId === groupId);
-
+    const [group, setGroup] = useState<any>(null);
+    const [integration, setIntegration] = useState<GithubIntegrationApiResponse | null>(null);
+    const [loading, setLoading] = useState(true);
     const [showConfirm, setShowConfirm] = useState(false);
     const [unbindLoading, setUnbindLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState("");
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadData() {
+            try {
+                setLoading(true);
+                const [groupData, integrationData] = await Promise.all([
+                    fetchGroupDetail(groupId),
+                    fetchGithubIntegration(groupId),
+                ]);
+
+                if (cancelled) return;
+                setGroup(groupData);
+                setIntegration(integrationData);
+            } catch (err) {
+                console.error("Failed to load GitHub integration page:", err);
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        }
+
+        if (!Number.isNaN(groupId)) {
+            loadData();
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [groupId]);
+
+    if (loading) {
+        return (
+            <main className="min-h-screen bg-gray-950 flex items-center justify-center text-white">
+                Loading...
+            </main>
+        );
+    }
 
     if (!group) {
         return (
@@ -36,9 +75,7 @@ export default function GithubIntegrationPage() {
         );
     }
 
-    const isLeader = group.members.some(
-        (member) => member.role === "leader" && member.fullName === "Miray Yıldırım"
-    );
+    const isLeader = group.leaderId === currentUser?.userId;
 
     async function handleBind(githubPat: string, organizationName: string) {
         console.log("Bind request:", { githubPat, organizationName });
@@ -89,13 +126,19 @@ export default function GithubIntegrationPage() {
                         </div>
                     )}
 
-                    <GithubStatusCard integration={integration} />
+                    <GithubStatusCard
+                        integration={
+                            integration?.data?.status === "inactive"
+                                ? undefined
+                                : integration?.data
+                        }
+                    />
 
                     {isLeader ? (
                         <>
                             <GithubBindForm onBind={handleBind} />
 
-                            {integration && (
+                            {integration?.data?.status === "active" && (
                                 <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
                                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
@@ -119,7 +162,6 @@ export default function GithubIntegrationPage() {
 
                             <IntegrationTestCard
                                 groupId={groupId}
-                                mockResult={mockIntegrationTests[groupId]}
                             />
                         </>
                     ) : (

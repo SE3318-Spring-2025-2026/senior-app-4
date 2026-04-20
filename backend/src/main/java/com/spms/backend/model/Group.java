@@ -1,5 +1,4 @@
 package com.spms.backend.model;
-
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -7,7 +6,10 @@ import java.util.List;
 import jakarta.persistence.Convert;
 
 @Entity
-@Table(name = "groups")
+@Table(name = "groups", indexes = {
+    @Index(name = "idx_group_status", columnList = "status"),
+    @Index(name = "idx_group_advisor", columnList = "advisor_id")
+})
 public class Group {
 
     @Id
