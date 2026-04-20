@@ -1,6 +1,5 @@
 package com.spms.backend.controller;
 
-
 import com.spms.backend.dto.request.GroupCreateRequestDto;
 import com.spms.backend.dto.request.GroupUpdateRequestDto;
 import com.spms.backend.dto.response.GroupDetailDto;
@@ -12,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springdoc.core.annotations.ParameterObject;
 
 @RestController
 @RequestMapping("/api/v1/groups")
@@ -47,13 +47,28 @@ public class GroupController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<GroupResponseDto>> getGroups(Pageable pageable) {
-        return ResponseEntity.ok(groupService.getAllGroups(pageable));
+    public ResponseEntity<Page<GroupResponseDto>> getGroups(
+            @ParameterObject Pageable pageable,  // <-- SADECE BURAYA @ParameterObject EKLENDİ
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+
+        Long requesterId = Long.valueOf(userId.toString());
+        String requesterRole = role.toString();
+
+        return ResponseEntity.ok(groupService.getGroups(pageable, requesterId, requesterRole));
     }
 
+    
     @GetMapping("/{groupId}")
-    public ResponseEntity<GroupDetailDto> getGroupDetails(@PathVariable Long groupId) {
-        return ResponseEntity.ok(groupService.getGroupDetails(groupId));
+    public ResponseEntity<GroupDetailDto> getGroupDetails(
+            @PathVariable Long groupId,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+
+        Long requesterId = Long.valueOf(userId.toString());
+        String requesterRole = role.toString();
+
+        return ResponseEntity.ok(groupService.getGroupDetails(groupId, requesterId, requesterRole));
     }
 
     @DeleteMapping("/{groupId}")

@@ -9,8 +9,14 @@ import org.springframework.data.domain.Pageable;
 
 public interface GroupService {
     GroupResponseDto createGroup(GroupCreateRequestDto request, Long creatorId);
+    
     void updateGroupName(Long groupId, GroupUpdateRequestDto request, Long requesterId);
-    Page<GroupResponseDto> getAllGroups(Pageable pageable);
-    GroupDetailDto getGroupDetails(Long groupId);
+    
+    //Rol bazlı sorgulama yapabilmek için requesterId ve requesterRole ekledim
+    Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole);
+    
+    //Rol bazlı detay sorgusu için requesterId ve requesterRole eklendim
+    GroupDetailDto getGroupDetails(Long groupId, Long requesterId, String requesterRole);
+    
     void disbandGroup(Long groupId, Long requesterId, String requesterRole);
 }

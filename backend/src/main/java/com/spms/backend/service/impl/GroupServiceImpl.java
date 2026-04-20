@@ -5,7 +5,6 @@ import com.spms.backend.dto.request.GroupUpdateRequestDto;
 import com.spms.backend.dto.response.GroupDetailDto;
 import com.spms.backend.dto.response.GroupMemberDto;
 import com.spms.backend.dto.response.GroupResponseDto;
-import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.AuditLog;
@@ -65,12 +64,10 @@ public class GroupServiceImpl implements GroupService {
         User creator = authService.validateStudentExists(creatorId);
         authService.validateNotInGroup(creatorId);
 
-
         Group group = new Group();
         group.setGroupName(request.groupName());
         group.setLeader(creator);
         group.setStatus(GroupStatus.FORMING);
-
 
         GroupMember leaderMember = new GroupMember();
         leaderMember.setGroup(group);
@@ -94,19 +91,55 @@ public class GroupServiceImpl implements GroupService {
         group.setUpdatedAt(Instant.now());
 
         groupRepository.save(group);
-        //todo Issue P2.9 Audit Log service
+        
     }
 
+    // rol bazlı grup getirmek için
     @Override
     @Transactional(readOnly = true)
-    public Page<GroupResponseDto> getAllGroups(Pageable pageable) {
-        return groupRepository.findAll(pageable)
-                .map(this::mapToSimpleDto);
+public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole) {
+
+    Page<Group> groupsPage = null;
+
+    String role = (requesterRole != null) ? requesterRole.toLowerCase() : "guest";
+
+    switch (role) {
+        case "student":
+            groupsPage = groupRepository.findAllWithStudentGroupFirst(requesterId, pageable);
+            break;
+
+        case "professor":
+            groupsPage = groupRepository.findByAdvisorId(requesterId, pageable);
+            break;
+
+        case "coordinator":
+            groupsPage = groupRepository.findAll(pageable);
+            try {
+                List<Object[]> counts = groupRepository.countGroupsByStatus();
+                counts.forEach(result -> 
+                    log.info("Coordinator Summary - Status: {} Count: {}", result[0], result[1])
+                );
+            } catch (Exception e) {
+                log.error("Status summary count failed", e);
+            }
+            break;
+
+        default:
+
+            groupsPage = groupRepository.findAll(pageable);
+            break;
+    }
+    if (groupsPage == null) {
+        return Page.empty(pageable);
     }
 
+    return groupsPage.map(this::mapToSimpleDto);
+}
+
+    // rol abzlı detayları getirir
     @Override
     @Transactional(readOnly = true)
-    public GroupDetailDto getGroupDetails(Long groupId) {
+    public GroupDetailDto getGroupDetails(Long groupId, Long requesterId, String requesterRole) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
 
@@ -175,7 +208,6 @@ public class GroupServiceImpl implements GroupService {
             log.warn("Failed to send disband notifications for group {}: {}", groupId, exception.getMessage());
         }
     }
-
 
     private GroupResponseDto mapToSimpleDto(Group group) {
         return new GroupResponseDto(
