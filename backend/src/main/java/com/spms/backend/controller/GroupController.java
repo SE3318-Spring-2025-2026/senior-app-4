@@ -7,6 +7,7 @@ import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.GroupDetailDto;
 import com.spms.backend.dto.response.GroupResponseDto;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
+import com.spms.backend.dto.response.GithubIntegrationResponse;
 import com.spms.backend.service.GroupService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -76,10 +77,14 @@ public class GroupController {
 
     @GetMapping("/{groupId}/integrations/jira")
     public ResponseEntity<JiraIntegrationResponse> getJiraIntegration(
-            @PathVariable Long groupId,
-            @RequestAttribute("jwt_userId") Object userId) {
-        Long requesterId = Long.valueOf(userId.toString());
-        return ResponseEntity.ok(groupService.getJiraIntegration(groupId, requesterId));
+            @PathVariable Long groupId) {
+        return ResponseEntity.ok(groupService.getJiraIntegration(groupId));
+    }
+
+    @GetMapping("/{groupId}/integrations/github")
+    public ResponseEntity<GithubIntegrationResponse> getGithubIntegration(
+            @PathVariable Long groupId) {
+        return ResponseEntity.ok(groupService.getGithubIntegration(groupId));
     }
 
     @DeleteMapping("/{groupId}/integrations/jira")
