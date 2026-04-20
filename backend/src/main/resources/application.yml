@@ -1,6 +1,6 @@
 spring:
   config:
-    import: "optional:file:./backend/application.properties, optional:file:./application.properties"
+    import: "optional:file:./application.properties"
 
   application:
     name: spms-backend

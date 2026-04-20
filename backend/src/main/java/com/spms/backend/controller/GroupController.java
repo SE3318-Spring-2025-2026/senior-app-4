@@ -3,11 +3,13 @@ package com.spms.backend.controller;
 
 import com.spms.backend.dto.request.GroupCreateRequestDto;
 import com.spms.backend.dto.request.GroupUpdateRequestDto;
+import com.spms.backend.dto.request.InviteMemberRequestDto;
 import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.GroupDetailDto;
 import com.spms.backend.dto.response.GroupResponseDto;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.service.GroupService;
+import com.spms.backend.service.MemberService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,9 +22,11 @@ import org.springframework.web.bind.annotation.*;
 public class GroupController {
 
     private final GroupService groupService;
+    private final MemberService memberService;
 
-    public GroupController(GroupService groupService) {
+    public GroupController(GroupService groupService, MemberService memberService) {
         this.groupService = groupService;
+        this.memberService = memberService;
     }
 
     @PostMapping
@@ -108,6 +112,25 @@ public class GroupController {
         return ResponseEntity.ok().body(java.util.Map.of(
                 "success", true,
                 "message", "Group disbanded successfully"
+        ));
+    }
+
+    /**
+     * P2-API-05: Leader invites a student to the group.
+     * Creates a MEMBERSHIP_INVITE notification for the target student (ns_f1).
+     */
+    @PostMapping("/{groupId}/members")
+    public ResponseEntity<?> inviteMember(
+            @PathVariable Long groupId,
+            @Valid @RequestBody InviteMemberRequestDto request,
+            @RequestAttribute("jwt_userId") Object userId) {
+
+        Long leaderId = Long.valueOf(userId.toString());
+        memberService.inviteMember(groupId, request.studentId(), leaderId);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(java.util.Map.of(
+                "success", true,
+                "message", "Membership invitation sent successfully"
         ));
     }
 }
