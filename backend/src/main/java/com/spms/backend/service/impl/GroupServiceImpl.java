@@ -5,21 +5,29 @@ import com.spms.backend.dto.request.GroupUpdateRequestDto;
 import com.spms.backend.dto.response.GroupDetailDto;
 import com.spms.backend.dto.response.GroupMemberDto;
 import com.spms.backend.dto.response.GroupResponseDto;
+import com.spms.backend.dto.request.JiraBindingRequest;
+import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
+import com.spms.backend.exception.UnauthorizedException;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.model.User;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupMember;
 import com.spms.backend.model.GroupRole;
 import com.spms.backend.model.GroupStatus;
+import com.spms.backend.model.JiraIntegration;
+import com.spms.backend.model.JiraIntegrationStatus;
 import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
+import com.spms.backend.repository.JiraIntegrationRepository;
 import com.spms.backend.service.GroupService;
+import com.spms.backend.client.JiraApiClient;
 import com.spms.backend.service.NotificationService;
 import com.spms.backend.service.StudentAuthorizationService;
+import com.spms.backend.service.ValidationResult;
 import com.spms.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,27 +52,42 @@ public class GroupServiceImpl implements GroupService {
     private final NotificationService notificationService;
     private final AuditLogRepository auditLogRepository;
     private final StudentAuthorizationService authService;
+    private final JiraIntegrationRepository jiraIntegrationRepository;
+    private final JiraApiClient jiraApiClient;
 
     public GroupServiceImpl(GroupRepository groupRepository,
                             GroupMemberRepository groupMemberRepository,
                             UserRepository userRepository,
                             NotificationService notificationService,
                             AuditLogRepository auditLogRepository,
-                            StudentAuthorizationService authService) {
+                            StudentAuthorizationService authService,
+                            JiraIntegrationRepository jiraIntegrationRepository,
+                            JiraApiClient jiraApiClient) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.auditLogRepository = auditLogRepository;
         this.authService = authService;
+        this.jiraIntegrationRepository = jiraIntegrationRepository;
+        this.jiraApiClient = jiraApiClient;
     }
 
     @Override
     @Transactional
     public GroupResponseDto createGroup(GroupCreateRequestDto request, Long creatorId) {
-        User creator = authService.validateStudentExists(creatorId);
-        authService.validateNotInGroup(creatorId);
+        ValidationResult studentExists = authService.validateStudentExists(creatorId);
+        if (!studentExists.valid()) {
+            throw new BadRequestException(studentExists.reason());
+        }
 
+        ValidationResult notInGroup = authService.validateNotInGroup(creatorId);
+        if (!notInGroup.valid()) {
+            throw new BadRequestException(notInGroup.reason());
+        }
+
+        User creator = userRepository.findById(creatorId)
+                .orElseThrow(() -> new BadRequestException("Student not found."));
 
         Group group = new Group();
         group.setGroupName(request.groupName());
@@ -87,8 +110,16 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void updateGroupName(Long groupId, GroupUpdateRequestDto request, Long requesterId) {
+        ValidationResult isLeader = authService.validateIsGroupLeader(requesterId, groupId);
+        if (!isLeader.valid()) {
+            if ("Group not found.".equals(isLeader.reason())) {
+                throw new BadRequestException(isLeader.reason());
+            }
+            throw new UnauthorizedException(isLeader.reason());
+        }
 
-        Group group = authService.validateIsGroupLeader(requesterId, groupId);
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new BadRequestException("Group not found."));
 
         group.setGroupName(request.groupName());
         group.setUpdatedAt(Instant.now());
@@ -176,6 +207,84 @@ public class GroupServiceImpl implements GroupService {
         }
     }
 
+
+
+
+    @Override
+    @Transactional
+    public void bindJiraIntegration(Long groupId, Long requesterId, JiraBindingRequest request) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+
+        ensureRequesterIsGroupLeader(group, requesterId);
+
+        boolean valid = jiraApiClient.validateSpaceConnection(request.jiraSpaceUrl(), request.projectKey(), request.apiKey());
+        if (!valid) {
+            throw new BadRequestException("JIRA connection validation failed.");
+        }
+
+        JiraIntegration integration = jiraIntegrationRepository.findByGroup_Id(groupId)
+                .orElseGet(JiraIntegration::new);
+        integration.setGroup(group);
+        integration.setJiraSpaceUrl(request.jiraSpaceUrl().trim());
+        integration.setApiKey(request.apiKey() != null ? request.apiKey().trim() : null);
+        integration.setProjectKey(request.projectKey().trim());
+        integration.setStatus(JiraIntegrationStatus.ACTIVE);
+        integration.setLastError(null);
+        integration.setUpdatedAt(Instant.now());
+
+        jiraIntegrationRepository.save(integration);
+
+        try {
+            notificationService.createSystemAlert(
+                    group.getLeader().getUserId(),
+                    "JIRA integration is active for group " + groupId,
+                    "JIRA_INTEGRATION_STATUS",
+                    request.jiraSpaceUrl().trim());
+        } catch (Exception exception) {
+            log.warn("Failed to create JIRA integration alert for group {}: {}", groupId, exception.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public JiraIntegrationResponse getJiraIntegration(Long groupId, Long requesterId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+
+        ensureRequesterIsGroupLeader(group, requesterId);
+
+        JiraIntegration integration = jiraIntegrationRepository.findByGroup_Id(groupId)
+                .orElseThrow(() -> new NotFoundException("JIRA integration not found."));
+
+        return new JiraIntegrationResponse(
+                true,
+                new JiraIntegrationResponse.JiraIntegrationData(
+                        integration.getStatus().name().toLowerCase(),
+                        integration.getJiraSpaceUrl(),
+                        integration.getProjectKey(),
+                        integration.getLastError()));
+    }
+
+    @Override
+    @Transactional
+    public void unbindJiraIntegration(Long groupId, Long requesterId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+
+        ensureRequesterIsGroupLeader(group, requesterId);
+
+        JiraIntegration integration = jiraIntegrationRepository.findByGroup_Id(groupId)
+                .orElseThrow(() -> new NotFoundException("JIRA integration not found."));
+
+        jiraIntegrationRepository.delete(integration);
+    }
+
+    private void ensureRequesterIsGroupLeader(Group group, Long requesterId) {
+        if (!group.getLeader().getUserId().equals(requesterId)) {
+            throw new ForbiddenException("Only the group leader can manage JIRA integration.");
+        }
+    }
 
     private GroupResponseDto mapToSimpleDto(Group group) {
         return new GroupResponseDto(
