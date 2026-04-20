@@ -55,11 +55,23 @@ async function parseError(res: Response) {
 
 export async function fetchGroups(
     page = 0,
-    size = 6
+    size = 6,
+    status?: string,
+    groupName?: string,
+    advisorAssigned?: string
 ): Promise<ApiPage<ApiGroupListItem>> {
     const token = getToken();
 
-    const res = await fetch(`${API_BASE}/groups?page=${page}&size=${size}`, {
+    const params = new URLSearchParams();
+    params.append("page", page.toString());
+    params.append("size", size.toString());
+    if (status && status !== "all") params.append("status", status.toUpperCase());
+    if (groupName) params.append("groupName", groupName);
+    if (advisorAssigned && advisorAssigned !== "all") {
+        params.append("advisorAssigned", advisorAssigned === "has_advisor" ? "true" : "false");
+    }
+
+    const res = await fetch(`${API_BASE}/groups?${params.toString()}`, {
         method: "GET",
         headers: {
             Authorization: `Bearer ${token ?? ""}`,
