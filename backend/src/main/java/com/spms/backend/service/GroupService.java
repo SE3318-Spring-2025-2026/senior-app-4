@@ -4,6 +4,8 @@ import com.spms.backend.dto.request.GroupCreateRequestDto;
 import com.spms.backend.dto.request.GroupUpdateRequestDto;
 import com.spms.backend.dto.response.GroupDetailDto;
 import com.spms.backend.dto.response.GroupResponseDto;
+import com.spms.backend.dto.request.JiraBindingRequest;
+import com.spms.backend.dto.response.JiraIntegrationResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -19,4 +21,9 @@ public interface GroupService {
     GroupDetailDto getGroupDetails(Long groupId, Long requesterId, String requesterRole);
     
     void disbandGroup(Long groupId, Long requesterId, String requesterRole);
+
+    void bindJiraIntegration(Long groupId, Long requesterId, JiraBindingRequest request);
+    JiraIntegrationResponse getJiraIntegration(Long groupId, Long requesterId);
+    void unbindJiraIntegration(Long groupId, Long requesterId);
+    
 }
