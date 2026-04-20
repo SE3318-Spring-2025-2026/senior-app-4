@@ -7,6 +7,7 @@ import com.spms.backend.dto.response.GroupMemberDto;
 import com.spms.backend.dto.response.GroupResponseDto;
 import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
+import com.spms.backend.dto.response.GithubIntegrationResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
@@ -19,10 +20,12 @@ import com.spms.backend.model.GroupRole;
 import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.JiraIntegration;
 import com.spms.backend.model.JiraIntegrationStatus;
+import com.spms.backend.model.GithubIntegration;
 import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.JiraIntegrationRepository;
+import com.spms.backend.repository.GithubIntegrationRepository;
 import com.spms.backend.service.GroupService;
 import com.spms.backend.client.JiraApiClient;
 import com.spms.backend.service.NotificationService;
@@ -53,6 +56,7 @@ public class GroupServiceImpl implements GroupService {
     private final AuditLogRepository auditLogRepository;
     private final StudentAuthorizationService authService;
     private final JiraIntegrationRepository jiraIntegrationRepository;
+    private final GithubIntegrationRepository githubIntegrationRepository;
     private final JiraApiClient jiraApiClient;
 
     public GroupServiceImpl(GroupRepository groupRepository,
@@ -62,6 +66,7 @@ public class GroupServiceImpl implements GroupService {
                             AuditLogRepository auditLogRepository,
                             StudentAuthorizationService authService,
                             JiraIntegrationRepository jiraIntegrationRepository,
+                            GithubIntegrationRepository githubIntegrationRepository,
                             JiraApiClient jiraApiClient) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
@@ -70,6 +75,7 @@ public class GroupServiceImpl implements GroupService {
         this.auditLogRepository = auditLogRepository;
         this.authService = authService;
         this.jiraIntegrationRepository = jiraIntegrationRepository;
+        this.githubIntegrationRepository = githubIntegrationRepository;
         this.jiraApiClient = jiraApiClient;
     }
 
@@ -283,22 +289,60 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
 
     @Override
     @Transactional(readOnly = true)
-    public JiraIntegrationResponse getJiraIntegration(Long groupId, Long requesterId) {
-        Group group = groupRepository.findById(groupId)
+    public JiraIntegrationResponse getJiraIntegration(Long groupId) {
+        groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
 
-        ensureRequesterIsGroupLeader(group, requesterId);
+        var integration = jiraIntegrationRepository.findByGroup_Id(groupId);
 
-        JiraIntegration integration = jiraIntegrationRepository.findByGroup_Id(groupId)
-                .orElseThrow(() -> new NotFoundException("JIRA integration not found."));
+        if (integration.isEmpty()) {
+            return new JiraIntegrationResponse(
+                    true,
+                    new JiraIntegrationResponse.JiraIntegrationData(
+                            "inactive",
+                            null,
+                            null,
+                            null,
+                            "Not connected"));
+        }
 
+        JiraIntegration jira = integration.get();
         return new JiraIntegrationResponse(
                 true,
                 new JiraIntegrationResponse.JiraIntegrationData(
-                        integration.getStatus().name().toLowerCase(),
-                        integration.getJiraSpaceUrl(),
-                        integration.getProjectKey(),
-                        integration.getLastError()));
+                        jira.getStatus().name().toLowerCase(),
+                        jira.getJiraSpaceUrl(),
+                        jira.getProjectKey(),
+                        jira.getCreatedAt().toString(),
+                        jira.getLastError()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public GithubIntegrationResponse getGithubIntegration(Long groupId) {
+        groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+
+        var integration = githubIntegrationRepository.findByGroup_Id(groupId);
+
+        if (integration.isEmpty()) {
+            return new GithubIntegrationResponse(
+                    true,
+                    new GithubIntegrationResponse.GithubIntegrationData(
+                            "inactive",
+                            null,
+                            null,
+                            "Not connected"));
+        }
+
+        GithubIntegration github = integration.get();
+        return new GithubIntegrationResponse(
+                true,
+                new GithubIntegrationResponse.GithubIntegrationData(
+                        github.getStatus().name().toLowerCase(),
+                        github.getOrganizationName(),
+                        github.getCreatedAt().toString(),
+                        github.getLastError()));
     }
 
     @Override

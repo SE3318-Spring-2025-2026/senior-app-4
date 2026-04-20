@@ -8,6 +8,7 @@ public record JiraIntegrationResponse(
             String status,
             String jiraSpaceUrl,
             String projectKey,
+            String connectedAt,
             String message
     ) {
     }
