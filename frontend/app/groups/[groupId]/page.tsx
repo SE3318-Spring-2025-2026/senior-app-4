@@ -3,10 +3,16 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import AdvisorRequestPanel from "@/components/AdvisorRequestPanel";
 import StatusBadge from "@/components/StatusBadge";
 import GithubStatusCard from "@/components/GithubStatusCard";
 import JiraStatusCard from "@/components/JiraStatusCard";
-import { fetchGroupDetail } from "@/lib/groups-api";
+import {
+    ApiGroupDetail,
+    ApiGroupMember,
+    fetchGroupDetail,
+} from "@/lib/groups-api";
+import { mockGroups } from "@/lib/mock-groups";
 import {
     fetchGithubIntegration,
     fetchJiraIntegration,
@@ -28,11 +34,14 @@ export default function GroupDetailPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
 
-    const [group, setGroup] = useState<any>(null);
-    const [githubIntegration, setGithubIntegration] = useState<GithubIntegrationApiResponse | null>(null);
-    const [jiraIntegration, setJiraIntegration] = useState<JiraIntegrationApiResponse | null>(null);
+    const [group, setGroup] = useState<ApiGroupDetail | null>(null);
+    const [githubIntegration, setGithubIntegration] =
+        useState<GithubIntegrationApiResponse | null>(null);
+    const [jiraIntegration, setJiraIntegration] =
+        useState<JiraIntegrationApiResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [usingMockData, setUsingMockData] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -52,8 +61,34 @@ export default function GroupDetailPage() {
                 setGroup(groupData);
                 setGithubIntegration(githubData);
                 setJiraIntegration(jiraData);
+                setUsingMockData(false);
             } catch (err) {
                 if (cancelled) return;
+
+                const mockGroup = mockGroups.find((entry) => entry.groupId === groupId);
+                if (mockGroup) {
+                    setGroup({
+                        id: mockGroup.groupId,
+                        groupName: mockGroup.groupName,
+                        leaderId: mockGroup.leaderId,
+                        advisorId: mockGroup.advisorId ?? null,
+                        status: mockGroup.status.toUpperCase(),
+                        createdAt: mockGroup.createdAt,
+                        updatedAt: mockGroup.updatedAt,
+                        members: mockGroup.members.map((member) => ({
+                            userId: member.userId,
+                            fullName: member.fullName,
+                            role: member.role,
+                            joinedAt: mockGroup.createdAt,
+                        })),
+                    });
+                    setGithubIntegration(null);
+                    setJiraIntegration(null);
+                    setUsingMockData(true);
+                    setError("");
+                    return;
+                }
+
                 const message =
                     err instanceof Error ? err.message : "Failed to load group details.";
                 setError(message);
@@ -93,7 +128,7 @@ export default function GroupDetailPage() {
         <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
             <div className="mx-auto max-w-5xl">
                 <Link href="/groups" className="text-sm text-blue-400 hover:underline">
-                    ← Back to groups
+                    {"<- Back to groups"}
                 </Link>
 
                 <div className="mt-6 mb-6 flex items-start justify-between gap-4">
@@ -107,7 +142,14 @@ export default function GroupDetailPage() {
                     <StatusBadge status={group.status.toLowerCase()} />
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2 mb-8">
+                {usingMockData && (
+                    <div className="mb-6 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                        Preview mode is active because live group APIs are unavailable from the browser.
+                        TODO: remove this fallback once backend auth/CORS is ready for frontend integration.
+                    </div>
+                )}
+
+                <div className="mb-8 grid gap-6 md:grid-cols-2">
                     <GithubStatusCard
                         integration={
                             githubIntegration?.data?.status === "inactive"
@@ -135,11 +177,17 @@ export default function GroupDetailPage() {
                     </div>
                 </div>
 
+                <AdvisorRequestPanel
+                    groupId={group.id}
+                    leaderId={group.leaderId}
+                    advisorId={group.advisorId}
+                />
+
                 <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-7 shadow-lg shadow-black/20 backdrop-blur">
                     <h2 className="text-2xl font-semibold mb-5">Members</h2>
 
                     <div className="space-y-4">
-                        {group.members?.map((member: any) => (
+                        {group.members?.map((member: ApiGroupMember) => (
                             <div
                                 key={member.userId}
                                 className="flex items-center justify-between rounded-xl bg-white/5 px-5 py-4"
