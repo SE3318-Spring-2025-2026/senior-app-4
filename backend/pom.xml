@@ -76,7 +76,26 @@
             <version>5.4.0</version>
             <scope>test</scope>
         </dependency>
+
+
+
+        <!-- info about lombok; -->
+        <!-- lombok is optional, but it can help reduce boilerplate code for getters/setters, constructors, etc. -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+
+
     </dependencies>
+
+
+
+
+
+    
 
     <build>
         <plugins>

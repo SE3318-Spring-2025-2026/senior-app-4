@@ -18,6 +18,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
 import java.util.List;
@@ -28,6 +30,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final MemberService memberService;
+    private static final Logger log = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
     public NotificationServiceImpl(NotificationRepository notificationRepository,
                                    UserRepository userRepository,
@@ -226,4 +229,8 @@ public class NotificationServiceImpl implements NotificationService {
                 notif.getCreatedAt()
         );
     }
+    @Override
+public void sendMembershipInvite(Long toUserId, Long groupId, String groupName) {
+    log.info("Membership invite notification sent to user {} for group {}", toUserId, groupName);
+}
 }

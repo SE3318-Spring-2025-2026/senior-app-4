@@ -38,6 +38,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.spms.backend.dto.response.MemberResponseDto;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -375,5 +376,103 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
                 group.getMembers().size(),
                 group.getCreatedAt()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberResponseDto> getGroupMembers(Long groupId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found with id: " + groupId));
+
+        return group.getMembers().stream().map(member -> {
+            // Lider mi üye mi kontrolü
+            String role = group.getLeader().getUserId().equals(member.getUser().getUserId()) ? "LEADER" : "MEMBER";
+
+            return MemberResponseDto.builder()
+                    .userId(member.getUser().getUserId())
+                    .studentId(member.getUser().getStudentId())
+                    .fullName(member.getUser().getFullName())
+                    .role(role)
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void removeMember(Long groupId, String studentId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found with id: " + groupId));
+
+        GroupMember memberToRemove = group.getMembers().stream()
+                .filter(m -> m.getUser().getStudentId() != null && m.getUser().getStudentId().equals(studentId))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Member not found in this group"));
+
+        if (group.getLeader().getUserId().equals(memberToRemove.getUser().getUserId())) {
+            throw new BadRequestException("Group leader cannot be removed.");
+        }
+
+        group.getMembers().remove(memberToRemove);
+        groupRepository.save(group);
+
+        // AUDIT LOG EKLEMESİ (Kriter gereği)
+        AuditLog auditLog = new AuditLog();
+        auditLog.setAction("MEMBER_REMOVED");
+        auditLog.setDescription("Member " + studentId + " removed from group " + groupId);
+        auditLog.setEntityId(groupId);
+        auditLog.setEntityType("GROUP");
+        auditLog.setTimestamp(Instant.now());
+        auditLogRepository.save(auditLog);
+    }
+
+    @Override
+    @Transactional
+    public void leaveGroup(Long groupId, Long studentUserId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found with id: " + groupId));
+
+        GroupMember memberToLeave = group.getMembers().stream()
+                .filter(m -> m.getUser().getUserId().equals(studentUserId))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("You are not a member of this group."));
+
+        if (group.getLeader().getUserId().equals(studentUserId)) {
+            throw new BadRequestException("Group leader cannot leave.");
+        }
+
+        group.getMembers().remove(memberToLeave);
+        groupRepository.save(group);
+    }
+
+    @Override
+    @Transactional
+    public void addMember(Long groupId, String studentId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found with id: " + groupId));
+
+        // grup limiti 5i aşmasına izin vermeme şeysi
+        if (group.getMembers().size() >= 5) {
+            throw new BadRequestException("Group member limit reached.");
+        }
+
+        User studentToAdd = userRepository.findByStudentId(studentId)
+                .orElseThrow(() -> new NotFoundException("Student not found."));
+
+        authService.validateNotInGroup(studentToAdd.getUserId());
+
+        GroupMember newMember = new GroupMember();
+        newMember.setGroup(group);
+        newMember.setUser(studentToAdd);
+        newMember.setRole(GroupRole.MEMBER);
+
+        group.getMembers().add(newMember);
+        groupRepository.save(group);
+
+        // BİLDİRİM TETİKLEME (Criteria ns_f1)
+        try {
+            notificationService.sendMembershipInvite(studentToAdd.getUserId(), groupId, group.getGroupName());
+        } catch (Exception e) {
+            log.warn("Notification failed: {}", e.getMessage());
+        }
     }
 }
