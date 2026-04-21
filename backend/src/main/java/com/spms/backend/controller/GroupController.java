@@ -17,6 +17,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springdoc.core.annotations.ParameterObject;
+import com.spms.backend.dto.response.MemberResponseDto;
+import java.util.List;
+
 
 @RestController
 @RequestMapping("/api/v1/groups")
@@ -39,6 +42,17 @@ public class GroupController {
         GroupResponseDto response = groupService.createGroup(request, creatorId);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/{groupId}/leave")
+    public ResponseEntity<Void> leaveGroup(
+            @PathVariable Long groupId,
+            @RequestAttribute("jwt_user_id") Object userId) {
+        
+        Long requesterId = Long.valueOf(userId.toString());
+        groupService.leaveGroup(groupId, requesterId);
+        
+        return ResponseEntity.ok().build();
     }
 
     @PutMapping("/{groupId}")
@@ -119,6 +133,19 @@ public class GroupController {
         ));
     }
 
+    @GetMapping("/{groupId}/members")
+    public ResponseEntity<List<MemberResponseDto>> getGroupMembers(@PathVariable Long groupId) {
+    List<MemberResponseDto> members = groupService.getGroupMembers(groupId);
+    return ResponseEntity.ok(members);
+    }
+
+    @DeleteMapping("/{groupId}/members/{studentId}")
+        public ResponseEntity<Void> removeMember(
+        @PathVariable Long groupId,
+        @PathVariable String studentId) {
+        groupService.removeMember(groupId, studentId);
+        return ResponseEntity.noContent().build();
+}
     @DeleteMapping("/{groupId}")
     public ResponseEntity<?> disbandGroup(
             @PathVariable Long groupId,
