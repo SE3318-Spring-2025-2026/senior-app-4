@@ -1,12 +1,11 @@
-# Copy this file to `backend/application.properties` for local development.
 # Spring Boot loads `application.properties` automatically when you run:
+# cd backend 
 # mvn spring-boot:run
 
-github.client-id=your-github-client-id
-github.client-secret=your-github-client-secret
-github.redirect-uri=http://localhost:3000/auth/callback
+github.client-id=..
+github.client-secret=..
+github.redirect-uri=..
 
-# Supabase PostgreSQL direct connection
-# Find this in: Supabase Dashboard → Project Settings → Database → Connection string
-# Copy the URI format and prefix it with "jdbc:"
-db.url=jdbc:postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+spring.datasource.url=..
+spring.datasource.username=..
+spring.datasource.password=..

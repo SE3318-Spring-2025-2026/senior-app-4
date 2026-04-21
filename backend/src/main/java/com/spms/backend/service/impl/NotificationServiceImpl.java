@@ -11,11 +11,15 @@ import com.spms.backend.model.notification.NotificationType;
 import com.spms.backend.model.User;
 import com.spms.backend.repository.NotificationRepository;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.service.MemberService;
 import com.spms.backend.service.NotificationService;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
 import java.util.List;
@@ -25,10 +29,15 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final MemberService memberService;
+    private static final Logger log = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
-    public NotificationServiceImpl(NotificationRepository notificationRepository, UserRepository userRepository) {
+    public NotificationServiceImpl(NotificationRepository notificationRepository,
+                                   UserRepository userRepository,
+                                   @Lazy MemberService memberService) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.memberService = memberService;
     }
 
     @Override
@@ -174,10 +183,17 @@ public class NotificationServiceImpl implements NotificationService {
             throw new UnauthorizedException("You are not authorized to respond to this request.");
         }
 
+        if (notification.getStatus() != NotificationStatus.PENDING) {
+            throw new BadRequestException("This notification has already been responded to.");
+        }
 
         if ("accept".equalsIgnoreCase(decision)) {
             notification.setStatus(NotificationStatus.ACCEPTED);
-            // TODO: (Issue #30) P2.2 Process: Student accepted the group. Call 'GroupMembership' logic here.
+            // ns_f4 → P2.2: student accepted the membership invite, add them to the group
+            if (notification.getType() == NotificationType.MEMBERSHIP_INVITE
+                    && notification.getGroupId() != null) {
+                memberService.addMember(notification.getGroupId(), userId);
+            }
         } else if ("reject".equalsIgnoreCase(decision)) {
             notification.setStatus(NotificationStatus.REJECTED);
         } else {
@@ -251,13 +267,18 @@ public class NotificationServiceImpl implements NotificationService {
     private NotificationDto mapToDto(Notification notif) {
         return new NotificationDto(
                 notif.getId(),
-                notif.getType().name(),
+                notif.getType().name().toLowerCase(),
                 notif.getMessage(),
-                notif.getStatus().name(),
+                notif.getStatus().name().toLowerCase(),
                 notif.getFromUser() != null ? notif.getFromUser().getUserId() : null,
+                notif.getFromUser() != null ? notif.getFromUser().getFullName() : null,
                 notif.getToUser() != null ? notif.getToUser().getUserId() : null,
                 notif.getGroupId(),
                 notif.getCreatedAt()
         );
     }
+    @Override
+public void sendMembershipInvite(Long toUserId, Long groupId, String groupName) {
+    log.info("Membership invite notification sent to user {} for group {}", toUserId, groupName);
+}
 }

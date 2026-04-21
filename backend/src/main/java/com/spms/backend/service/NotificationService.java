@@ -23,4 +23,7 @@ public interface NotificationService {
     com.spms.backend.model.notification.Notification createSystemAlert(Long toUserId, String message, String alertType, String metadata);
     List<com.spms.backend.model.notification.Notification> getSystemAlertsByUserId(Long userId);
     boolean systemAlertExists(Long toUserId, String alertType);
+
+
+    void sendMembershipInvite(Long toUserId, Long groupId, String groupName);
 }
