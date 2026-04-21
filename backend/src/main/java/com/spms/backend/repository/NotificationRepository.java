@@ -20,4 +20,8 @@ public interface NotificationRepository extends JpaRepository<Notification,Long>
     void deleteByToUser_UserId(Long userId);
     java.util.List<Notification> findByToUser_UserIdAndTypeOrderByCreatedAtDesc(Long toUserId, NotificationType type);
     boolean existsByToUser_UserIdAndTypeAndStatusAndMessageContaining(Long toUserId, NotificationType type, NotificationStatus status, String messageSnippet);
+
+    java.util.List<Notification> findByToUser_UserIdAndTypeAndStatus(Long toUserId, NotificationType type, NotificationStatus status);
+    
+    java.util.List<Notification> findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(Long groupId, NotificationType type, NotificationStatus status, Long excludedUserId);
 }
