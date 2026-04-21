@@ -50,9 +50,9 @@ function mapApiNotification(n: {
 }): Notification {
     return {
         id: n.id,
-        type: n.type as Notification["type"],
+        type: String(n.type).trim().toLowerCase() as Notification["type"],
         message: n.message,
-        status: n.status as Notification["status"],
+        status: String(n.status).trim().toLowerCase() as Notification["status"],
         fromUserId: n.fromUserId,
         fromUserName: n.fromUserName ?? null,
         groupId: n.groupId,

@@ -9,8 +9,15 @@ type Props = {
     onClear: (id: number) => void;
 };
 
-function getIcon(type: Notification["type"]) {
-    switch (type) {
+function getIcon(type: string) {
+    const cleanType = type
+        .normalize("NFKC")
+        .replace(/[\s\u200B-\u200D\uFEFF]/g, "")
+        .toLowerCase()
+        .replace(/ı/g, "i")
+        .replace(/İ/g, "i");
+
+    switch (cleanType) {
         case "membership_invite":
             return "📩";
         case "advisor_request":
@@ -43,7 +50,8 @@ function StatusBadge({ status }: { status: Notification["status"] }) {
     };
     return (
         <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${classes[status] ?? "bg-white/10 text-gray-400"}`}
+            className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${classes[status] ?? "bg-white/10 text-gray-400"
+                }`}
         >
             {status}
         </span>
@@ -53,14 +61,31 @@ function StatusBadge({ status }: { status: Notification["status"] }) {
 export default function NotificationItem({ notification, onRespond, onClear }: Props) {
     const [responding, setResponding] = useState(false);
 
+    // 🔥 KRİTİK FIX BURADA
+    function clean(value: string) {
+        return String(value ?? "")
+            .normalize("NFKC")
+            .replace(/[\s\u200B-\u200D\uFEFF]/g, "")
+            .toLowerCase();
+    }
+
+    function fixTurkishChars(str: string) {
+        return str
+            .replace(/ı/g, "i")
+            .replace(/İ/g, "i");
+    }
+
+    const safeType = fixTurkishChars(clean(notification.type));
+    const safeStatus = fixTurkishChars(clean(notification.status));
+
     const isInvite =
-        notification.type === "membership_invite" &&
-        notification.status === "pending";
+        safeType === "membership_invite" &&
+        safeStatus === "pending";
 
     const isProcessed =
-        notification.status === "accepted" ||
-        notification.status === "rejected" ||
-        notification.status === "cleared";
+        safeStatus === "accepted" ||
+        safeStatus === "rejected" ||
+        safeStatus === "cleared";
 
     async function handleRespond(decision: NotificationDecision) {
         setResponding(true);
@@ -73,31 +98,37 @@ export default function NotificationItem({ notification, onRespond, onClear }: P
 
     return (
         <div className="rounded-xl border border-white/10 bg-gray-900/70 p-5 shadow-md backdrop-blur transition-all">
-            <div className="flex items-start justify-between gap-4">
-                {/* Left */}
-                <div className="flex gap-3 min-w-0">
-                    <div className="text-xl flex-shrink-0">{getIcon(notification.type)}</div>
+            <div className="flex flex-col gap-4">
+
+                {/* ÜST KISIM */}
+                <div className="flex gap-3">
+                    <div className="text-xl flex-shrink-0">
+                        {getIcon(notification.type)}
+                    </div>
 
                     <div className="min-w-0">
-                        {/* Sender name — shown for invites */}
                         {notification.fromUserName && (
                             <p className="text-xs text-blue-400 font-medium mb-1">
                                 From: {notification.fromUserName}
                             </p>
                         )}
 
-                        <p className="text-sm text-white leading-relaxed">{notification.message}</p>
+                        <p className="text-sm text-white leading-relaxed">
+                            {notification.message}
+                        </p>
 
                         <div className="flex items-center gap-3 mt-2">
-                            <p className="text-xs text-gray-500">{formatDate(notification.createdAt)}</p>
+                            <p className="text-xs text-gray-500">
+                                {formatDate(notification.createdAt)}
+                            </p>
                             <StatusBadge status={notification.status} />
                         </div>
                     </div>
                 </div>
 
-                {/* Right actions */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* Accept / Reject — only for pending membership invites */}
+                {/* 🔥 BUTONLARI ALTA ALDIK (KESİN GÖRÜNSÜN DİYE) */}
+                <div className="flex gap-2 flex-wrap">
+
                     {isInvite && (
                         <>
                             <button
@@ -107,6 +138,7 @@ export default function NotificationItem({ notification, onRespond, onClear }: P
                             >
                                 {responding ? "…" : "Accept"}
                             </button>
+
                             <button
                                 onClick={() => handleRespond("reject")}
                                 disabled={responding}
@@ -117,7 +149,6 @@ export default function NotificationItem({ notification, onRespond, onClear }: P
                         </>
                     )}
 
-                    {/* Clear processed notifications */}
                     {isProcessed && (
                         <button
                             onClick={() => onClear(notification.id)}
