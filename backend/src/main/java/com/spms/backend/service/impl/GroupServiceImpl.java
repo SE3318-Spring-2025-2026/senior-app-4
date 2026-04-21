@@ -388,12 +388,12 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
             // Lider mi üye mi kontrolü
             String role = group.getLeader().getUserId().equals(member.getUser().getUserId()) ? "LEADER" : "MEMBER";
 
-            return MemberResponseDto.builder()
-                    .userId(member.getUser().getUserId())
-                    .studentId(member.getUser().getStudentId())
-                    .fullName(member.getUser().getFullName())
-                    .role(role)
-                    .build();
+            return new MemberResponseDto(
+                    member.getUser().getUserId(),
+                    member.getUser().getStudentId(),
+                    member.getUser().getFullName(),
+                    role
+            );
         }).collect(Collectors.toList());
     }
 
