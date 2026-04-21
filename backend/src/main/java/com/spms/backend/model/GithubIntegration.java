@@ -1,5 +1,5 @@
 package com.spms.backend.model;
-
+import com.spms.backend.converter.EncryptionConverter;
 import jakarta.persistence.*;
 
 import java.time.Instant;
@@ -19,6 +19,8 @@ public class GithubIntegration {
     @Column(name = "organization_name")
     private String organizationName;
 
+    
+    @Convert(converter = EncryptionConverter.class)
     @Column(name = "github_pat_encrypted")
     private String githubPatEncrypted;
 
