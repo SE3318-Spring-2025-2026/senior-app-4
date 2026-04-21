@@ -1,13 +1,16 @@
 spring:
   config:
-    import: "optional:file:./backend/application.properties, optional:file:./application.properties"
+    import: "optional:file:./application.properties"
+
   application:
     name: spms-backend
+
   datasource:
-    url: ${db.url}
+    url: ${DB_URL}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 2
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -25,5 +28,5 @@ github:
   redirect-uri: ${GITHUB_REDIRECT_URI}
 
 token:
-  secret: ${TOKEN_SECRET:spms-issue-7-dev-secret}
+  secret: ${TOKEN_SECRET}
   expiration-seconds: ${TOKEN_EXPIRATION_SECONDS:3600}

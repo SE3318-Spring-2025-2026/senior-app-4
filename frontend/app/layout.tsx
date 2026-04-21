@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import { NotificationProvider } from "@/components/NotificationProvider";
 import { ToastProvider } from "../components/toast/ToastContext";
 import { ToastContainer } from "../components/toast/ToastContainer";
 import "./globals.css";
@@ -32,9 +33,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ToastProvider>
-          <ToastContainer />
-          {children}
-          <Toaster position="top-right" richColors />
+          <NotificationProvider>
+            <ToastContainer />
+            {children}
+            <Toaster position="top-right" richColors />
+          </NotificationProvider>
         </ToastProvider>
       </body>
     </html>

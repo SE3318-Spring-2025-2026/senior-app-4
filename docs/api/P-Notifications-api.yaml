@@ -1,0 +1,723 @@
+openapi: 3.0.3
+info:
+  title: "Cross-Process: Notifications API (D8)"
+  version: 2.0.0
+  description: |
+    Senior Project Management System — Notifications Data Store (D8)
+
+    This is a **cross-process shared service** that serves as the API layer for
+    the D8 | Notifications data store referenced across all DFD processes.
+
+    ## Role in the System
+    Notifications are **not created via this API**. They are created internally
+    as side-effects of business operations in other processes:
+    - Process 3 (Submissions & Reviews): submission, review, grading events
+    - Process 4 (Advisor Assignment): request, decision, release, override events
+    - Process 5 (Committee Assignment): committee assignment events
+
+    This API provides **read, update, and management** endpoints for notifications.
+
+    ## Notification Types (by source process)
+
+    ### Process 3 — Submissions & Reviews
+    | Type | Trigger | Recipient |
+    |------|---------|-----------|
+    | `SUBMISSION_RECEIVED` | POST /submissions (3.1) | Committee members |
+    | `SUBMISSION_ALERT` | POST /submissions (3.6) | Coordinator |
+    | `REVISION_REQUESTED` | POST .../reviews → REVISION_REQUESTED (3.4/3.6) | Group leader (Student) |
+    | `SUBMISSION_APPROVED` | POST .../reviews → APPROVED (3.4/3.6) | Group leader (Student) |
+    | `REVIEW_READY` | POST .../revisions (3.2) | Committee members |
+    | `GRADING_COMPLETE` | POST .../grades (all graded) (3.5/3.6) | Group leader (Student) |
+    | `GRADING_ALERT` | POST .../grades (all graded) (3.6) | Coordinator |
+    | `DEADLINE_APPROACHING` | @Scheduled cron check (D10) | Affected users |
+    | `DEADLINE_OVERDUE` | @Scheduled cron check (D10) | Coordinator |
+
+    ### Process 4 — Advisor Assignment
+    | Type | Trigger | Recipient |
+    |------|---------|-----------|
+    | `ADVISOR_REQUEST` | POST /advisor-requests (4.3) | Professor |
+    | `ADVISOR_REQUEST_REVOKED` | DELETE /advisor-requests/{id} (4.1) | Professor (soft-delete) |
+    | `ADVISOR_APPROVED` | POST .../decision → APPROVE (4.6) | Group leader (Student) |
+    | `ADVISOR_REJECTED` | POST .../decision → REJECT (4.6) | Group leader (Student) |
+    | `ADVISOR_OVERRIDE` | POST /advisor-assignments/override (4.7) | Professor + Group leader |
+    | `ADVISOR_RELEASED` | POST .../release (4.10) | Group leader (Student) |
+    | `GROUP_DISBANDED` | POST /groups/disband-unassigned (4.9) | All group members |
+
+    ### Process 5 — Committee Assignment
+    | Type | Trigger | Recipient |
+    |------|---------|-----------|
+    | `COMMITTEE_ASSIGNED` | Advisor assigned to committee (5.7) | Professor |
+    | `COMMITTEE_GROUP_ASSIGNED` | Group assigned to committee (5.7) | Committee members |
+    | `JURY_ASSIGNED` | Additional jury member assigned (5.7) | Professor |
+
+    ## Notification Lifecycle
+    ```
+    CREATED (unread) → READ → (optional) ARCHIVED
+                     ↘ REVOKED (soft-delete, e.g., withdraw advisor request)
+    ```
+
+servers:
+  - url: /api/v1
+    description: Development server
+
+tags:
+  - name: "User Notifications"
+    description: "Endpoints for users to view and manage their own notifications"
+  - name: "Notification Management"
+    description: "Coordinator/admin endpoints for system-wide notification management"
+
+# ─────────────────────────────────────────────
+#  PATHS
+# ─────────────────────────────────────────────
+paths:
+
+  # ═══════════════════════════════════════════
+  #  User's notifications
+  # ═══════════════════════════════════════════
+  /notifications:
+    get:
+      tags:
+        - "User Notifications"
+      summary: "Get notifications for the authenticated user"
+      description: |
+        Retrieves a paginated list of notifications for the current user.
+        Notifications are ordered by creation date (newest first).
+
+        Role-based behavior:
+        - **Students** see: submission status updates, advisor decisions, group disbands
+        - **Professors** see: advisor requests, committee assignments, review assignments
+        - **Coordinators** see: system alerts, deadline warnings, all override events
+      operationId: getMyNotifications
+      parameters:
+        # TODO: [NOTIF-FILTER-1] UPDATED — readStatus filter replaces old 'status' param
+        - name: readStatus
+          in: query
+          description: "Filter by read status"
+          schema:
+            type: string
+            enum: [UNREAD, READ, ALL]
+            default: ALL
+        # TODO: [NOTIF-FILTER-2] NEW — Filter by notification type
+        - name: type
+          in: query
+          description: "Filter by notification type"
+          schema:
+            type: string
+            enum:
+              # Process 3
+              - SUBMISSION_RECEIVED
+              - SUBMISSION_ALERT
+              - REVISION_REQUESTED
+              - SUBMISSION_APPROVED
+              - REVIEW_READY
+              - GRADING_COMPLETE
+              - GRADING_ALERT
+              - DEADLINE_APPROACHING
+              - DEADLINE_OVERDUE
+              # Process 4
+              - ADVISOR_REQUEST
+              - ADVISOR_REQUEST_REVOKED
+              - ADVISOR_APPROVED
+              - ADVISOR_REJECTED
+              - ADVISOR_OVERRIDE
+              - ADVISOR_RELEASED
+              - GROUP_DISBANDED
+              # Process 5
+              - COMMITTEE_ASSIGNED
+              - COMMITTEE_GROUP_ASSIGNED
+              - JURY_ASSIGNED
+        # TODO: [NOTIF-FILTER-3] NEW — Filter by source process
+        - name: sourceProcess
+          in: query
+          description: "Filter notifications by originating process"
+          schema:
+            type: string
+            enum: [PROCESS_3, PROCESS_4, PROCESS_5, SYSTEM]
+        # TODO: [NOTIF-FILTER-4] NEW — Pagination support
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Notifications successfully retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        '401':
+          description: Unauthorized — Token is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  TODO: [NOTIF-COUNT-1] NEW ENDPOINT — Unread count badge
+  # ═══════════════════════════════════════════
+  /notifications/unread-count:
+    get:
+      tags:
+        - "User Notifications"
+      summary: "Get unread notification count"
+      description: |
+        Returns the count of unread notifications for the authenticated user.
+        Used by the frontend to display a badge/counter on the notification icon.
+        This is a lightweight endpoint (no notification content returned).
+      operationId: getUnreadCount
+      responses:
+        '200':
+          description: Unread count retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadCountResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  TODO: [NOTIF-READ-1] NEW ENDPOINT — Mark single notification as read
+  # ═══════════════════════════════════════════
+  /notifications/{notificationId}/read:
+    parameters:
+      - $ref: '#/components/parameters/notificationIdParam'
+
+    patch:
+      tags:
+        - "User Notifications"
+      summary: "Mark a notification as read"
+      description: |
+        Marks a single notification as read for the authenticated user.
+        Only the notification recipient can mark it as read.
+      operationId: markNotificationAsRead
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '403':
+          description: Not the recipient of this notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  TODO: [NOTIF-READALL-1] NEW ENDPOINT — Mark all notifications as read
+  # ═══════════════════════════════════════════
+  /notifications/read-all:
+    patch:
+      tags:
+        - "User Notifications"
+      summary: "Mark all notifications as read"
+      description: |
+        Marks all unread notifications as read for the authenticated user.
+        Optionally filter by type to mark only specific notification types as read.
+      operationId: markAllNotificationsAsRead
+      parameters:
+        - name: type
+          in: query
+          description: "Optional: Only mark notifications of this type as read"
+          schema:
+            type: string
+      responses:
+        '200':
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkAllReadResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  TODO: [NOTIF-DETAIL-1] NEW ENDPOINT — Get single notification
+  # ═══════════════════════════════════════════
+  /notifications/{notificationId}:
+    parameters:
+      - $ref: '#/components/parameters/notificationIdParam'
+
+    get:
+      tags:
+        - "User Notifications"
+      summary: "Get notification details"
+      description: |
+        Returns full details of a specific notification, including the
+        related entity information (submission, advisor request, etc.).
+        Automatically marks the notification as read on retrieval.
+      operationId: getNotificationById
+      responses:
+        '200':
+          description: Notification retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDetailResponse'
+        '403':
+          description: Not the recipient of this notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    # TODO: [NOTIF-DELETE-1] NEW ENDPOINT — Delete (archive) a notification
+    delete:
+      tags:
+        - "User Notifications"
+      summary: "Archive/delete a notification"
+      description: |
+        Soft-deletes (archives) a notification for the authenticated user.
+        Archived notifications are not returned in the default list.
+        Only the notification recipient can archive it.
+      operationId: archiveNotification
+      responses:
+        '200':
+          description: Notification archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '403':
+          description: Not the recipient of this notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  TODO: [NOTIF-ADMIN-1] NEW ENDPOINT — Coordinator system-wide view
+  # ═══════════════════════════════════════════
+  /admin/notifications:
+    get:
+      tags:
+        - "Notification Management"
+      summary: "List all notifications (Coordinator only)"
+      description: |
+        Coordinator-only endpoint that returns all notifications across the system.
+        Used for monitoring and debugging notification delivery.
+      operationId: listAllNotifications
+      parameters:
+        - name: recipientId
+          in: query
+          description: "Filter by recipient user ID"
+          schema:
+            type: string
+            format: uuid
+        - name: type
+          in: query
+          description: "Filter by notification type"
+          schema:
+            type: string
+        - name: sourceProcess
+          in: query
+          description: "Filter by originating process"
+          schema:
+            type: string
+            enum: [PROCESS_3, PROCESS_4, PROCESS_5, SYSTEM]
+        - name: readStatus
+          in: query
+          schema:
+            type: string
+            enum: [UNREAD, READ, REVOKED, ARCHIVED, ALL]
+            default: ALL
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Notifications retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminNotificationListResponse'
+        '403':
+          description: Coordinator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  TODO: [NOTIF-ADMIN-2] NEW ENDPOINT — Broadcast system notification
+  # ═══════════════════════════════════════════
+  /admin/notifications/broadcast:
+    post:
+      tags:
+        - "Notification Management"
+      summary: "Broadcast a system notification (Coordinator only)"
+      description: |
+        Coordinator sends a system-wide notification to specific users or roles.
+        Used for announcements like deadline reminders, schedule changes, or system updates.
+      operationId: broadcastNotification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BroadcastNotificationRequest'
+      responses:
+        '201':
+          description: Notification broadcast successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BroadcastNotificationResponse'
+        '400':
+          description: Invalid request (no valid recipients)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Coordinator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+# ─────────────────────────────────────────────
+#  COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    notificationIdParam:
+      name: notificationId
+      in: path
+      required: true
+      description: Notification ID
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    # ── Core Notification Schema ─────────────
+    # TODO: [NOTIF-SCHEMA-1] UPDATED — Full notification model with type enum, actionUrl, relatedEntity
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipientId:
+          type: string
+          format: uuid
+          description: User ID of the notification recipient
+        title:
+          type: string
+          example: "Advisor Request Approved"
+          description: Short notification title
+        content:
+          type: string
+          example: "Prof. Ahmet Yılmaz has approved your advisor request for Alpha Team."
+          description: Full notification message
+        type:
+          type: string
+          description: "Machine-readable notification type for frontend routing and icon selection"
+          enum:
+            # Process 3
+            - SUBMISSION_RECEIVED
+            - SUBMISSION_ALERT
+            - REVISION_REQUESTED
+            - SUBMISSION_APPROVED
+            - REVIEW_READY
+            - GRADING_COMPLETE
+            - GRADING_ALERT
+            - DEADLINE_APPROACHING
+            - DEADLINE_OVERDUE
+            # Process 4
+            - ADVISOR_REQUEST
+            - ADVISOR_REQUEST_REVOKED
+            - ADVISOR_APPROVED
+            - ADVISOR_REJECTED
+            - ADVISOR_OVERRIDE
+            - ADVISOR_RELEASED
+            - GROUP_DISBANDED
+            # Process 5
+            - COMMITTEE_ASSIGNED
+            - COMMITTEE_GROUP_ASSIGNED
+            - JURY_ASSIGNED
+            # System
+            - SYSTEM_ANNOUNCEMENT
+        # TODO: [NOTIF-SCHEMA-2] NEW — Source process for cross-process filtering
+        sourceProcess:
+          type: string
+          enum: [PROCESS_3, PROCESS_4, PROCESS_5, SYSTEM]
+          description: Which process generated this notification
+        # TODO: [NOTIF-SCHEMA-3] NEW — Read status with lifecycle states
+        readStatus:
+          type: string
+          enum: [UNREAD, READ, REVOKED, ARCHIVED]
+          description: |
+            Notification lifecycle state:
+            - UNREAD: New notification, not yet seen
+            - READ: User has viewed the notification
+            - REVOKED: Soft-deleted due to source action being cancelled
+              (e.g., advisor request withdrawn → notification revoked)
+            - ARCHIVED: User manually archived/deleted the notification
+        # TODO: [NOTIF-SCHEMA-4] NEW — Action URL for frontend navigation
+        actionUrl:
+          type: string
+          example: "/submissions/123e4567-e89b-12d3-a456-426614174000"
+          description: |
+            Frontend route to navigate to when notification is clicked.
+            Examples:
+            - SUBMISSION_RECEIVED → /submissions/{submissionId}
+            - ADVISOR_REQUEST → /advisor-requests/{requestId}
+            - GRADING_COMPLETE → /submissions/{submissionId}/grades
+        # TODO: [NOTIF-SCHEMA-5] NEW — Related entity reference for deep linking
+        relatedEntity:
+          type: object
+          nullable: true
+          description: Reference to the entity that triggered this notification
+          properties:
+            entityType:
+              type: string
+              enum: [SUBMISSION, ADVISOR_REQUEST, COMMITTEE, GROUP, GRADE, REVIEW]
+              description: Type of the related entity
+            entityId:
+              type: string
+              format: uuid
+              description: ID of the related entity
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the notification was read (null if unread)
+
+    # ── Request Schemas ──────────────────────
+
+    # TODO: [NOTIF-BROADCAST-1] NEW SCHEMA — Broadcast request
+    BroadcastNotificationRequest:
+      type: object
+      required: [title, content, targetAudience]
+      properties:
+        title:
+          type: string
+          example: "Deadline Reminder"
+          description: Notification title
+        content:
+          type: string
+          example: "Proposal submission deadline is approaching. Please submit by 2026-04-20."
+          description: Notification content
+        targetAudience:
+          type: string
+          enum: [ALL_STUDENTS, ALL_PROFESSORS, ALL_COORDINATORS, ALL_USERS, SPECIFIC_USERS]
+          description: Who should receive this notification
+        recipientIds:
+          type: array
+          description: "Required only when targetAudience = SPECIFIC_USERS"
+          items:
+            type: string
+            format: uuid
+        type:
+          type: string
+          default: SYSTEM_ANNOUNCEMENT
+          description: Notification type (defaults to SYSTEM_ANNOUNCEMENT)
+        actionUrl:
+          type: string
+          description: Optional URL for the notification to link to
+
+    # ── Response Schemas ─────────────────────
+
+    SuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Operation completed successfully.
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Not authorized to access this notification.
+        errorCode:
+          type: string
+
+    # TODO: [NOTIF-LIST-1] UPDATED — List response with pagination
+    NotificationListResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+        unreadCount:
+          type: integer
+          description: Total unread notifications (regardless of current filter/page)
+
+    # TODO: [NOTIF-DETAIL-2] NEW — Detail response
+    NotificationDetailResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          $ref: '#/components/schemas/Notification'
+
+    # TODO: [NOTIF-COUNT-2] NEW — Unread count response
+    UnreadCountResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            totalUnread:
+              type: integer
+              example: 5
+            byType:
+              type: object
+              description: "Unread count breakdown by notification type"
+              additionalProperties:
+                type: integer
+              example:
+                ADVISOR_REQUEST: 2
+                SUBMISSION_RECEIVED: 3
+            bySourceProcess:
+              type: object
+              description: "Unread count breakdown by source process"
+              additionalProperties:
+                type: integer
+              example:
+                PROCESS_3: 3
+                PROCESS_4: 2
+
+    MarkAllReadResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: "12 notifications marked as read."
+        data:
+          type: object
+          properties:
+            updatedCount:
+              type: integer
+              example: 12
+
+    # TODO: [NOTIF-ADMIN-3] NEW — Admin list response with extra metadata
+    AdminNotificationListResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Notification'
+              - type: object
+                properties:
+                  recipientName:
+                    type: string
+                    example: "Furkan Gencer"
+                  recipientRole:
+                    type: string
+                    enum: [student, professor, coordinator]
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    # TODO: [NOTIF-BROADCAST-2] NEW — Broadcast response
+    BroadcastNotificationResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: "Notification broadcast to 45 users."
+        data:
+          type: object
+          properties:
+            recipientCount:
+              type: integer
+              example: 45
+            notificationType:
+              type: string
+              example: SYSTEM_ANNOUNCEMENT
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 20
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
