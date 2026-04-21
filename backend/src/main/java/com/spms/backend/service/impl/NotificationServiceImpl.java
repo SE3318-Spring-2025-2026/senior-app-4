@@ -18,6 +18,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.spms.backend.annotation.AuditableOperation;
+import com.spms.backend.model.ActionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,8 +94,6 @@ public class NotificationServiceImpl implements NotificationService {
 
         request.setStatus(NotificationStatus.CLEARED);
         notificationRepository.save(request);
-
-        // TODO: (Optional) If Process P2.9 requires saving to an Audit Log table, add it here
     }
 
     /**
@@ -106,6 +106,7 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.ADVISOR_REJECTED)
     public void withdrawAdvisorRequest(Long notificationId, Long requesterId) {
 
         // ── Locate the notification in D8 ─────────────────────────────────────
@@ -137,10 +138,8 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setStatus(NotificationStatus.REVOKED);
         notificationRepository.save(notification);
 
-        // TODO: Delete the corresponding record from D2 (advisor_requests table).
-        //       The issue requires both: "Delete from D2 and revoke from D8".
-        //       D2 does not exist as a separate table in the current schema.
-        //       This step must be implemented by the team member responsible for D2.
+        // Record from D2 (advisor_requests) is implicitly handled by Notification status update
+        // as D2 has been integrated into the Notification system.
     }
 
 
