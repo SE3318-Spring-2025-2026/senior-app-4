@@ -14,7 +14,9 @@ import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.JiraIntegrationRepository;
+import com.spms.backend.repository.GithubIntegrationRepository;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.repository.NotificationRepository;
 import com.spms.backend.service.impl.GroupServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,11 +45,15 @@ class GroupServiceImplJiraIntegrationTest {
     @Mock
     private NotificationService notificationService;
     @Mock
+    private NotificationRepository notificationRepository;
+    @Mock
     private AuditLogRepository auditLogRepository;
     @Mock
     private StudentAuthorizationService authService;
     @Mock
     private JiraIntegrationRepository jiraIntegrationRepository;
+    @Mock
+    private GithubIntegrationRepository githubIntegrationRepository;
     @Mock
     private JiraApiClient jiraApiClient;
 
@@ -60,10 +66,12 @@ class GroupServiceImplJiraIntegrationTest {
                 groupMemberRepository,
                 userRepository,
                 notificationService,
-                auditLogRepository,
                 authService,
                 jiraIntegrationRepository,
-                jiraApiClient
+                githubIntegrationRepository,
+                jiraApiClient,
+                notificationRepository,
+                auditLogRepository
         );
     }
 
@@ -113,19 +121,22 @@ class GroupServiceImplJiraIntegrationTest {
         when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
         when(jiraIntegrationRepository.findByGroup_Id(10L)).thenReturn(Optional.of(integration));
 
-        JiraIntegrationResponse response = groupService.getJiraIntegration(10L, 100L);
+        JiraIntegrationResponse response = groupService.getJiraIntegration(10L);
 
         assertEquals("active", response.data().status());
         assertEquals("https://team.atlassian.net", response.data().jiraSpaceUrl());
     }
 
     @Test
-    void getJiraIntegrationReturns404WhenIntegrationMissing() {
+    void getJiraIntegrationReturnsNotConnectedWhenIntegrationMissing() {
         Group group = groupWithLeader(10L, 100L);
         when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
         when(jiraIntegrationRepository.findByGroup_Id(10L)).thenReturn(Optional.empty());
 
-        assertThrows(NotFoundException.class, () -> groupService.getJiraIntegration(10L, 100L));
+        JiraIntegrationResponse response = groupService.getJiraIntegration(10L);
+
+        assertEquals("inactive", response.data().status());
+        assertEquals("Not connected", response.data().message());
     }
 
     @Test

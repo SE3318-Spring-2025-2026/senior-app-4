@@ -30,15 +30,7 @@ export type ApiGroupDetail = {
 
 export type ApiPage<T> = {
     content: T[];
-    pageable: unknown;
     totalPages: number;
-    totalElements: number;
-    last: boolean;
-    size: number;
-    number: number;
-    first: boolean;
-    numberOfElements: number;
-    empty: boolean;
 };
 
 const API_BASE =
@@ -52,6 +44,8 @@ async function parseError(res: Response) {
         return "Request failed.";
     }
 }
+
+/* ===================== GET ===================== */
 
 export async function fetchGroups(
     page = 0,
@@ -92,7 +86,6 @@ export async function fetchGroupDetail(
     const token = getToken();
 
     const res = await fetch(`${API_BASE}/groups/${groupId}`, {
-        method: "GET",
         headers: {
             Authorization: `Bearer ${token ?? ""}`,
         },
@@ -104,4 +97,107 @@ export async function fetchGroupDetail(
     }
 
     return res.json();
+}
+
+/* ===================== CREATE ===================== */
+
+export async function createGroupApi(groupName: string) {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({ groupName }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
+
+/* ===================== UPDATE ===================== */
+
+export async function updateGroupNameApi(
+    groupId: number,
+    groupName: string
+) {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({ groupName }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+/* ===================== MEMBERS ===================== */
+
+export async function addMemberApi(
+    groupId: number,
+    studentId: number
+) {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/members`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({ studentId }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+export async function removeMemberApi(
+    groupId: number,
+    studentId: number
+) {
+    const token = getToken();
+
+    const res = await fetch(
+        `${API_BASE}/groups/${groupId}/members/${studentId}`,
+        {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${token ?? ""}`,
+            },
+        }
+    );
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+/* ===================== LEAVE ===================== */
+
+export async function leaveGroupApi(groupId: number) {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/leave`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
 }

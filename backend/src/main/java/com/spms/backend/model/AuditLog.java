@@ -1,81 +1,44 @@
 package com.spms.backend.model;
 
 import jakarta.persistence.*;
-
 import java.time.Instant;
 
 @Entity
-@Table(name = "audit_logs")
+@Table(name = "system_logs", indexes = {
+    @Index(name = "idx_system_logs_group_id", columnList = "group_id"),
+    @Index(name = "idx_system_logs_action_type", columnList = "action_type"),
+    @Index(name = "idx_system_logs_created_at", columnList = "created_at")
+})
 public class AuditLog {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "log_id")
-    private Long logId;
+    private Long id;
 
-    @Column(name = "action", nullable = false, length = 255)
-    private String action;
-
-    @Column(name = "description", length = 255)
-    private String description;
-
-    @Column(name = "entity_id")
-    private Long entityId;
-
-    @Column(name = "entity_type", nullable = false, length = 255)
-    private String entityType;
-
-    @Column(name = "timestamp")
-    private Instant timestamp;
-
-    @Column(name = "user_id")
+    @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    public Long getLogId() {
-        return logId;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "action_type", nullable = false)
+    private ActionType actionType;
+
+    @Column(name = "event_details", columnDefinition = "TEXT")
+    private String eventDetails;
+
+    @Column(name = "group_id")
+    private Long groupId;
+
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
+
+    public Long getId() {
+        return id;
     }
 
-    public void setLogId(Long logId) {
-        this.logId = logId;
-    }
-
-    public String getAction() {
-        return action;
-    }
-
-    public void setAction(String action) {
-        this.action = action;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public Long getEntityId() {
-        return entityId;
-    }
-
-    public void setEntityId(Long entityId) {
-        this.entityId = entityId;
-    }
-
-    public String getEntityType() {
-        return entityType;
-    }
-
-    public void setEntityType(String entityType) {
-        this.entityType = entityType;
-    }
-
-    public Instant getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(Instant timestamp) {
-        this.timestamp = timestamp;
+    public void setId(Long id) {
+        this.id = id;
     }
 
     public Long getUserId() {
@@ -84,5 +47,45 @@ public class AuditLog {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public ActionType getActionType() {
+        return actionType;
+    }
+
+    public void setActionType(ActionType actionType) {
+        this.actionType = actionType;
+    }
+
+    public String getEventDetails() {
+        return eventDetails;
+    }
+
+    public void setEventDetails(String eventDetails) {
+        this.eventDetails = eventDetails;
+    }
+
+    public Long getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(Long groupId) {
+        this.groupId = groupId;
+    }
+
+    public String getIpAddress() {
+        return ipAddress;
+    }
+
+    public void setIpAddress(String ipAddress) {
+        this.ipAddress = ipAddress;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
     }
 }

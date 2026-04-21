@@ -17,8 +17,9 @@ export type Notification = {
     message: string;
     status: NotificationStatus;
     fromUserId: number | null;
+    fromUserName: string | null;
     groupId: number | null;
     createdAt: string;
 };
 
-export type NotificationDecision = "accept" | "reject";
+export type NotificationDecision = "accept" | "reject";
