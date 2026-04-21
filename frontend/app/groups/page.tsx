@@ -5,8 +5,10 @@ import GroupCard from "@/components/GroupCard";
 import GroupCardSkeleton from "@/components/GroupCardSkeleton";
 import AppTopbar from "@/components/AppTopbar";
 import { useNotifications } from "@/components/NotificationProvider";
-import { fetchGroups, ApiGroupListItem } from "@/lib/groups-api";
+import { fetchGroups, createGroupApi, ApiGroupListItem } from "@/lib/groups-api";
 import { Group } from "@/lib/group-types";
+import { getUser } from "@/lib/auth";
+import { showToast } from "@/components/toast/ToastContext";
 
 function mapApiGroupToUiGroup(apiGroup: ApiGroupListItem): Group {
     return {
@@ -33,8 +35,15 @@ export default function GroupsPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [error, setError] = useState("");
 
+    const [groupName, setGroupName] = useState("");
+    const [creating, setCreating] = useState(false);
+    const [createError, setCreateError] = useState("");
+    const [createSuccess, setCreateSuccess] = useState("");
+    const [showCreateForm, setShowCreateForm] = useState(false);
+
     const pageSize = 6;
     const { unreadOrPendingCount } = useNotifications();
+    const currentUser = getUser();
 
     useEffect(() => {
         let cancelled = false;
@@ -60,9 +69,7 @@ export default function GroupsPage() {
                 setGroups([]);
                 setTotalPages(1);
             } finally {
-                if (!cancelled) {
-                    setLoading(false);
-                }
+                if (!cancelled) setLoading(false);
             }
         }
 
@@ -77,6 +84,43 @@ export default function GroupsPage() {
         return [...groups].sort((a, b) => a.groupName.localeCompare(b.groupName));
     }, [groups]);
 
+    async function handleCreateGroup(e: React.FormEvent) {
+        e.preventDefault();
+        setCreateError("");
+        setCreateSuccess("");
+
+        const trimmed = groupName.trim();
+
+        if (trimmed.length < 3 || trimmed.length > 100) {
+            const message = "Group name must be between 3 and 100 characters.";
+            setCreateError(message);
+            showToast(message, "warning");
+            return;
+        }
+
+        setCreating(true);
+        try {
+            await createGroupApi(trimmed);
+            setCreateSuccess("Group created successfully!");
+            showToast("Group created successfully!", "success");
+            setGroupName("");
+            setShowCreateForm(false);
+            setPage(0);
+
+            const response = await fetchGroups(0, pageSize);
+            const mappedGroups = response.content.map(mapApiGroupToUiGroup);
+            setGroups(mappedGroups);
+            setTotalPages(Math.max(response.totalPages, 1));
+        } catch (err) {
+            const message =
+                err instanceof Error ? err.message : "Failed to create group.";
+            setCreateError(message);
+            showToast(message, "error");
+        } finally {
+            setCreating(false);
+        }
+    }
+
     return (
         <main className="min-h-screen bg-gray-950 px-6 py-10">
             <div className="mx-auto max-w-6xl">
@@ -90,11 +134,86 @@ export default function GroupsPage() {
                         </p>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-gray-900 px-4 py-3 text-sm text-gray-400 shadow-lg shadow-black/20">
-                        <span className="font-semibold text-white">{sortedGroups.length}</span>{" "}
-                        groups listed
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <div className="rounded-2xl border border-white/10 bg-gray-900 px-4 py-3 text-sm text-gray-400 shadow-lg shadow-black/20">
+                            <span className="font-semibold text-white">{sortedGroups.length}</span>{" "}
+                            groups listed
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                setShowCreateForm((prev) => !prev);
+                                setCreateError("");
+                                setCreateSuccess("");
+                            }}
+                            className="rounded-2xl bg-green-600 px-5 py-3 text-sm font-semibold text-white hover:bg-green-500 transition-colors"
+                        >
+                            {showCreateForm ? "Close" : "+ Create Group"}
+                        </button>
                     </div>
                 </div>
+
+                {showCreateForm && (
+                    <div className="mb-8 rounded-2xl border border-green-500/20 bg-green-500/5 p-6 shadow-lg shadow-black/20">
+                        <h2 className="text-xl font-semibold text-white mb-2">
+                            Create New Group
+                        </h2>
+                        <p className="text-sm text-gray-400 mb-4">
+                            Enter a group name to create a new project group.
+                        </p>
+
+                        <form
+                            onSubmit={handleCreateGroup}
+                            className="flex flex-col gap-4 sm:flex-row sm:items-end"
+                        >
+                            <div className="flex-1">
+                                <input
+                                    type="text"
+                                    placeholder="Group name"
+                                    value={groupName}
+                                    onChange={(e) => setGroupName(e.target.value)}
+                                    className="w-full rounded-xl border border-white/10 bg-gray-900 px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 transition"
+                                    maxLength={100}
+                                />
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    type="submit"
+                                    disabled={creating}
+                                    className="rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-500 disabled:opacity-50"
+                                >
+                                    {creating ? "Creating..." : "Create"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowCreateForm(false);
+                                        setCreateError("");
+                                        setCreateSuccess("");
+                                        setGroupName("");
+                                    }}
+                                    className="rounded-xl border border-white/10 bg-gray-900 px-6 py-3 text-sm font-semibold text-gray-300 hover:bg-white/5"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+
+                        {createSuccess && (
+                            <p className="mt-3 text-green-400 text-sm">
+                                ✓ {createSuccess}
+                            </p>
+                        )}
+
+                        {createError && (
+                            <p className="mt-3 text-red-400 text-sm">
+                                ✗ {createError}
+                            </p>
+                        )}
+                    </div>
+                )}
 
                 {loading ? (
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
@@ -127,7 +246,7 @@ export default function GroupsPage() {
                                 <GroupCard
                                     key={group.groupId}
                                     group={group}
-                                    isOwnGroup={false}
+                                    isOwnGroup={currentUser?.userId === group.leaderId}
                                 />
                             ))}
                         </div>
