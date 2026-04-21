@@ -43,6 +43,7 @@ public interface GroupService {
     // Advisor Requests & Group Formation
     List<com.spms.backend.dto.response.AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId);
     void handleAdvisorRequestDecision(Long professorId, Long groupId, String status);
+    void processAdvisorRequestDecision(Long professorId, Long requestId, String status, String reason);
     void transferAdvisor(Long groupId, Long professorId, String requesterRole);
     com.spms.backend.dto.response.GroupFormationReportDto getGroupFormationReport(String role);
 }

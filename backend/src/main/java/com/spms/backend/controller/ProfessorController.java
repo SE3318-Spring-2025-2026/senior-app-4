@@ -18,8 +18,10 @@ import com.spms.backend.dto.response.AdvisorRequestResponseDto;
 import com.spms.backend.dto.request.AdvisorRequestDecisionDto;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import java.util.List;
+import com.spms.backend.dto.request.AdvisorDecisionRequestDto;
 
 @Tag(name = "Professor Management")
 @RestController
@@ -58,6 +60,17 @@ public class ProfessorController {
             @RequestAttribute("jwt_userId") Object userId) {
         Long professorId = Long.valueOf(userId.toString());
         groupService.handleAdvisorRequestDecision(professorId, request.groupId(), request.status());
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "Process an advisor request decision (Approve/Reject) with logic API")
+    @PostMapping("/advisor-requests/{requestId}/decision")
+    public ResponseEntity<Void> processAdvisorRequestDecision(
+            @PathVariable Long requestId,
+            @Valid @RequestBody AdvisorDecisionRequestDto request,
+            @RequestAttribute("jwt_userId") Object userId) {
+        Long professorId = Long.valueOf(userId.toString());
+        groupService.processAdvisorRequestDecision(professorId, requestId, request.status(), request.reason());
         return ResponseEntity.ok().build();
     }
 }

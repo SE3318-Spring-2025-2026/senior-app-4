@@ -1,6 +1,7 @@
 package com.spms.backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spms.backend.dto.request.AdvisorDecisionRequestDto;
 import com.spms.backend.dto.request.ProfessorRegisterRequest;
 import com.spms.backend.exception.GlobalExceptionHandler;
 import com.spms.backend.repository.InMemoryUserRepository;
@@ -18,14 +19,19 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 class ProfessorControllerTest {
 
         private MockMvc mockMvc;
         private ObjectMapper objectMapper;
+        private GroupService groupService;
 
         @BeforeEach
         void setUp() {
+                groupService = Mockito.mock(GroupService.class);
                 objectMapper = new ObjectMapper();
                 LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
                 validator.afterPropertiesSet();
@@ -33,7 +39,7 @@ class ProfessorControllerTest {
                 ProfessorController professorController = new ProfessorController(
                                 new ProfessorRegistrationService(new InMemoryUserRepository(),
                                                 new PasswordHashingService()),
-                                Mockito.mock(GroupService.class));
+                                groupService);
 
                 mockMvc = MockMvcBuilders.standaloneSetup(professorController)
                                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -116,5 +122,33 @@ class ProfessorControllerTest {
                                 .andExpect(status().isConflict())
                                 .andExpect(jsonPath("$.error").value("Conflict"))
                                 .andExpect(jsonPath("$.message").value("A user already exists for the given email."));
+        }
+
+        @Test
+        void processAdvisorRequestDecisionReturns200WhenRequestIsValid() throws Exception {
+                Long requestId = 10L;
+                AdvisorDecisionRequestDto requestDto = new AdvisorDecisionRequestDto("approved", null);
+
+                mockMvc.perform(post("/api/v1/professors/advisor-requests/{requestId}/decision", requestId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(requestDto))
+                                .requestAttr("jwt_userId", 5L))
+                                .andExpect(status().isOk());
+
+                verify(groupService).processAdvisorRequestDecision(5L, 10L, "approved", null);
+        }
+
+        @Test
+        void processAdvisorRequestDecisionReturns400WhenStatusIsInvalid() throws Exception {
+                Long requestId = 10L;
+                AdvisorDecisionRequestDto requestDto = new AdvisorDecisionRequestDto("maybe", "Not sure yet");
+
+                mockMvc.perform(post("/api/v1/professors/advisor-requests/{requestId}/decision", requestId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(requestDto))
+                                .requestAttr("jwt_userId", 5L))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.error").value("Bad Request"))
+                                .andExpect(jsonPath("$.message").value("Status must be 'approved' or 'rejected'"));
         }
 }
