@@ -39,6 +39,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.spms.backend.dto.response.MemberResponseDto;
+import com.spms.backend.model.notification.Notification;
+import com.spms.backend.model.notification.NotificationStatus;
+import com.spms.backend.model.notification.NotificationType;
+import com.spms.backend.repository.NotificationRepository;
+import com.spms.backend.dto.response.GroupFormationReportDto;
+import com.spms.backend.dto.response.AdvisorRequestResponseDto;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -60,6 +66,8 @@ public class GroupServiceImpl implements GroupService {
     private final GithubIntegrationRepository githubIntegrationRepository;
     private final JiraApiClient jiraApiClient;
 
+    private final NotificationRepository notificationRepository;
+
     public GroupServiceImpl(GroupRepository groupRepository,
                             GroupMemberRepository groupMemberRepository,
                             UserRepository userRepository,
@@ -68,7 +76,8 @@ public class GroupServiceImpl implements GroupService {
                             StudentAuthorizationService authService,
                             JiraIntegrationRepository jiraIntegrationRepository,
                             GithubIntegrationRepository githubIntegrationRepository,
-                            JiraApiClient jiraApiClient) {
+                            JiraApiClient jiraApiClient,
+                            NotificationRepository notificationRepository) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
@@ -78,6 +87,7 @@ public class GroupServiceImpl implements GroupService {
         this.jiraIntegrationRepository = jiraIntegrationRepository;
         this.githubIntegrationRepository = githubIntegrationRepository;
         this.jiraApiClient = jiraApiClient;
+        this.notificationRepository = notificationRepository;
     }
 
     @Override
@@ -388,12 +398,12 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
             // Lider mi üye mi kontrolü
             String role = group.getLeader().getUserId().equals(member.getUser().getUserId()) ? "LEADER" : "MEMBER";
 
-            return MemberResponseDto.builder()
-                    .userId(member.getUser().getUserId())
-                    .studentId(member.getUser().getStudentId())
-                    .fullName(member.getUser().getFullName())
-                    .role(role)
-                    .build();
+            return new MemberResponseDto(
+                    member.getUser().getUserId(),
+                    member.getUser().getStudentId(),
+                    member.getUser().getFullName(),
+                    role
+            );
         }).collect(Collectors.toList());
     }
 
@@ -474,5 +484,140 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
         } catch (Exception e) {
             log.warn("Notification failed: {}", e.getMessage());
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId) {
+        List<Notification> requests = notificationRepository.findByToUser_UserIdAndTypeAndStatus(
+                professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
+                
+        return requests.stream()
+                .filter(req -> req.getGroupId() != null)
+                .map(req -> {
+                    Group group = groupRepository.findById(req.getGroupId()).orElse(null);
+                    String groupName = group != null ? group.getGroupName() : "Unknown Group";
+                    return new AdvisorRequestResponseDto(req.getId(), req.getGroupId(), groupName, req.getCreatedAt());
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void handleAdvisorRequestDecision(Long professorId, Long groupId, String status) {
+        Notification request = notificationRepository.findByGroupIdAndToUser_UserIdAndTypeAndStatus(
+                groupId, professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING)
+                .orElseThrow(() -> new BadRequestException("Pending advisor request not found for this group."));
+                
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+                
+        User professor = userRepository.findById(professorId)
+                .orElseThrow(() -> new NotFoundException("Professor not found."));
+
+        if ("approved".equalsIgnoreCase(status)) {
+            group.setAdvisor(professor);
+            group.setStatus(GroupStatus.ADVISED);
+            group.setUpdatedAt(Instant.now());
+            groupRepository.save(group);
+            
+            request.setStatus(NotificationStatus.ACCEPTED);
+            notificationRepository.save(request);
+            
+            List<Notification> otherRequests = notificationRepository.findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(
+                    groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, professorId);
+            for (Notification otherReq : otherRequests) {
+                otherReq.setStatus(NotificationStatus.REJECTED);
+                notificationRepository.save(otherReq);
+            }
+            
+            Notification notif = new Notification();
+            notif.setType(NotificationType.ADVISOR_DECISION);
+            notif.setStatus(NotificationStatus.PENDING);
+            notif.setMessage("Professor " + professor.getFullName() + " has approved your advisor request.");
+            notif.setGroupId(groupId);
+            notif.setFromUser(professor);
+            notif.setToUser(group.getLeader());
+            notificationRepository.save(notif);
+
+        } else if ("rejected".equalsIgnoreCase(status)) {
+            request.setStatus(NotificationStatus.REJECTED);
+            notificationRepository.save(request);
+            
+            Notification notif = new Notification();
+            notif.setType(NotificationType.ADVISOR_DECISION);
+            notif.setStatus(NotificationStatus.PENDING);
+            notif.setMessage("Professor " + professor.getFullName() + " has rejected your advisor request.");
+            notif.setGroupId(groupId);
+            notif.setFromUser(professor);
+            notif.setToUser(group.getLeader());
+            notificationRepository.save(notif);
+        } else {
+            throw new BadRequestException("Status must be 'approved' or 'rejected'.");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void transferAdvisor(Long groupId, Long professorId, String requesterRole) {
+        if (!"coordinator".equalsIgnoreCase(requesterRole)) {
+            throw new ForbiddenException("Only coordinators can transfer advisors.");
+        }
+        
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+                
+        User professor = userRepository.findById(professorId)
+                .orElseThrow(() -> new NotFoundException("Professor not found."));
+                
+        group.setAdvisor(professor);
+        group.setStatus(GroupStatus.ADVISED);
+        group.setUpdatedAt(Instant.now());
+        groupRepository.save(group);
+
+        Notification notif = new Notification();
+        notif.setType(NotificationType.SYSTEM_ALERT);
+        notif.setStatus(NotificationStatus.PENDING);
+        notif.setMessage("You have been directly assigned as advisor to group: " + group.getGroupName() + " by the coordinator.");
+        notif.setGroupId(groupId);
+        notif.setToUser(professor);
+        notificationRepository.save(notif);
+        
+        List<Notification> pendingRequests = notificationRepository.findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(
+                groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, -1L);
+        for (Notification req : pendingRequests) {
+            req.setStatus(NotificationStatus.REJECTED);
+            notificationRepository.save(req);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public GroupFormationReportDto getGroupFormationReport(String role) {
+        if (!"coordinator".equalsIgnoreCase(role)) {
+            throw new ForbiddenException("Only coordinators can view group formation reports.");
+        }
+        
+        List<Group> allGroups = groupRepository.findAll();
+        long totalGroups = allGroups.size();
+        
+        long formedGroupsCnt = allGroups.stream()
+                .filter(g -> g.getStatus() == GroupStatus.FORMED || g.getStatus() == GroupStatus.ADVISED)
+                .count();
+                
+        long unadvisedGroupsCnt = allGroups.stream()
+                .filter(g -> g.getAdvisor() == null && g.getStatus() != GroupStatus.DISBANDED)
+                .count();
+                
+        List<GroupFormationReportDto.GroupStatusDetail> details = allGroups.stream()
+                .map(g -> new GroupFormationReportDto.GroupStatusDetail(
+                        g.getId(),
+                        g.getGroupName(),
+                        g.getStatus().name(),
+                        g.getAdvisor() != null ? g.getAdvisor().getUserId() : null,
+                        g.getAdvisor() != null ? g.getAdvisor().getFullName() : null
+                )).collect(Collectors.toList());
+                
+        return new GroupFormationReportDto(totalGroups, formedGroupsCnt, unadvisedGroupsCnt, details);
     }
 }

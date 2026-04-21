@@ -39,4 +39,10 @@ public interface GroupService {
     void addMember(Long groupId, String studentId);
     void removeMember(Long groupId, String studentId);
     void leaveGroup(Long groupId, Long studentUserId);
+
+    // Advisor Requests & Group Formation
+    List<com.spms.backend.dto.response.AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId);
+    void handleAdvisorRequestDecision(Long professorId, Long groupId, String status);
+    void transferAdvisor(Long groupId, Long professorId, String requesterRole);
+    com.spms.backend.dto.response.GroupFormationReportDto getGroupFormationReport(String role);
 }

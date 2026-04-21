@@ -180,4 +180,19 @@ public class GroupController {
                 "message", "Membership invitation sent successfully"
         ));
     }
+
+    @PostMapping("/{groupId}/advisor/transfer")
+    public ResponseEntity<?> transferAdvisor(
+            @PathVariable Long groupId,
+            @Valid @RequestBody com.spms.backend.dto.request.AdvisorTransferRequestDto request,
+            @RequestAttribute("jwt_role") Object role) {
+        
+        String requesterRole = role.toString();
+        groupService.transferAdvisor(groupId, request.professorId(), requesterRole);
+
+        return ResponseEntity.ok().body(java.util.Map.of(
+                "success", true,
+                "message", "Advisor assigned successfully"
+        ));
+    }
 }
