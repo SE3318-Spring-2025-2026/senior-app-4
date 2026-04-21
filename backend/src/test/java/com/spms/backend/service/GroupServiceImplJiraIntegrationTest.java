@@ -1,5 +1,6 @@
 package com.spms.backend.service;
 
+import com.spms.backend.client.GithubApiClient;
 import com.spms.backend.client.JiraApiClient;
 import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
@@ -16,6 +17,7 @@ import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.JiraIntegrationRepository;
 import com.spms.backend.repository.GithubIntegrationRepository;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.repository.NotificationRepository;
 import com.spms.backend.service.impl.GroupServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,8 @@ class GroupServiceImplJiraIntegrationTest {
     @Mock
     private NotificationService notificationService;
     @Mock
+    private NotificationRepository notificationRepository;
+    @Mock
     private AuditLogRepository auditLogRepository;
     @Mock
     private StudentAuthorizationService authService;
@@ -53,21 +57,24 @@ class GroupServiceImplJiraIntegrationTest {
     private GithubIntegrationRepository githubIntegrationRepository;
     @Mock
     private JiraApiClient jiraApiClient;
+    @Mock // Ekledik ki hata vermesin
+    private GithubApiClient githubApiClient;
 
     private GroupServiceImpl groupService;
-
-    @BeforeEach
+@BeforeEach
     void setUp() {
         groupService = new GroupServiceImpl(
                 groupRepository,
                 groupMemberRepository,
                 userRepository,
                 notificationService,
-                auditLogRepository,
-                authService,
-                jiraIntegrationRepository,
-                githubIntegrationRepository,
-                jiraApiClient
+                auditLogRepository,            
+                authService,                   
+                jiraIntegrationRepository,     
+                githubIntegrationRepository,   
+                jiraApiClient,                 
+                notificationRepository,        
+                githubApiClient                
         );
     }
 
