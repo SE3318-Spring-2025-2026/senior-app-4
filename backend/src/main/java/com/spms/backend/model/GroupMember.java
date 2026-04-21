@@ -2,17 +2,22 @@ package com.spms.backend.model;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import jakarta.persistence.Convert;
 
 @Entity
-@Table(name = "group_members")
+@Table(name = "group_members", indexes = {
+    @Index(name = "idx_member_user", columnList = "user_id")
+})
 public class GroupMember {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "group_id", nullable = false)
     private Group group;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;

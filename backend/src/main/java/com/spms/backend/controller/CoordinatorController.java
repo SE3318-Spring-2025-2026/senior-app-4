@@ -21,9 +21,11 @@ import java.util.List;
 public class CoordinatorController {
 
     private final ScheduleService scheduleService;
+    private final com.spms.backend.service.GroupService groupService;
 
-    public CoordinatorController(ScheduleService scheduleService) {
+    public CoordinatorController(ScheduleService scheduleService, com.spms.backend.service.GroupService groupService) {
         this.scheduleService = scheduleService;
+        this.groupService = groupService;
     }
 
     // ── GET /api/v1/coordinator/schedule ────────────────────────────────
@@ -73,5 +75,12 @@ public class CoordinatorController {
                 alerts.size(),
                 alerts
         ));
+    }
+
+    @Operation(summary = "Get detailed group formation report")
+    @GetMapping("/reports/group-formation")
+    public ResponseEntity<com.spms.backend.dto.response.GroupFormationReportDto> getGroupFormationReport(HttpServletRequest httpReq) {
+        String role = (String) httpReq.getAttribute("jwt_role");
+        return ResponseEntity.ok(groupService.getGroupFormationReport(role));
     }
 }

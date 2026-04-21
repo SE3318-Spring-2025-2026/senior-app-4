@@ -13,6 +13,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import com.spms.backend.model.ActionType;
+import com.spms.backend.model.AuditLog;
+import com.spms.backend.dto.response.AuditLogResponseDto;
+import com.spms.backend.repository.AuditLogRepository;
 
 /**
  * Admin endpoints.
@@ -27,11 +35,14 @@ public class AdminController {
 
     private final UserRepository userRepository;
     private final PasswordHashingService passwordHashingService;
+    private final AuditLogRepository auditLogRepository;
 
     public AdminController(UserRepository userRepository,
-                           PasswordHashingService passwordHashingService) {
+                           PasswordHashingService passwordHashingService,
+                           AuditLogRepository auditLogRepository) {
         this.userRepository = userRepository;
         this.passwordHashingService = passwordHashingService;
+        this.auditLogRepository = auditLogRepository;
     }
 
     @Operation(summary = "Generate one-time password reset link for a professor")
@@ -58,5 +69,38 @@ public class AdminController {
                 resetToken,
                 resetUrl
         ));
+    }
+    @Operation(summary = "Get global audit logs")
+    @GetMapping("/logs")
+    public ResponseEntity<Page<AuditLogResponseDto>> getSystemLogs(
+            @RequestParam(required = false) ActionType actionType,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestAttribute("jwt_role") Object role) {
+
+        if (!"coordinator".equalsIgnoreCase(role.toString())) {
+            throw new com.spms.backend.exception.ForbiddenException("Only coordinators can view global logs.");
+        }
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<AuditLog> logsPage;
+
+        if (actionType != null) {
+            logsPage = auditLogRepository.findByActionType(actionType, pageable);
+        } else {
+            logsPage = auditLogRepository.findAll(pageable);
+        }
+
+        Page<AuditLogResponseDto> responsePage = logsPage.map(log -> new AuditLogResponseDto(
+                log.getId(),
+                log.getUserId(),
+                log.getActionType(),
+                log.getEventDetails(),
+                log.getGroupId(),
+                log.getIpAddress(),
+                log.getCreatedAt()
+        ));
+
+        return ResponseEntity.ok(responsePage);
     }
 }
