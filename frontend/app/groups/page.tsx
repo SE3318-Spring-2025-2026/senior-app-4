@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import GroupCard from "@/components/GroupCard";
 import GroupCardSkeleton from "@/components/GroupCardSkeleton";
 import AppTopbar from "@/components/AppTopbar";
@@ -29,9 +30,19 @@ function mapApiGroupToUiGroup(apiGroup: ApiGroupListItem): Group {
 }
 
 export default function GroupsPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
+
     const [groups, setGroups] = useState<Group[]>([]);
     const [loading, setLoading] = useState(true);
-    const [page, setPage] = useState(0);
+    
+    const page = parseInt(searchParams.get("page") || "0");
+    const statusFilter = searchParams.get("status") || "all";
+    const advisorFilter = searchParams.get("advisorAssigned") || "all";
+    const searchQuery = searchParams.get("groupName") || "";
+
+    const [searchInput, setSearchInput] = useState(searchQuery);
     const [totalPages, setTotalPages] = useState(1);
     const [error, setError] = useState("");
 
@@ -46,6 +57,28 @@ export default function GroupsPage() {
     const currentUser = getUser();
 
     useEffect(() => {
+        const handler = setTimeout(() => {
+            if (searchInput !== searchQuery) {
+                updateParams({ groupName: searchInput, page: 0 });
+            }
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [searchInput, searchQuery]);
+
+    const updateParams = (updates: Record<string, string | number>) => {
+        const params = new URLSearchParams(searchParams.toString());
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value === "" || value === "all" || value === 0) {
+                if (key !== "page") params.delete(key);
+                else params.set(key, "0");
+            } else {
+                params.set(key, String(value));
+            }
+        });
+        router.push(`${pathname}?${params.toString()}`);
+    };
+
+    useEffect(() => {
         let cancelled = false;
 
         async function loadGroups() {
@@ -53,7 +86,7 @@ export default function GroupsPage() {
                 setLoading(true);
                 setError("");
 
-                const response = await fetchGroups(page, pageSize);
+                const response = await fetchGroups(page, pageSize, statusFilter, searchQuery, advisorFilter);
 
                 if (cancelled) return;
 
@@ -78,7 +111,7 @@ export default function GroupsPage() {
         return () => {
             cancelled = true;
         };
-    }, [page]);
+    }, [page, statusFilter, searchQuery, advisorFilter]);
 
     const sortedGroups = useMemo(() => {
         return [...groups].sort((a, b) => a.groupName.localeCompare(b.groupName));
@@ -151,6 +184,36 @@ export default function GroupsPage() {
                             {showCreateForm ? "Close" : "+ Create Group"}
                         </button>
                     </div>
+                </div>
+
+                <div className="mb-6 flex flex-col md:flex-row gap-4">
+                    <input
+                        type="text"
+                        placeholder="Search groups..."
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        className="flex-1 bg-gray-900 border border-white/10 text-sm text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none shadow-lg shadow-black/20"
+                    />
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => updateParams({ status: e.target.value, page: 0 })}
+                        className="bg-gray-900 border border-white/10 text-sm text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none shadow-lg shadow-black/20"
+                    >
+                        <option value="all">All Statuses</option>
+                        <option value="forming">Forming</option>
+                        <option value="formed">Formed</option>
+                        <option value="advised">Advised</option>
+                        <option value="disbanded">Disbanded</option>
+                    </select>
+                    <select
+                        value={advisorFilter}
+                        onChange={(e) => updateParams({ advisorAssigned: e.target.value, page: 0 })}
+                        className="bg-gray-900 border border-white/10 text-sm text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none shadow-lg shadow-black/20"
+                    >
+                        <option value="all">All Advisor Status</option>
+                        <option value="has_advisor">Has Advisor</option>
+                        <option value="no_advisor">No Advisor</option>
+                    </select>
                 </div>
 
                 {showCreateForm && (
@@ -253,7 +316,7 @@ export default function GroupsPage() {
 
                         <div className="mt-8 flex items-center justify-center gap-3">
                             <button
-                                onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
+                                onClick={() => updateParams({ page: Math.max(page - 1, 0) })}
                                 disabled={page === 0}
                                 className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
                             >
@@ -266,9 +329,7 @@ export default function GroupsPage() {
                             </span>
 
                             <button
-                                onClick={() =>
-                                    setPage((prev) => Math.min(prev + 1, totalPages - 1))
-                                }
+                                onClick={() => updateParams({ page: Math.min(page + 1, totalPages - 1) })}
                                 disabled={page >= totalPages - 1}
                                 className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
                             >
