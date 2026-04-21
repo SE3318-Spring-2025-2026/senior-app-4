@@ -12,7 +12,8 @@ import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.exception.UnauthorizedException;
-import com.spms.backend.model.AuditLog;
+import com.spms.backend.annotation.AuditableOperation;
+import com.spms.backend.model.ActionType;
 import com.spms.backend.model.User;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupMember;
@@ -21,7 +22,6 @@ import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.JiraIntegration;
 import com.spms.backend.model.JiraIntegrationStatus;
 import com.spms.backend.model.GithubIntegration;
-import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.JiraIntegrationRepository;
@@ -60,7 +60,6 @@ public class GroupServiceImpl implements GroupService {
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
-    private final AuditLogRepository auditLogRepository;
     private final StudentAuthorizationService authService;
     private final JiraIntegrationRepository jiraIntegrationRepository;
     private final GithubIntegrationRepository githubIntegrationRepository;
@@ -72,7 +71,6 @@ public class GroupServiceImpl implements GroupService {
                             GroupMemberRepository groupMemberRepository,
                             UserRepository userRepository,
                             NotificationService notificationService,
-                            AuditLogRepository auditLogRepository,
                             StudentAuthorizationService authService,
                             JiraIntegrationRepository jiraIntegrationRepository,
                             GithubIntegrationRepository githubIntegrationRepository,
@@ -82,7 +80,6 @@ public class GroupServiceImpl implements GroupService {
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
-        this.auditLogRepository = auditLogRepository;
         this.authService = authService;
         this.jiraIntegrationRepository = jiraIntegrationRepository;
         this.githubIntegrationRepository = githubIntegrationRepository;
@@ -92,6 +89,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.GROUP_CREATED)
     public GroupResponseDto createGroup(GroupCreateRequestDto request, Long creatorId) {
         ValidationResult studentExists = authService.validateStudentExists(creatorId);
         if (!studentExists.valid()) {
@@ -125,6 +123,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.GROUP_UPDATED)
     public void updateGroupName(Long groupId, GroupUpdateRequestDto request, Long requesterId) {
         ValidationResult isLeader = authService.validateIsGroupLeader(requesterId, groupId);
         if (!isLeader.valid()) {
@@ -215,6 +214,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.GROUP_DISBANDED)
     public void disbandGroup(Long groupId, Long requesterId, String requesterRole) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
@@ -243,15 +243,6 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
         groupMemberRepository.deleteAll(currentMembers);
         groupRepository.save(group);
 
-        AuditLog auditLog = new AuditLog();
-        auditLog.setAction("GROUP_DISBANDED");
-        auditLog.setDescription("Group " + groupId + " disbanded by user " + requesterId);
-        auditLog.setEntityId(groupId);
-        auditLog.setEntityType("GROUP");
-        auditLog.setTimestamp(Instant.now());
-        auditLog.setUserId(requesterId);
-        auditLogRepository.save(auditLog);
-
         try {
             notificationService.sendGroupDisbandedNotification(groupId, requesterId, group.getGroupName(), memberIds);
         } catch (Exception exception) {
@@ -264,6 +255,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.INTEGRATION_BOUND)
     public void bindJiraIntegration(Long groupId, Long requesterId, JiraBindingRequest request) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
@@ -358,6 +350,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.INTEGRATION_REMOVED)
     public void unbindJiraIntegration(Long groupId, Long requesterId) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
@@ -409,6 +402,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.MEMBER_REMOVED)
     public void removeMember(Long groupId, String studentId) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found with id: " + groupId));
@@ -424,19 +418,11 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
 
         group.getMembers().remove(memberToRemove);
         groupRepository.save(group);
-
-        // AUDIT LOG EKLEMESİ (Kriter gereği)
-        AuditLog auditLog = new AuditLog();
-        auditLog.setAction("MEMBER_REMOVED");
-        auditLog.setDescription("Member " + studentId + " removed from group " + groupId);
-        auditLog.setEntityId(groupId);
-        auditLog.setEntityType("GROUP");
-        auditLog.setTimestamp(Instant.now());
-        auditLogRepository.save(auditLog);
     }
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.MEMBER_REMOVED)
     public void leaveGroup(Long groupId, Long studentUserId) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found with id: " + groupId));
@@ -456,6 +442,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.MEMBER_ADDED)
     public void addMember(Long groupId, String studentId) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found with id: " + groupId));
@@ -504,6 +491,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.ADVISOR_ASSIGNED)
     public void handleAdvisorRequestDecision(Long professorId, Long groupId, String status) {
         Notification request = notificationRepository.findByGroupIdAndToUser_UserIdAndTypeAndStatus(
                 groupId, professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING)
@@ -559,6 +547,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.ADVISOR_ASSIGNED)
     public void transferAdvisor(Long groupId, Long professorId, String requesterRole) {
         if (!"coordinator".equalsIgnoreCase(requesterRole)) {
             throw new ForbiddenException("Only coordinators can transfer advisors.");

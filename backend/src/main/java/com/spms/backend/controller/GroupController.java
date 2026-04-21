@@ -8,11 +8,15 @@ import com.spms.backend.dto.response.GroupDetailDto;
 import com.spms.backend.dto.response.GroupResponseDto;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.dto.response.GithubIntegrationResponse;
+import com.spms.backend.dto.response.AuditLogResponseDto;
+import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.service.GroupService;
 import com.spms.backend.service.MemberService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,10 +31,12 @@ public class GroupController {
 
     private final GroupService groupService;
     private final MemberService memberService;
+    private final AuditLogRepository auditLogRepository;
 
-    public GroupController(GroupService groupService, MemberService memberService) {
+    public GroupController(GroupService groupService, MemberService memberService, AuditLogRepository auditLogRepository) {
         this.groupService = groupService;
         this.memberService = memberService;
+        this.auditLogRepository = auditLogRepository;
     }
 
     @PostMapping
@@ -194,5 +200,27 @@ public class GroupController {
                 "success", true,
                 "message", "Advisor assigned successfully"
         ));
+    }
+
+    @GetMapping("/{groupId}/logs")
+    public ResponseEntity<Page<AuditLogResponseDto>> getGroupLogs(
+            @PathVariable Long groupId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        
+        Page<AuditLogResponseDto> responsePage = auditLogRepository.findByGroupId(groupId, pageable)
+            .map(log -> new AuditLogResponseDto(
+                log.getId(),
+                log.getUserId(),
+                log.getActionType(),
+                log.getEventDetails(),
+                log.getGroupId(),
+                log.getIpAddress(),
+                log.getCreatedAt()
+            ));
+
+        return ResponseEntity.ok(responsePage);
     }
 }
