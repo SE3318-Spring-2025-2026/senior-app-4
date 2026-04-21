@@ -43,6 +43,8 @@ import com.spms.backend.model.notification.Notification;
 import com.spms.backend.model.notification.NotificationStatus;
 import com.spms.backend.model.notification.NotificationType;
 import com.spms.backend.repository.NotificationRepository;
+import com.spms.backend.repository.AuditLogRepository;
+import com.spms.backend.model.AuditLog;
 import com.spms.backend.dto.response.GroupFormationReportDto;
 import com.spms.backend.dto.response.AdvisorRequestResponseDto;
 
@@ -66,16 +68,18 @@ public class GroupServiceImpl implements GroupService {
     private final JiraApiClient jiraApiClient;
 
     private final NotificationRepository notificationRepository;
+    private final AuditLogRepository auditLogRepository;
 
     public GroupServiceImpl(GroupRepository groupRepository,
-                            GroupMemberRepository groupMemberRepository,
-                            UserRepository userRepository,
-                            NotificationService notificationService,
-                            StudentAuthorizationService authService,
-                            JiraIntegrationRepository jiraIntegrationRepository,
-                            GithubIntegrationRepository githubIntegrationRepository,
-                            JiraApiClient jiraApiClient,
-                            NotificationRepository notificationRepository) {
+            GroupMemberRepository groupMemberRepository,
+            UserRepository userRepository,
+            NotificationService notificationService,
+            StudentAuthorizationService authService,
+            JiraIntegrationRepository jiraIntegrationRepository,
+            GithubIntegrationRepository githubIntegrationRepository,
+            JiraApiClient jiraApiClient,
+            NotificationRepository notificationRepository,
+            AuditLogRepository auditLogRepository) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
@@ -85,6 +89,7 @@ public class GroupServiceImpl implements GroupService {
         this.githubIntegrationRepository = githubIntegrationRepository;
         this.jiraApiClient = jiraApiClient;
         this.notificationRepository = notificationRepository;
+        this.auditLogRepository = auditLogRepository;
     }
 
     @Override
@@ -140,50 +145,49 @@ public class GroupServiceImpl implements GroupService {
         group.setUpdatedAt(Instant.now());
 
         groupRepository.save(group);
-        
+
     }
 
     // rol bazlı grup getirmek için
     @Override
     @Transactional(readOnly = true)
-public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole) {
+    public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole) {
 
-    Page<Group> groupsPage = null;
+        Page<Group> groupsPage = null;
 
-    String role = (requesterRole != null) ? requesterRole.toLowerCase() : "guest";
+        String role = (requesterRole != null) ? requesterRole.toLowerCase() : "guest";
 
-    switch (role) {
-        case "student":
-            groupsPage = groupRepository.findAllWithStudentGroupFirst(requesterId, pageable);
-            break;
+        switch (role) {
+            case "student":
+                groupsPage = groupRepository.findAllWithStudentGroupFirst(requesterId, pageable);
+                break;
 
-        case "professor":
-            groupsPage = groupRepository.findByAdvisorId(requesterId, pageable);
-            break;
+            case "professor":
+                groupsPage = groupRepository.findByAdvisorId(requesterId, pageable);
+                break;
 
-        case "coordinator":
-            groupsPage = groupRepository.findAll(pageable);
-            try {
-                List<Object[]> counts = groupRepository.countGroupsByStatus();
-                counts.forEach(result -> 
-                    log.info("Coordinator Summary - Status: {} Count: {}", result[0], result[1])
-                );
-            } catch (Exception e) {
-                log.error("Status summary count failed", e);
-            }
-            break;
+            case "coordinator":
+                groupsPage = groupRepository.findAll(pageable);
+                try {
+                    List<Object[]> counts = groupRepository.countGroupsByStatus();
+                    counts.forEach(
+                            result -> log.info("Coordinator Summary - Status: {} Count: {}", result[0], result[1]));
+                } catch (Exception e) {
+                    log.error("Status summary count failed", e);
+                }
+                break;
 
-        default:
+            default:
 
-            groupsPage = groupRepository.findAll(pageable);
-            break;
+                groupsPage = groupRepository.findAll(pageable);
+                break;
+        }
+        if (groupsPage == null) {
+            return Page.empty(pageable);
+        }
+
+        return groupsPage.map(this::mapToSimpleDto);
     }
-    if (groupsPage == null) {
-        return Page.empty(pageable);
-    }
-
-    return groupsPage.map(this::mapToSimpleDto);
-}
 
     // rol abzlı detayları getirir
     @Override
@@ -208,8 +212,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
                 group.getStatus().name(),
                 group.getCreatedAt(),
                 group.getUpdatedAt(),
-                memberDtos
-        );
+                memberDtos);
     }
 
     @Override
@@ -250,9 +253,6 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
         }
     }
 
-
-
-
     @Override
     @Transactional
     @AuditableOperation(actionType = ActionType.INTEGRATION_BOUND)
@@ -262,7 +262,8 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
 
         ensureRequesterIsGroupLeader(group, requesterId);
 
-        boolean valid = jiraApiClient.validateSpaceConnection(request.jiraSpaceUrl(), request.projectKey(), request.apiKey());
+        boolean valid = jiraApiClient.validateSpaceConnection(request.jiraSpaceUrl(), request.projectKey(),
+                request.apiKey());
         if (!valid) {
             throw new BadRequestException("JIRA connection validation failed.");
         }
@@ -377,8 +378,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
                 group.getAdvisor() != null ? group.getAdvisor().getUserId() : null,
                 group.getStatus().name(),
                 group.getMembers().size(),
-                group.getCreatedAt()
-        );
+                group.getCreatedAt());
     }
 
     @Override
@@ -395,8 +395,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
                     member.getUser().getUserId(),
                     member.getUser().getStudentId(),
                     member.getUser().getFullName(),
-                    role
-            );
+                    role);
         }).collect(Collectors.toList());
     }
 
@@ -478,7 +477,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
     public List<AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId) {
         List<Notification> requests = notificationRepository.findByToUser_UserIdAndTypeAndStatus(
                 professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
-                
+
         return requests.stream()
                 .filter(req -> req.getGroupId() != null)
                 .map(req -> {
@@ -496,10 +495,10 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
         Notification request = notificationRepository.findByGroupIdAndToUser_UserIdAndTypeAndStatus(
                 groupId, professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING)
                 .orElseThrow(() -> new BadRequestException("Pending advisor request not found for this group."));
-                
+
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
-                
+
         User professor = userRepository.findById(professorId)
                 .orElseThrow(() -> new NotFoundException("Professor not found."));
 
@@ -508,17 +507,35 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
             group.setStatus(GroupStatus.ADVISED);
             group.setUpdatedAt(Instant.now());
             groupRepository.save(group);
-            
+
             request.setStatus(NotificationStatus.ACCEPTED);
             notificationRepository.save(request);
-            
+
             List<Notification> otherRequests = notificationRepository.findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(
                     groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, professorId);
             for (Notification otherReq : otherRequests) {
                 otherReq.setStatus(NotificationStatus.REJECTED);
                 notificationRepository.save(otherReq);
+
+                Notification rejectNotif = new Notification();
+                rejectNotif.setType(NotificationType.SYSTEM_ALERT);
+                rejectNotif.setStatus(NotificationStatus.PENDING);
+                rejectNotif.setMessage("Your request to be advisor for group " + group.getGroupName()
+                        + " was automatically cancelled because they were assigned another advisor.");
+                rejectNotif.setGroupId(groupId);
+                rejectNotif.setToUser(otherReq.getToUser());
+                notificationRepository.save(rejectNotif);
+
+                AuditLog log = new AuditLog();
+                log.setActionType(ActionType.ADVISOR_REJECTED);
+                log.setUserId(professorId);
+                log.setGroupId(groupId);
+                log.setEventDetails(
+                        "Auto-rejected pending advisor request for professor " + otherReq.getToUser().getUserId() + " ("
+                                + otherReq.getToUser().getFullName() + ") due to approval of a different advisor.");
+                auditLogRepository.save(log);
             }
-            
+
             Notification notif = new Notification();
             notif.setType(NotificationType.ADVISOR_DECISION);
             notif.setStatus(NotificationStatus.PENDING);
@@ -531,7 +548,7 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
         } else if ("rejected".equalsIgnoreCase(status)) {
             request.setStatus(NotificationStatus.REJECTED);
             notificationRepository.save(request);
-            
+
             Notification notif = new Notification();
             notif.setType(NotificationType.ADVISOR_DECISION);
             notif.setStatus(NotificationStatus.PENDING);
@@ -552,13 +569,13 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
         if (!"coordinator".equalsIgnoreCase(requesterRole)) {
             throw new ForbiddenException("Only coordinators can transfer advisors.");
         }
-        
+
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
-                
+
         User professor = userRepository.findById(professorId)
                 .orElseThrow(() -> new NotFoundException("Professor not found."));
-                
+
         group.setAdvisor(professor);
         group.setStatus(GroupStatus.ADVISED);
         group.setUpdatedAt(Instant.now());
@@ -567,11 +584,12 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
         Notification notif = new Notification();
         notif.setType(NotificationType.SYSTEM_ALERT);
         notif.setStatus(NotificationStatus.PENDING);
-        notif.setMessage("You have been directly assigned as advisor to group: " + group.getGroupName() + " by the coordinator.");
+        notif.setMessage("You have been directly assigned as advisor to group: " + group.getGroupName()
+                + " by the coordinator.");
         notif.setGroupId(groupId);
         notif.setToUser(professor);
         notificationRepository.save(notif);
-        
+
         List<Notification> pendingRequests = notificationRepository.findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(
                 groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, -1L);
         for (Notification req : pendingRequests) {
@@ -586,27 +604,27 @@ public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, Str
         if (!"coordinator".equalsIgnoreCase(role)) {
             throw new ForbiddenException("Only coordinators can view group formation reports.");
         }
-        
+
         List<Group> allGroups = groupRepository.findAll();
         long totalGroups = allGroups.size();
-        
+
         long formedGroupsCnt = allGroups.stream()
                 .filter(g -> g.getStatus() == GroupStatus.FORMED || g.getStatus() == GroupStatus.ADVISED)
                 .count();
-                
+
         long unadvisedGroupsCnt = allGroups.stream()
                 .filter(g -> g.getAdvisor() == null && g.getStatus() != GroupStatus.DISBANDED)
                 .count();
-                
+
         List<GroupFormationReportDto.GroupStatusDetail> details = allGroups.stream()
                 .map(g -> new GroupFormationReportDto.GroupStatusDetail(
                         g.getId(),
                         g.getGroupName(),
                         g.getStatus().name(),
                         g.getAdvisor() != null ? g.getAdvisor().getUserId() : null,
-                        g.getAdvisor() != null ? g.getAdvisor().getFullName() : null
-                )).collect(Collectors.toList());
-                
+                        g.getAdvisor() != null ? g.getAdvisor().getFullName() : null))
+                .collect(Collectors.toList());
+
         return new GroupFormationReportDto(totalGroups, formedGroupsCnt, unadvisedGroupsCnt, details);
     }
 }

@@ -16,6 +16,7 @@ import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.JiraIntegrationRepository;
 import com.spms.backend.repository.GithubIntegrationRepository;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.repository.NotificationRepository;
 import com.spms.backend.service.impl.GroupServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,8 @@ class GroupServiceImplJiraIntegrationTest {
     @Mock
     private NotificationService notificationService;
     @Mock
+    private NotificationRepository notificationRepository;
+    @Mock
     private AuditLogRepository auditLogRepository;
     @Mock
     private StudentAuthorizationService authService;
@@ -63,11 +66,12 @@ class GroupServiceImplJiraIntegrationTest {
                 groupMemberRepository,
                 userRepository,
                 notificationService,
-                auditLogRepository,
                 authService,
                 jiraIntegrationRepository,
                 githubIntegrationRepository,
-                jiraApiClient
+                jiraApiClient,
+                notificationRepository,
+                auditLogRepository
         );
     }
 
