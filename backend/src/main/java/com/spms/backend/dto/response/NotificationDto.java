@@ -7,6 +7,7 @@ public record NotificationDto(
         String message,
         String status,
         Long fromUserId,
+        String fromUserName,
         Long toUserId,
         Long groupId,
         Instant createdAt

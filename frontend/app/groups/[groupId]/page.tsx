@@ -76,7 +76,8 @@ export default function GroupDetailPage() {
     );
 
     const isLeader =
-        Number.isFinite(currentUserId) && Number(group?.leaderId) === currentUserId;
+        Number.isFinite(currentUserId) &&
+        Number(group?.leaderId) === currentUserId;
 
     console.log("leader check", {
         currentUser,
@@ -320,12 +321,12 @@ export default function GroupDetailPage() {
 
                         {updateSuccess && (
                             <p className="mt-3 text-sm text-green-400 font-medium">
-                                {"✓"} {updateSuccess}
+                                Success: {updateSuccess}
                             </p>
                         )}
                         {updateError && (
                             <p className="mt-3 text-sm text-red-400 font-medium">
-                                {"✗"} {updateError}
+                                Error: {updateError}
                             </p>
                         )}
                     </div>
@@ -420,12 +421,12 @@ export default function GroupDetailPage() {
 
                     {removeSuccess && (
                         <p className="mt-4 text-sm text-green-400 font-medium">
-                            {"✓"} {removeSuccess}
+                            Success: {removeSuccess}
                         </p>
                     )}
                     {removeError && (
                         <p className="mt-4 text-sm text-red-400 font-medium">
-                            {"✗"} {removeError}
+                            Error: {removeError}
                         </p>
                     )}
                 </div>
@@ -470,12 +471,12 @@ export default function GroupDetailPage() {
 
                         {inviteSuccess && (
                             <p className="mt-3 text-sm text-green-400 font-medium">
-                                {"✓"} {inviteSuccess}
+                                Success: {inviteSuccess}
                             </p>
                         )}
                         {inviteError && (
                             <p className="mt-3 text-sm text-red-400 font-medium">
-                                {"✗"} {inviteError}
+                                Error: {inviteError}
                             </p>
                         )}
                     </div>
@@ -498,7 +499,7 @@ export default function GroupDetailPage() {
 
                         {leaveError && (
                             <p className="mt-3 text-sm text-red-400 font-medium">
-                                {"✗"} {leaveError}
+                                Error: {leaveError}
                             </p>
                         )}
                     </div>

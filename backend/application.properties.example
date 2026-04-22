@@ -1,0 +1,11 @@
+# Spring Boot loads `application.properties` automatically when you run:
+# cd backend 
+# mvn spring-boot:run
+
+github.client-id=..
+github.client-secret=..
+github.redirect-uri=..
+
+spring.datasource.url=..
+spring.datasource.username=..
+spring.datasource.password=..

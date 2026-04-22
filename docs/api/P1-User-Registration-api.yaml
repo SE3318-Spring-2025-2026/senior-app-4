@@ -1,0 +1,1010 @@
+openapi: 3.0.3
+info:
+  title: Senior Project Management System API
+  version: 1.0.0
+  description: |
+    OpenAPI specification for Process 1: User Registration & Authentication
+    based on the Level-2 DFD.
+
+    This specification includes:
+    - Process-level endpoints for registration and authentication
+    - Data store endpoints for D1 Users
+    - Data store endpoints for D2 Valid Student IDs
+
+servers:
+  - url: /api/v1
+    description: Base API URL
+
+tags:
+  - name: Student Authentication
+    description: Endpoints related to student validation, GitHub OAuth, and JWT authentication
+  - name: Professor Management
+    description: Endpoints related to professor/coordinator registration
+  - name: User Store (D1)
+    description: CRUD endpoints for the Users data store
+  - name: Student ID Store (D2)
+    description: CRUD endpoints for the Valid Student IDs data store
+
+paths:
+  /students/validate:
+    post:
+      tags:
+        - Student Authentication
+      summary: Validate student ID
+      description: Checks whether the given student ID exists in the Valid Student IDs data store.
+      operationId: validateStudentId
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentValidationRequest'
+      responses:
+        '200':
+          description: Student ID validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentValidationResponse'
+        '400':
+          description: Invalid or Missing student ID (Not in valid list or malformed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/github:
+    post:
+      tags:
+        - Student Authentication
+      summary: Start GitHub OAuth flow
+      description: Starts the GitHub OAuth authentication process for a validated student.
+      operationId: startGithubOAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GitHubAuthStartRequest'
+      responses:
+        '200':
+          description: GitHub authorization URL generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GitHubAuthStartResponse'
+        '400':
+          description: Invalid request or student ID not validated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/github/callback:
+    get:
+      tags:
+        - Student Authentication
+      summary: GitHub OAuth callback
+      description: |
+        Handles the callback from GitHub OAuth, exchanges the authorization code
+        for an access token, retrieves the GitHub username, creates the student
+        user record if needed, and issues a JWT token.
+      operationId: githubOAuthCallback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: Authorization code returned by GitHub
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          description: Validated student ID passed as state parameter for session tracking
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Authentication completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GitHubCallbackResponse'
+        '400':
+          description: Missing code or invalid callback request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: OAuth authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/register/student:
+    post:
+      tags:
+        - Student Authentication
+      summary: Create student user record
+      description: Creates a student user record using validated student and GitHub account information.
+      operationId: registerStudentUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentUserCreateRequest'
+      responses:
+        '201':
+          description: Student user record created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreateResponse'
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags:
+        - Professor Management
+      summary: Professor/Coordinator login
+      description: Authenticates a professor or coordinator using email and password. Returns a JWT token.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Professor Management
+      summary: Reset password with token
+      description: Resets the professor's password using a one-time reset token generated by the admin.
+      operationId: resetPassword
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - newPassword
+              properties:
+                newPassword:
+                  type: string
+                  example: "NewSecurePass!2026"
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Invalid or expired reset token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /professors/register:
+    post:
+      tags:
+        - Professor Management
+      summary: Register professor or coordinator
+      description: Registers a professor/coordinator into the system.
+      operationId: registerProfessor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfessorRegisterRequest'
+      responses:
+        '201':
+          description: Professor registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfessorRegisterResponse'
+        '400':
+          description: Invalid professor data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Professor already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /students/ids/upload:
+    post:
+      tags:
+        - Student ID Store (D2)
+      summary: Upload valid student ID list
+      description: Uploads a CSV file containing valid student IDs and stores them in D2.
+      operationId: uploadStudentIdList
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Student ID list uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentIdUploadResponse'
+        '400':
+          description: Invalid file or upload failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/change-password:
+    post:
+      tags:
+        - Professor Management
+      summary: Initial Login & Password Change (Process 1.8)
+      description: Allows a professor to change their temporary password to a permanent one upon initial login. Corresponds to the tempPassword + newPassword arrow.
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChangeRequest'
+      responses:
+        '200':
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Invalid temporary password
+          content: 
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/generate-reset-link:
+    post:
+      tags:
+        - Professor Management
+      summary: Generate Password Reset Link (Process 1.9)
+      description: Admin generates a one-time-use password reset link for a professor. Corresponds to the resetLinkRequest arrow.
+      operationId: generateResetLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetLinkRequest'
+      responses:
+        '200':
+          description: Reset link generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetLinkResponse'
+        '400':
+          description: Invalid Request - Professor not found or invalid identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /users/me:
+    get:
+      tags:
+        - User Store (D1)
+      summary: Get current user profile
+      description: Returns the profile of the currently logged-in user.
+      operationId: getMyProfile
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Unauthorized - Token is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  /users:
+    get:
+      tags:
+        - User Store (D1)
+      summary: Get all users
+      description: Retrieves all user records from the Users data store.
+      operationId: getAllUsers
+      parameters: 
+        - name: role
+          in: query
+          required: false
+          description: Filter users by their role (student, professor, coordinator)
+          schema:
+            type: string
+            enum: [student, professor, coordinator]
+      responses:
+        '200':
+          description: List of users retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+    post:
+      tags:
+        - User Store (D1)
+      summary: Create user
+      description: Creates a new user record directly in the Users data store.
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateDirectRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreateResponse'
+        '400':
+          description: Invalid user data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  
+  /users/{userId}:
+    get:
+      tags:
+        - User Store (D1)
+      summary: Get user by ID
+      description: Retrieves a specific user record from the Users data store.
+      operationId: getUserById
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique ID of the user
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags:
+        - User Store (D1)
+      summary: Update user by ID
+      description: Updates an existing user record in the Users data store.
+      operationId: updateUserById
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique ID of the user
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Invalid update data or User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - User Store (D1)
+      summary: Delete user by ID
+      description: Deletes a user record from the Users data store.
+      operationId: deleteUserById
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique ID of the user
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '400':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /student-ids:
+    get:
+      tags:
+        - Student ID Store (D2)
+      summary: Get all valid student IDs
+      description: Retrieves all valid student IDs from the Valid Student IDs data store.
+      operationId: getAllStudentIds
+      responses:
+        '200':
+          description: Student IDs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentIdListResponse'
+    post:
+      tags:
+        - Student ID Store (D2)
+      summary: Add valid student ID
+      description: Adds a new valid student ID to the Valid Student IDs data store.
+      operationId: addStudentId
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentIdCreateRequest'
+      responses:
+        '201':
+          description: Student ID added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentIdResponse'
+        '400':
+          description: Invalid student ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Student ID already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /student-ids/{studentId}:
+    get:
+      tags:
+        - Student ID Store (D2)
+      summary: Get valid student ID
+      description: Retrieves a specific valid student ID from the data store.
+      operationId: getStudentId
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          description: Student ID value
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student ID retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentIdResponse'
+        '404':
+          description: Student ID not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - Student ID Store (D2)
+      summary: Delete valid student ID
+      description: Deletes a valid student ID from the data store.
+      operationId: deleteStudentId
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          description: Student ID value
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student ID deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '400':
+          description: Student ID not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    StudentValidationRequest:
+      type: object
+      required:
+        - studentId
+      properties:
+        studentId:
+          type: string
+          example: "11070001000"
+
+    StudentValidationResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          example: true
+        studentId:
+          type: string
+          example: "11070001000"
+        message:
+          type: string
+          example: Student ID is valid.
+
+    GitHubAuthStartRequest:
+      type: object
+      required:
+        - studentId
+      properties:
+        studentId:
+          type: string
+          example: "11070001000"
+
+    GitHubAuthStartResponse:
+      type: object
+      properties:
+        authorizationUrl:
+          type: string
+          example: "https://github.com/login/oauth/authorize?client_id=abc123"
+        studentId:
+          type: string
+          example: "11070001000"
+        message:
+          type: string
+          example: Redirect user to GitHub OAuth.
+
+    GitHubCallbackResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Authentication successful.
+        studentId:
+          type: string
+          example: "11070001000"
+        githubUsername:
+          type: string
+          example: "furkangncr"
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    StudentUserCreateRequest:
+      type: object
+      required:
+        - studentId
+        - githubUsername
+        - accessToken
+      properties:
+        studentId:
+          type: string
+          example: "11070001000"
+        githubUsername:
+          type: string
+          example: "furkangncr"
+        accessToken:
+          type: string
+          example: "gho_xxxxxxxxxxxx"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "john.doe@university.edu"
+        password:
+          type: string
+          format: password
+          example: "SecurePass123!"
+
+    LoginResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Login successful.
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        tokenType:
+          type: string
+          example: "Bearer"
+        expiresIn:
+          type: integer
+          example: 3600
+        role:
+          type: string
+          example: professor
+        requiresPasswordChange:
+          type: boolean
+          example: false
+
+    ProfessorRegisterRequest:
+      type: object
+      required:
+        - fullName
+        - email
+        - password
+        - role
+      properties:
+        fullName:
+          type: string
+          example: "Dr. John Doe"
+        email:
+          type: string
+          format: email
+          example: "john.doe@university.edu"
+        password:
+          type: string
+          format: password
+          example: "SecurePass123!"
+        role:
+          type: string
+          enum:
+            - professor
+            - coordinator
+          example: coordinator
+
+    ProfessorRegisterResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Professor registered successfully.
+        userId:
+          type: integer
+          example: 7
+        role:
+          type: string
+          example: coordinator
+
+    User:
+      type: object
+      properties:
+        userId:
+          type: integer
+          example: 15
+        fullName:
+          type: string
+          example: "Furkan Gencer"
+        email:
+          type: string
+          format: email
+          example: "furkan@example.com"
+        studentId:
+          type: string
+          nullable: true
+          example: "11070001000"
+        githubUsername:
+          type: string
+          nullable: true
+          example: "furkangncr"
+        role:
+          type: string
+          example: student
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-03-27T14:30:00Z"
+
+    UserCreateDirectRequest:
+      type: object
+      required:
+        - fullName
+        - email
+        - role
+      properties:
+        fullName:
+          type: string
+          example: "Furkan Gencer"
+        email:
+          type: string
+          format: email
+          example: "furkan@example.com"
+        studentId:
+          type: string
+          nullable: true
+          example: "11070001000"
+        githubUsername:
+          type: string
+          nullable: true
+          example: "furkangncr"
+        role:
+          type: string
+          enum:
+            - student
+            - professor
+            - coordinator
+          example: student
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          example: "Furkan Gencer"
+        email:
+          type: string
+          format: email
+          example: "furkan@example.com"
+        githubUsername:
+          type: string
+          example: "furkangncr"
+        role:
+          type: string
+          enum:
+            - student
+            - professor
+            - coordinator
+          example: student
+
+    UserResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: User retrieved successfully.
+        data:
+          $ref: '#/components/schemas/User'
+
+    UserListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Users retrieved successfully.
+        count:
+          type: integer
+          example: 2
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    UserCreateResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: User created successfully.
+        userId:
+          type: integer
+          example: 15
+        studentId:
+          type: string
+          nullable: true
+          example: "11070001000"
+        githubUsername:
+          type: string
+          nullable: true
+          example: "furkangncr"
+        role:
+          type: string
+          example: student
+
+    StudentId:
+      type: object
+      properties:
+        studentId:
+          type: string
+          example: "11070001000"
+        status:
+          type: string
+          example: valid
+
+    StudentIdCreateRequest:
+      type: object
+      required:
+        - studentId
+      properties:
+        studentId:
+          type: string
+          example: "11070001000"
+
+    StudentIdResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Student ID retrieved successfully.
+        data:
+          $ref: '#/components/schemas/StudentId'
+
+    StudentIdListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Student IDs retrieved successfully.
+        count:
+          type: integer
+          example: 3
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentId'
+
+    StudentIdUploadResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Student ID list uploaded successfully.
+        totalRecords:
+          type: integer
+          example: 120
+        validRecords:
+          type: integer
+          example: 118
+        invalidRecords:
+          type: integer
+          example: 2
+
+    DeleteResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Resource deleted successfully.
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Invalid input data.
+
+    PasswordChangeRequest:
+      type: object
+      description: |
+        Two modes are supported:
+        - With JWT token in Authorization header: only newPassword is required.
+        - Without JWT token: email, tempPassword, and newPassword are all required.
+      required:
+        - newPassword
+      properties:
+        email:
+          type: string
+          format: email
+          description: Required when no JWT token is provided
+          example: "ahmet.hoca@university.edu"
+        tempPassword:
+          type: string
+          description: Required when no JWT token is provided
+          example: "admin123"
+        newPassword:
+          type: string
+          example: "SecurePass!2026"
+
+    ResetLinkRequest:
+      type: object
+      required:
+        - targetEmail
+      properties:
+        targetEmail:
+          type: string
+          format: email
+          description: Email of the professor who forgot their password.
+          example: "ahmet.hoca@university.edu"
+
+    ResetLinkResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Password reset link generated successfully.
+        resetToken:
+          type: string
+          example: "abc123xyz890"
+        resetUrl:
+          type: string
+          example: "https://system.edu/reset-password?token=abc123xyz890"
+
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Operation completed successfully.
