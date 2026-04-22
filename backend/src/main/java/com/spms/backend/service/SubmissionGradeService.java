@@ -2,10 +2,15 @@ package com.spms.backend.service;
 
 import com.spms.backend.dto.request.GradeSubmissionRequest;
 import com.spms.backend.dto.response.GradeSubmissionResponse;
+import com.spms.backend.model.Committee;
+import com.spms.backend.model.GroupCommitteeAssignment;
 import com.spms.backend.model.Submission;
 import com.spms.backend.model.SubmissionGrade;
+import com.spms.backend.model.enums.SubmissionStatus;
+import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.SubmissionGradeRepository;
 import com.spms.backend.repository.SubmissionRepository;
+import com.spms.backend.service.NotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,12 +21,18 @@ public class SubmissionGradeService {
 
     private final SubmissionRepository submissionRepository;
     private final SubmissionGradeRepository gradeRepository;
+    private final GroupCommitteeAssignmentRepository assignmentRepository;
+    private final NotificationService notificationService;
 
     public SubmissionGradeService(
             SubmissionRepository submissionRepository,
-            SubmissionGradeRepository gradeRepository) {
+            SubmissionGradeRepository gradeRepository,
+            GroupCommitteeAssignmentRepository assignmentRepository,
+            NotificationService notificationService) {
         this.submissionRepository = submissionRepository;
         this.gradeRepository = gradeRepository;
+        this.assignmentRepository = assignmentRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -36,15 +47,27 @@ public class SubmissionGradeService {
             throw new IllegalArgumentException("Reviewer has already submitted a grade for this submission");
         }
 
-        // TODO: [Process 1] Fetch GroupCommitteeAssignment and verify reviewerId is part of the assigned committee (Advisor/Jury).
-        // For now, assuming authorized.
+        // Process 1: Fetch GroupCommitteeAssignment and verify reviewerId is part of the assigned committee (Advisor/Jury).
+        GroupCommitteeAssignment assignment = assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(submission.getGroupId(), "ACTIVE")
+                .orElseThrow(() -> new IllegalStateException("No active committee assigned to this group"));
+
+        Committee committee = assignment.getCommittee();
+        
+        boolean isAuthorized = committee.getAdvisors().stream()
+                .anyMatch(adv -> adv.getAdvisor().getUserId().equals(reviewerId)) ||
+                committee.getJuryMembers().stream()
+                .anyMatch(jury -> jury.getJuryMember().getUserId().equals(reviewerId));
+
+        if (!isAuthorized) {
+            throw new SecurityException("Reviewer is not authorized to grade this submission");
+        }
         
         // 4. Save the grade
         SubmissionGrade grade = new SubmissionGrade(submissionId, reviewerId, request.getScore(), request.getComments());
         grade = gradeRepository.save(grade);
 
-        // TODO: [Process 1] Retrieve the actual total number of committee members assigned to this group.
-        int totalCommitteeMembers = 3; // Placeholder
+        // Process 1: Retrieve the actual total number of committee members assigned to this group.
+        int totalCommitteeMembers = committee.getAdvisors().size() + committee.getJuryMembers().size();
 
         List<SubmissionGrade> allGrades = gradeRepository.findBySubmissionId(submissionId);
         
@@ -63,16 +86,17 @@ public class SubmissionGradeService {
                     .average()
                     .orElse(0.0);
 
-            // TODO: [Process 2] Update Submission model to include finalGrade and set its status to GRADED.
-            // submission.setFinalGrade(average);
-            // submission.setStatus(SubmissionStatus.GRADED);
-            // submissionRepository.save(submission);
+            // Process 2: Update Submission model to include finalGrade and set its status to GRADED.
+            submission.setFinalGrade(average);
+            submission.setStatus(SubmissionStatus.GRADED);
+            submissionRepository.save(submission);
 
             response.setCalculatedAverage(average);
             response.setIsGradingComplete(true);
 
-            // TODO: [Process 6] Trigger gradingComplete notification to the group/coordinator via NotificationService.
-            // notificationService.createSystemAlert(...);
+            // Process 6: Trigger gradingComplete notification to the group/coordinator via NotificationService.
+            String notificationMsg = "Grading is complete for Submission " + submissionId + ". Final grade: " + String.format("%.2f", average);
+            notificationService.createSystemAlert(committee.getCreatedBy(), notificationMsg, "GRADING_COMPLETE", "{\"submissionId\": " + submissionId + "}");
         }
 
         return response;
