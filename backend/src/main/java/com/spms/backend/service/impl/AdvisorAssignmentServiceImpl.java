@@ -3,6 +3,8 @@ package com.spms.backend.service.impl;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
+import com.spms.backend.model.ActionType;
+import java.time.Instant;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.User;
@@ -14,8 +16,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.Instant;
 
 @Service
 public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
@@ -59,12 +59,10 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         groupRepository.save(group);
 
         AuditLog auditLog = new AuditLog();
-        auditLog.setAction("ADVISOR_RELEASED");
-        auditLog.setDescription("Professor " + professorId + " released advisee group " + groupId);
-        auditLog.setEntityId(groupId);
-        auditLog.setEntityType("GROUP");
-        auditLog.setTimestamp(Instant.now());
+        auditLog.setActionType(ActionType.ADVISOR_RELEASED);
         auditLog.setUserId(professorId);
+        auditLog.setGroupId(groupId);
+        auditLog.setEventDetails("Professor " + professorId + " released advisee group " + groupId);
         auditLogRepository.save(auditLog);
 
         Long leaderId = group.getLeader() != null ? group.getLeader().getUserId() : null;

@@ -3,6 +3,7 @@ package com.spms.backend.service;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
+import com.spms.backend.model.ActionType;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.User;
@@ -111,9 +112,8 @@ class AdvisorAssignmentServiceImplTest {
         ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
         verify(auditLogRepository).save(auditCaptor.capture());
         AuditLog saved = auditCaptor.getValue();
-        assertEquals("ADVISOR_RELEASED", saved.getAction());
-        assertEquals("GROUP", saved.getEntityType());
-        assertEquals(10L, saved.getEntityId());
+        assertEquals(ActionType.ADVISOR_RELEASED, saved.getActionType());
+        assertEquals(10L, saved.getGroupId());
         assertEquals(300L, saved.getUserId());
 
         verify(notificationService).createSystemAlert(

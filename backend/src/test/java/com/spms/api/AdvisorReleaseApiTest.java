@@ -141,9 +141,9 @@ public class AdvisorReleaseApiTest extends BaseApiTest {
         assertNull(reloaded.getAdvisor(), "advisor should be cleared after release");
 
         boolean hasAuditLog = auditLogRepository.findAll().stream()
-                .anyMatch(log -> "ADVISOR_RELEASED".equals(log.getAction())
-                        && log.getEntityId() != null && log.getEntityId().equals(groupId)
-                        && log.getUserId() != null && log.getUserId().equals(profAUserId));
+                .anyMatch(log -> com.spms.backend.model.ActionType.ADVISOR_RELEASED == log.getActionType()
+                        && groupId.equals(log.getGroupId())
+                        && profAUserId.equals(log.getUserId()));
         assertTrue(hasAuditLog, "AuditLog entry for ADVISOR_RELEASED should exist");
 
         given()
