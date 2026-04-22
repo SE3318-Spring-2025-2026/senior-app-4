@@ -4,6 +4,7 @@ import com.spms.backend.dto.request.AdvisorRequestDto;
 import com.spms.backend.dto.response.AdvisorRequestStatusDto;
 import com.spms.backend.dto.response.NotificationDto;
 import com.spms.backend.exception.BadRequestException;
+import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.UnauthorizedException;
 import com.spms.backend.model.notification.Notification;
 import com.spms.backend.model.notification.NotificationStatus;
@@ -111,7 +112,7 @@ public class NotificationServiceImpl implements NotificationService {
 
 
         if (!notification.getToUser().getUserId().equals(userId)) {
-            throw new UnauthorizedException("You are not authorized to clear this notification.");
+            throw new ForbiddenException("You are not authorized to clear this notification.");
         }
 
         notification.setStatus(NotificationStatus.CLEARED);
@@ -132,7 +133,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .orElseThrow(() -> new BadRequestException("Notification not found."));
 
         if (!notification.getToUser().getUserId().equals(userId)) {
-            throw new UnauthorizedException("You are not authorized to respond to this request.");
+            throw new ForbiddenException("You are not authorized to respond to this request.");
         }
 
         if (notification.getStatus() != NotificationStatus.PENDING) {
