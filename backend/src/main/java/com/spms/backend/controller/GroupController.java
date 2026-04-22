@@ -192,24 +192,12 @@ public class GroupController {
     // GITHUB & JIRA ENTEGRASYON UÇ NOKTALARI (ISSUE #...)
     // ==============================================================================
 
-    //@PostMapping("/{groupId}/integrations/github")
-    //public ResponseEntity<Void> bindGithubIntegration(
-    //        @PathVariable Long groupId,
-     //       @RequestAttribute("userId") Long requesterId, 
-     //       @Valid @RequestBody GithubBindingRequest request) {
-     //   groupService.bindGithubIntegration(groupId, requesterId, request);
-     //   return ResponseEntity.ok().build();
-    //}
-
     @PostMapping("/{groupId}/integrations/github")
     public ResponseEntity<Void> bindGithubIntegration(
             @PathVariable Long groupId,
-            // @RequestAttribute kısmını yorum satırı yapıyoruz
+            @RequestAttribute("userId") Long requesterId, 
             @Valid @RequestBody GithubBindingRequest request) {
-        
-        Long testUserId = 654321L; // <--- BURAYA VERİTABANINDAKİ LİDERİN GERÇEK ID'SİNİ YAZ (Örn: 1, 5, 10)
-        
-        groupService.bindGithubIntegration(groupId, testUserId, request);
+        groupService.bindGithubIntegration(groupId, requesterId, request);
         return ResponseEntity.ok().build();
     }
 

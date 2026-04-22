@@ -471,15 +471,28 @@ public class GroupServiceImpl implements GroupService {
             log.warn("Notification failed: {}", e.getMessage());
         }
     }
+
+    private void ensureRequesterIsGithubLeader(Group group, Long requesterId) {
+        Long leaderUserId = group.getLeader().getUserId();
+        String leaderStudentId = group.getLeader().getStudentId(); // Modelinde bu alan varsa
+        
+        // Hem normal User ID'yi hem de Öğrenci Numarasını kontrol et
+        boolean isUserIdMatch = leaderUserId != null && leaderUserId.equals(requesterId);
+        boolean isStudentIdMatch = leaderStudentId != null && leaderStudentId.equals(String.valueOf(requesterId));
+
+        if (!isUserIdMatch && !isStudentIdMatch) {
+            throw new ForbiddenException("Only the group leader can manage GitHub integration.");
+        }
+    }
+
     @Override
     @Transactional
     public void bindGithubIntegration(Long groupId, Long requesterId, GithubBindingRequest request) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
 
-        ensureRequesterIsGroupLeader(group, requesterId);
+        ensureRequesterIsGithubLeader(group, requesterId);
 
-        // GitHub API üzerinden PAT ve Organizasyon kontrolü
         boolean valid = githubApiClient.validateOrganizationAccess(request.organizationName(), request.githubPat());
         if (!valid) {
             throw new BadRequestException("GitHub connection validation failed. Check PAT or Organization Name.");
@@ -490,26 +503,11 @@ public class GroupServiceImpl implements GroupService {
         
         integration.setGroup(group);
         integration.setOrganizationName(request.organizationName().trim());
-        integration.setGithubPatEncrypted(request.githubPat().trim()); // Converter sayesinde şifrelenecek
+        integration.setGithubPatEncrypted(request.githubPat().trim()); 
         integration.setStatus(GithubIntegrationStatus.ACTIVE);
         integration.setUpdatedAt(Instant.now());
 
-        githubIntegrationRepository.save(integration);}
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId) {
-        List<Notification> requests = notificationRepository.findByToUser_UserIdAndTypeAndStatus(
-                professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
-
-        return requests.stream()
-                .filter(req -> req.getGroupId() != null)
-                .map(req -> {
-                    Group group = groupRepository.findById(req.getGroupId()).orElse(null);
-                    String groupName = group != null ? group.getGroupName() : "Unknown Group";
-                    return new AdvisorRequestResponseDto(req.getId(), req.getGroupId(), groupName, req.getCreatedAt());
-                })
-                .collect(Collectors.toList());
+        githubIntegrationRepository.save(integration);
     }
 
     @Override
@@ -517,13 +515,13 @@ public class GroupServiceImpl implements GroupService {
     public void unbindGithubIntegration(Long groupId, Long requesterId) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
-        ensureRequesterIsGroupLeader(group, requesterId);
+                
+        ensureRequesterIsGithubLeader(group, requesterId);
 
         GithubIntegration integration = githubIntegrationRepository.findByGroup_Id(groupId)
                 .orElseThrow(() -> new NotFoundException("GitHub integration not found."));
 
         githubIntegrationRepository.delete(integration);
-
     }
 
     @AuditableOperation(actionType = ActionType.ADVISOR_ASSIGNED)
@@ -702,5 +700,20 @@ public class GroupServiceImpl implements GroupService {
                 .collect(Collectors.toList());
 
         return new GroupFormationReportDto(totalGroups, formedGroupsCnt, unadvisedGroupsCnt, details);
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId) {
+        List<Notification> requests = notificationRepository.findByToUser_UserIdAndTypeAndStatus(
+                professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
+
+        return requests.stream()
+                .filter(req -> req.getGroupId() != null)
+                .map(req -> {
+                    Group group = groupRepository.findById(req.getGroupId()).orElse(null);
+                    String groupName = group != null ? group.getGroupName() : "Unknown Group";
+                    return new AdvisorRequestResponseDto(req.getId(), req.getGroupId(), groupName, req.getCreatedAt());
+                })
+                .collect(Collectors.toList());
     }
 }
