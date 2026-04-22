@@ -2,11 +2,16 @@ package com.spms.backend.service;
 
 import com.spms.backend.dto.SubmissionRequest;
 import com.spms.backend.dto.SubmissionResponse;
+import com.spms.backend.model.Group;
+import com.spms.backend.model.GroupCommitteeAssignment;
 import com.spms.backend.model.Submission;
 import com.spms.backend.model.enums.DeliverableType;
 import com.spms.backend.model.enums.SubmissionStatus;
+import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
+import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -14,11 +19,21 @@ import java.util.Optional;
 public class SubmissionService {
 
     private final SubmissionRepository submissionRepository;
+    private final GroupRepository groupRepository;
+    private final GroupCommitteeAssignmentRepository assignmentRepository;
+    private final NotificationService notificationService;
 
-    public SubmissionService(SubmissionRepository submissionRepository) {
+    public SubmissionService(SubmissionRepository submissionRepository, 
+                             GroupRepository groupRepository,
+                             GroupCommitteeAssignmentRepository assignmentRepository,
+                             NotificationService notificationService) {
         this.submissionRepository = submissionRepository;
+        this.groupRepository = groupRepository;
+        this.assignmentRepository = assignmentRepository;
+        this.notificationService = notificationService;
     }
 
+    @Transactional
     public SubmissionResponse submit(SubmissionRequest request) {
         
         // Pipeline Validation: SoW requires Proposal grading completion.
@@ -37,21 +52,40 @@ public class SubmissionService {
         submission.setContent(request.getContent());
         submission.setStatus(SubmissionStatus.SUBMITTED);
         
-        // TODO: Fetch group's advisor and assign to the correct committee (Process 2 Integration)
-        // Since Group and Committee entities belong to Process 2, we mock the committee assignment for now.
-        // Long assignedCommitteeId = process2CommitteeService.getCommitteeForGroup(request.getGroupId());
-        Long mockCommitteeId = 1L; 
-        submission.setCommitteeId(mockCommitteeId);
+        // Process 2 Integration: Fetch group and assign committee
+        Optional<Group> groupOpt = groupRepository.findById(request.getGroupId());
+        if (groupOpt.isPresent()) {
+            Group group = groupOpt.get();
+            
+            // Auto-assign Committee
+            Optional<GroupCommitteeAssignment> assignmentOpt = assignmentRepository
+                .findTopByGroupIdAndStatusOrderByAssignedAtDesc(group.getId(), "ASSIGNED");
+            
+            if (assignmentOpt.isPresent()) {
+                submission.setCommitteeId(assignmentOpt.get().getCommittee().getCommitteeId());
+            }
 
-        Submission savedSubmission = submissionRepository.save(submission);
+            // Save submission first
+            Submission savedSubmission = submissionRepository.save(submission);
 
-        // TODO: Trigger notification for committee members and coordinator (D8) (Process 2/Notification Integration)
-        // notificationService.sendSubmissionNotification(savedSubmission);
+            // Process 2 Integration: Trigger notification to advisor (and implicitly coordinator/committee members)
+            if (group.getAdvisor() != null) {
+                String message = "A new " + request.getType() + " has been submitted by Group: " + group.getGroupName();
+                notificationService.createSystemAlert(
+                    group.getAdvisor().getUserId(), 
+                    message, 
+                    "SUBMISSION_ALERT", 
+                    "submissionId:" + savedSubmission.getId()
+                );
+            }
 
-        return new SubmissionResponse(
-            "Submission successfully created.", 
-            savedSubmission.getId(), 
-            savedSubmission.getStatus()
-        );
+            return new SubmissionResponse(
+                "Submission successfully created.", 
+                savedSubmission.getId(), 
+                savedSubmission.getStatus()
+            );
+        } else {
+            throw new IllegalArgumentException("Invalid group ID provided.");
+        }
     }
 }
