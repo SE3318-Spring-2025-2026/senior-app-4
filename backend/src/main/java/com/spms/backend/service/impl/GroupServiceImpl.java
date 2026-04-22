@@ -1,6 +1,5 @@
 package com.spms.backend.service.impl;
 
-import com.spms.backend.dto.request.GithubBindingRequest;
 import com.spms.backend.dto.request.GroupCreateRequestDto;
 import com.spms.backend.dto.request.GroupUpdateRequestDto;
 import com.spms.backend.dto.response.GroupDetailDto;
@@ -9,7 +8,6 @@ import com.spms.backend.dto.response.GroupResponseDto;
 import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.dto.response.GithubIntegrationResponse;
-import com.spms.backend.dto.response.IntegrationsTestResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
@@ -24,14 +22,11 @@ import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.JiraIntegration;
 import com.spms.backend.model.JiraIntegrationStatus;
 import com.spms.backend.model.GithubIntegration;
-import com.spms.backend.model.GithubIntegrationStatus;
-import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.JiraIntegrationRepository;
 import com.spms.backend.repository.GithubIntegrationRepository;
 import com.spms.backend.service.GroupService;
-import com.spms.backend.client.GithubApiClient;
 import com.spms.backend.client.JiraApiClient;
 import com.spms.backend.service.NotificationService;
 import com.spms.backend.service.StudentAuthorizationService;
@@ -48,6 +43,7 @@ import com.spms.backend.model.notification.Notification;
 import com.spms.backend.model.notification.NotificationStatus;
 import com.spms.backend.model.notification.NotificationType;
 import com.spms.backend.repository.NotificationRepository;
+import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.dto.response.GroupFormationReportDto;
 import com.spms.backend.dto.response.AdvisorRequestResponseDto;
@@ -57,13 +53,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
 @Service
 public class GroupServiceImpl implements GroupService {
     private static final Logger log = LoggerFactory.getLogger(GroupServiceImpl.class);
     private static final String STUDENT_ROLE = "student";
 
-    private final GithubApiClient githubApiClient;
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
@@ -77,17 +71,15 @@ public class GroupServiceImpl implements GroupService {
     private final AuditLogRepository auditLogRepository;
 
     public GroupServiceImpl(GroupRepository groupRepository,
-                            GroupMemberRepository groupMemberRepository,
-                            UserRepository userRepository,
-                            NotificationService notificationService,
-                            AuditLogRepository auditLogRepository,
-                            StudentAuthorizationService authService,
-                            JiraIntegrationRepository jiraIntegrationRepository,
-                            GithubIntegrationRepository githubIntegrationRepository,
-                            JiraApiClient jiraApiClient,
-                            NotificationRepository notificationRepository,
-                            GithubApiClient githubApiClient) 
-                            {
+            GroupMemberRepository groupMemberRepository,
+            UserRepository userRepository,
+            NotificationService notificationService,
+            StudentAuthorizationService authService,
+            JiraIntegrationRepository jiraIntegrationRepository,
+            GithubIntegrationRepository githubIntegrationRepository,
+            JiraApiClient jiraApiClient,
+            NotificationRepository notificationRepository,
+            AuditLogRepository auditLogRepository) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
@@ -96,9 +88,9 @@ public class GroupServiceImpl implements GroupService {
         this.jiraIntegrationRepository = jiraIntegrationRepository;
         this.githubIntegrationRepository = githubIntegrationRepository;
         this.jiraApiClient = jiraApiClient;
-        this.githubApiClient = githubApiClient;
         this.notificationRepository = notificationRepository;
-        this.auditLogRepository = auditLogRepository;}
+        this.auditLogRepository = auditLogRepository;
+    }
 
     @Override
     @Transactional
@@ -143,7 +135,7 @@ public class GroupServiceImpl implements GroupService {
             if ("Group not found.".equals(isLeader.reason())) {
                 throw new BadRequestException(isLeader.reason());
             }
-            throw new UnauthorizedException(isLeader.reason());
+            throw new ForbiddenException(isLeader.reason());
         }
 
         Group group = groupRepository.findById(groupId)
@@ -335,18 +327,26 @@ public class GroupServiceImpl implements GroupService {
         groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
 
-        GithubIntegration github = githubIntegrationRepository.findByGroup_Id(groupId)
-                .orElseThrow(() -> new NotFoundException("No GitHub integration exists for this group."));
+        var integration = githubIntegrationRepository.findByGroup_Id(groupId);
 
+        if (integration.isEmpty()) {
+            return new GithubIntegrationResponse(
+                    true,
+                    new GithubIntegrationResponse.GithubIntegrationData(
+                            "inactive",
+                            null,
+                            null,
+                            "Not connected"));
+        }
+
+        GithubIntegration github = integration.get();
         return new GithubIntegrationResponse(
                 true,
                 new GithubIntegrationResponse.GithubIntegrationData(
                         github.getStatus().name().toLowerCase(),
                         github.getOrganizationName(),
                         github.getCreatedAt().toString(),
-                        github.getLastError() != null ? github.getLastError() : "Connected successfully"
-                )
-        );
+                        github.getLastError()));
     }
 
     @Override
@@ -471,30 +471,6 @@ public class GroupServiceImpl implements GroupService {
             log.warn("Notification failed: {}", e.getMessage());
         }
     }
-    @Override
-    @Transactional
-    public void bindGithubIntegration(Long groupId, Long requesterId, GithubBindingRequest request) {
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new NotFoundException("Group not found."));
-
-        ensureRequesterIsGroupLeader(group, requesterId);
-
-        // GitHub API üzerinden PAT ve Organizasyon kontrolü
-        boolean valid = githubApiClient.validateOrganizationAccess(request.organizationName(), request.githubPat());
-        if (!valid) {
-            throw new BadRequestException("GitHub connection validation failed. Check PAT or Organization Name.");
-        }
-
-        GithubIntegration integration = githubIntegrationRepository.findByGroup_Id(groupId)
-                .orElseGet(GithubIntegration::new);
-        
-        integration.setGroup(group);
-        integration.setOrganizationName(request.organizationName().trim());
-        integration.setGithubPatEncrypted(request.githubPat().trim()); // Converter sayesinde şifrelenecek
-        integration.setStatus(GithubIntegrationStatus.ACTIVE);
-        integration.setUpdatedAt(Instant.now());
-
-        githubIntegrationRepository.save(integration);}
 
     @Override
     @Transactional(readOnly = true)
@@ -514,18 +490,6 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
-    public void unbindGithubIntegration(Long groupId, Long requesterId) {
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new NotFoundException("Group not found."));
-        ensureRequesterIsGroupLeader(group, requesterId);
-
-        GithubIntegration integration = githubIntegrationRepository.findByGroup_Id(groupId)
-                .orElseThrow(() -> new NotFoundException("GitHub integration not found."));
-
-        githubIntegrationRepository.delete(integration);
-
-    }
-
     @AuditableOperation(actionType = ActionType.ADVISOR_ASSIGNED)
     public void handleAdvisorRequestDecision(Long professorId, Long groupId, String status) {
         Notification request = notificationRepository.findByGroupIdAndToUser_UserIdAndTypeAndStatus(
@@ -636,46 +600,6 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional(readOnly = true)
-    public IntegrationsTestResponse testIntegrations(Long groupId, Long requesterId) {
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new NotFoundException("Group not found."));
-        ensureRequesterIsGroupLeader(group, requesterId);
-
-        // 1. GitHub Test
-        boolean githubConnected = false;
-        String githubMsg = "Not configured";
-        var githubOpt = githubIntegrationRepository.findByGroup_Id(groupId);
-        if (githubOpt.isPresent()) {
-            githubConnected = githubApiClient.validateOrganizationAccess(
-                    githubOpt.get().getOrganizationName(), githubOpt.get().getGithubPatEncrypted());
-            githubMsg = githubConnected ? "Connected" : "Token or Organization invalid";
-        }
-
-        // 2. Jira Test
-        boolean jiraConnected = false;
-        String jiraMsg = "Not configured";
-        var jiraOpt = jiraIntegrationRepository.findByGroup_Id(groupId);
-        if (jiraOpt.isPresent()) {
-            jiraConnected = jiraApiClient.validateSpaceConnection(
-                    jiraOpt.get().getJiraSpaceUrl(), jiraOpt.get().getProjectKey(), jiraOpt.get().getApiKey());
-            jiraMsg = jiraConnected ? "Connected" : "Jira credentials invalid";
-        }
-
-        // En az biri kurulu olmalı
-        if (githubOpt.isEmpty() && jiraOpt.isEmpty()) {
-            throw new BadRequestException("No integrations configured to test.");
-        }
-
-        // Kabul kriteri: Biri bile başarısızsa 400 dön
-        if ((githubOpt.isPresent() && !githubConnected) || (jiraOpt.isPresent() && !jiraConnected)) {
-            // Loglama yapabilirsin
-        }
-
-        return new IntegrationsTestResponse(
-                new IntegrationsTestResponse.IntegrationStatus(githubConnected, githubMsg),
-                new IntegrationsTestResponse.IntegrationStatus(jiraConnected, jiraMsg)
-        );}
-
     public GroupFormationReportDto getGroupFormationReport(String role) {
         if (!"coordinator".equalsIgnoreCase(role)) {
             throw new ForbiddenException("Only coordinators can view group formation reports.");
