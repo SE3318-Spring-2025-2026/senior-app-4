@@ -1,13 +1,11 @@
 package com.spms.backend.controller;
 
-import com.spms.backend.dto.request.GithubBindingRequest;
 import com.spms.backend.dto.request.GroupCreateRequestDto;
 import com.spms.backend.dto.request.GroupUpdateRequestDto;
 import com.spms.backend.dto.request.InviteMemberRequestDto;
 import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.GroupDetailDto;
 import com.spms.backend.dto.response.GroupResponseDto;
-import com.spms.backend.dto.response.IntegrationsTestResponse;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.dto.response.GithubIntegrationResponse;
 import com.spms.backend.dto.response.AuditLogResponseDto;
@@ -188,46 +186,6 @@ public class GroupController {
                 "message", "Membership invitation sent successfully"
         ));
     }
-    // ==============================================================================
-    // GITHUB & JIRA ENTEGRASYON UÇ NOKTALARI (ISSUE #...)
-    // ==============================================================================
-
-    //@PostMapping("/{groupId}/integrations/github")
-    //public ResponseEntity<Void> bindGithubIntegration(
-    //        @PathVariable Long groupId,
-     //       @RequestAttribute("userId") Long requesterId, 
-     //       @Valid @RequestBody GithubBindingRequest request) {
-     //   groupService.bindGithubIntegration(groupId, requesterId, request);
-     //   return ResponseEntity.ok().build();
-    //}
-
-    @PostMapping("/{groupId}/integrations/github")
-    public ResponseEntity<Void> bindGithubIntegration(
-            @PathVariable Long groupId,
-            // @RequestAttribute kısmını yorum satırı yapıyoruz
-            @Valid @RequestBody GithubBindingRequest request) {
-        
-        Long testUserId = 654321L; // <--- BURAYA VERİTABANINDAKİ LİDERİN GERÇEK ID'SİNİ YAZ (Örn: 1, 5, 10)
-        
-        groupService.bindGithubIntegration(groupId, testUserId, request);
-        return ResponseEntity.ok().build();
-    }
-
-
-
-    @DeleteMapping("/{groupId}/integrations/github")
-    public ResponseEntity<Void> unbindGithubIntegration(
-            @PathVariable Long groupId,
-            @RequestAttribute("userId") Long requesterId) {
-        groupService.unbindGithubIntegration(groupId, requesterId);
-        return ResponseEntity.ok().build();
-    }
-
-    @PostMapping("/{groupId}/integrations/test")
-    public ResponseEntity<IntegrationsTestResponse> testIntegrations(
-            @PathVariable Long groupId,
-            @RequestAttribute("userId") Long requesterId) {
-        return ResponseEntity.ok(groupService.testIntegrations(groupId, requesterId));}
 
     @PostMapping("/{groupId}/advisor/transfer")
     public ResponseEntity<?> transferAdvisor(

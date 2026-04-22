@@ -55,9 +55,11 @@ public class ProfessorController {
     @PatchMapping("/advisor-requests")
     public ResponseEntity<Void> handleAdvisorRequestDecision(
             @Valid @RequestBody AdvisorRequestDecisionDto request,
-            @RequestAttribute("jwt_userId") Object userId) {
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
         Long professorId = Long.valueOf(userId.toString());
-        groupService.handleAdvisorRequestDecision(professorId, request.groupId(), request.status());
+        String requesterRole = role != null ? role.toString() : "";
+        groupService.handleAdvisorRequestDecision(professorId, request.groupId(), request.status(), requesterRole);
         return ResponseEntity.ok().build();
     }
 }

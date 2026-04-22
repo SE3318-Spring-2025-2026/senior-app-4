@@ -1,7 +1,5 @@
 package com.spms.backend.service;
 
-import com.spms.backend.dto.request.GithubBindingRequest;
-import com.spms.backend.dto.response.IntegrationsTestResponse;
 import com.spms.backend.dto.request.GroupCreateRequestDto;
 import com.spms.backend.dto.request.GroupUpdateRequestDto;
 import com.spms.backend.dto.response.GroupDetailDto;
@@ -41,13 +39,10 @@ public interface GroupService {
     void addMember(Long groupId, String studentId);
     void removeMember(Long groupId, String studentId);
     void leaveGroup(Long groupId, Long studentUserId);
-    void bindGithubIntegration(Long groupId, Long requesterId, GithubBindingRequest request);
-    void unbindGithubIntegration(Long groupId, Long requesterId);
-    IntegrationsTestResponse testIntegrations(Long groupId, Long requesterId);
 
     // Advisor Requests & Group Formation
     List<com.spms.backend.dto.response.AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId);
-    void handleAdvisorRequestDecision(Long professorId, Long groupId, String status);
+    void handleAdvisorRequestDecision(Long professorId, Long groupId, String status, String role);
     void transferAdvisor(Long groupId, Long professorId, String requesterRole);
     com.spms.backend.dto.response.GroupFormationReportDto getGroupFormationReport(String role);
 }

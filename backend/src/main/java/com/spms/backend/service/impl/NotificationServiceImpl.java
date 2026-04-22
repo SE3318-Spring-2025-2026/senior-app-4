@@ -45,11 +45,13 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public void requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId) {
 
+        // Relaxation: Check if THIS professor already has a pending request from this group.
+        // This allows groups to invite multiple professors (A, B, C) simultaneously.
         Optional<Notification> existingPendingRequest = notificationRepository
-                .findByGroupIdAndTypeAndStatus(groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
+                .findByGroupIdAndToUser_UserIdAndTypeAndStatus(groupId, request.professorId(), NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
 
         if (existingPendingRequest.isPresent()) {
-            throw new BadRequestException("This group already has a pending advisor request.");
+            throw new BadRequestException("This group already has a pending advisor request to this professor.");
         }
 
         User leader = userRepository.findById(leaderId)

@@ -1,341 +1,276 @@
 package com.spms.api;
 
+import com.spms.backend.controller.ProfessorController;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spms.backend.dto.request.AdvisorRequestDecisionDto;
+import com.spms.backend.exception.GlobalExceptionHandler;
+import com.spms.backend.model.Group;
+import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.User;
-import com.spms.backend.repository.UserRepository;
-import com.spms.backend.repository.ValidStudentIdRepository;
-import com.spms.backend.service.TokenService;
-import io.restassured.http.ContentType;
-import io.restassured.response.Response;
-import org.junit.jupiter.api.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.spms.backend.model.notification.Notification;
+import com.spms.backend.model.notification.NotificationStatus;
+import com.spms.backend.model.notification.NotificationType;
+import com.spms.backend.repository.*;
+import com.spms.backend.service.impl.GroupServiceImpl;
+import com.spms.backend.service.NotificationService;
+import com.spms.backend.service.StudentAuthorizationService;
+import com.spms.backend.client.JiraApiClient;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.Optional;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * End-to-end API Tests — Advisor Approval Flow Edge Cases.
- *
- * <h3>Scope (Issue #41)</h3>
- * <p>
- *     Verifies edge cases regarding advisor request acceptances and rejections:
- *     <ul>
- *         <li>Auto-Reject Mechanism: Approving one request rejects others.</li>
- *         <li>Double-Approve: Attempting to approve an already approved request yields 400.</li>
- *         <li>Already-Rejected: Attempting to process an auto-rejected request yields 400.</li>
- *         <li>Already Has Advisor: Approving a request when the group has an advisor yields 400.</li>
- *         <li>Unauthorized Access: Students cannot process advisor requests.</li>
- *     </ul>
- * </p>
+ * Isolated Controller Test for Advisor Approval and Auto-Reject logic.
+ * Uses Standalone MockMvc + InMemory Repositories.
  */
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class AdvisorApprovalApiTest extends BaseApiTest {
+class AdvisorApprovalControllerTest {
 
-    @Autowired
-    private TokenService tokenService;
+    private MockMvc mockMvc;
+    private ObjectMapper objectMapper;
 
-    @Autowired
-    private UserRepository userRepository;
+    // Repositories
+    private InMemoryUserRepository userRepository;
+    private InMemoryGroupRepository groupRepository;
+    private InMemoryNotificationRepository notificationRepository;
+    private InMemoryGroupMemberRepository groupMemberRepository;
+    private InMemoryAuditLogRepository auditLogRepository;
+    private InMemoryJiraIntegrationRepository jiraRepo;
+    private InMemoryGithubIntegrationRepository githubRepo;
 
-    @Autowired
-    private ValidStudentIdRepository validStudentIdRepository;
+    // Services
+    private GroupServiceImpl groupService;
+    private NotificationService notificationService;
+    private StudentAuthorizationService authService;
+    private JiraApiClient jiraApiClient;
 
-    private static final AtomicLong SEQ = new AtomicLong(System.currentTimeMillis());
+    // Test Data
+    private User professorA;
+    private User professorB;
+    private User professorC;
+    private User leader;
+    private Group testGroup;
 
-    // ─── Test state ───────────────────────────────────────────────
-    private String leaderToken;
-    private String profAToken;
-    private String profBToken;
-    private String profCToken;
+    @BeforeEach
+    void setUp() {
+        objectMapper = new ObjectMapper();
 
-    private int createdGroupId = -1;
-    private int reqIdA = -1;
-    private int reqIdB = -1;
-    private int reqIdC = -1;
+        // 1. Repositories
+        userRepository = new InMemoryUserRepository();
+        groupRepository = new InMemoryGroupRepository();
+        notificationRepository = new InMemoryNotificationRepository();
+        groupMemberRepository = new InMemoryGroupMemberRepository();
+        auditLogRepository = new InMemoryAuditLogRepository();
+        jiraRepo = new InMemoryJiraIntegrationRepository();
+        githubRepo = new InMemoryGithubIntegrationRepository();
 
-    // ─── Reference IDs for cleanup ────────────────────────────────
-    private Long leaderUserId;
-    private Long profAUserId;
-    private Long profBUserId;
-    private Long profCUserId;
-
-    private String leaderStudentId;
-
-    // ═══════════════════════════════════════════════════════════════
-    //  SETUP & TEARDOWN
-    // ═══════════════════════════════════════════════════════════════
-
-    @BeforeAll
-    void seedTestData() {
-        leaderStudentId = TestDataFactory.uniqueStudentId();
+        // 2. Mocks & Stubs
+        notificationService = Mockito.mock(NotificationService.class);
         
-        String profAEmail = TestDataFactory.uniqueEmail();
-        String profBEmail = TestDataFactory.uniqueEmail();
-        String profCEmail = TestDataFactory.uniqueEmail();
+        // Manual stub for JiraApiClient to avoid Mockito/Java 24 ByteBuddy issues
+        jiraApiClient = new JiraApiClient(org.springframework.web.client.RestClient.builder()) {
+            @Override
+            public boolean validateSpaceConnection(String u, String k, String p) { return true; }
+        };
 
-        // 1) Seed valid student records
-        TestDataFactory.seedStudentId(validStudentIdRepository, leaderStudentId);
+        authService = new StudentAuthorizationService(userRepository, groupMemberRepository, groupRepository);
 
-        // 2) Create users
-        User leader = TestDataFactory.createStudent(userRepository, "Leader Student", leaderStudentId, "gh-lead-" + SEQ.get());
-        User profA = TestDataFactory.createProfessor(userRepository, "Prof A", profAEmail);
-        User profB = TestDataFactory.createProfessor(userRepository, "Prof B", profBEmail);
-        User profC = TestDataFactory.createProfessor(userRepository, "Prof C", profCEmail);
+        // 3. Real Service with In-Memory Repos
+        groupService = new GroupServiceImpl(
+                groupRepository,
+                groupMemberRepository,
+                userRepository,
+                notificationService,
+                authService,
+                jiraRepo,
+                githubRepo,
+                jiraApiClient,
+                notificationRepository,
+                auditLogRepository
+        );
 
-        leaderUserId = leader.getUserId();
-        profAUserId = profA.getUserId();
-        profBUserId = profB.getUserId();
-        profCUserId = profC.getUserId();
+        // 4. Controller Setup
+        ProfessorController professorController = new ProfessorController(null, groupService);
+        mockMvc = MockMvcBuilders.standaloneSetup(professorController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
 
-        // 3) Mint real JWT tokens
-        leaderToken = TestDataFactory.mintToken(tokenService, leader);
-        profAToken  = TestDataFactory.mintToken(tokenService, profA);
-        profBToken  = TestDataFactory.mintToken(tokenService, profB);
-        profCToken  = TestDataFactory.mintToken(tokenService, profC);
+        // 5. Seed Data
+        professorA = createAndSaveUser(101L, "Professor A", "professor");
+        professorB = createAndSaveUser(102L, "Professor B", "professor");
+        professorC = createAndSaveUser(103L, "Professor C", "professor");
+        leader = createAndSaveUser(201L, "Leader Student", "student");
 
-        // Avoid making REST calls here. Test 1 will handle the group creation.
+        testGroup = new Group();
+        testGroup.setGroupName("Test Group");
+        testGroup.setLeader(leader);
+        testGroup.setStatus(GroupStatus.FORMED);
+        groupRepository.save(testGroup);
     }
 
-    @AfterAll
-    void cleanupTestData() {
-        if (createdGroupId > 0 && leaderToken != null) {
-            given()
-                .header("Authorization", "Bearer " + leaderToken)
-            .when()
-                .delete("/api/v1/groups/" + createdGroupId)
-            .then()
-                .log().ifError();
-        }
-
-        deleteUserSafely(leaderUserId);
-        deleteUserSafely(profAUserId);
-        deleteUserSafely(profBUserId);
-        deleteUserSafely(profCUserId);
-
-        deleteStudentIdSafely(leaderStudentId);
+    private User createAndSaveUser(Long id, String name, String role) {
+        User user = new User();
+        user.setUserId(id);
+        user.setFullName(name);
+        user.setRole(role);
+        return userRepository.save(user);
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  TEST SCENARIOS
-    // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Test Setup Step: POST /groups
-     * Creates a group so that we can test advisor approval routing.
+     * AC 1: Auto-Reject Dominos
+     * Group has requests to A, B, and C. B approves -> A and C must be REJECTED.
      */
     @Test
-    @Order(1)
-    @DisplayName("Setup: POST /groups → Create group for context")
-    void setupGroup_forAdvisorTests() {
-        Response createResponse = given()
-            .header("Authorization", "Bearer " + leaderToken)
-            .body(TestDataFactory.groupCreatePayload("Advisor-Test-Group-" + SEQ.get()))
-        .when()
-            .post("/api/v1/groups")
-        .then()
-            .extract().response();
+    @DisplayName("PATCH /advisor-requests → 200: Auto-rejects other pending requests (ns_f10)")
+    void autoRejectDomino_rejectsOtherProfessors() throws Exception {
+        // Setup: 3 pending requests
+        Notification reqA = createRequest(professorA);
+        Notification reqB = createRequest(professorB);
+        Notification reqC = createRequest(professorC);
 
-        if (createResponse.statusCode() == 201) {
-            createdGroupId = createResponse.jsonPath().getInt("data.groupId");
-        } else {
-            createdGroupId = 999; // Fallback so tests still attempt the target path
-        }
+        AdvisorRequestDecisionDto decision = new AdvisorRequestDecisionDto(testGroup.getId(), "approved");
+
+        // Execute: Professor B approves
+        mockMvc.perform(patch("/api/v1/professors/advisor-requests")
+                        .requestAttr("jwt_userId", professorB.getUserId())
+                        .requestAttr("jwt_role", "professor")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decision)))
+                .andExpect(status().isOk());
+
+        // Verify: reqB is ACCEPTED, reqA and reqC are REJECTED
+        assertEquals(NotificationStatus.ACCEPTED, notificationRepository.findById(reqB.getId()).get().getStatus());
+        assertEquals(NotificationStatus.REJECTED, notificationRepository.findById(reqA.getId()).get().getStatus());
+        assertEquals(NotificationStatus.REJECTED, notificationRepository.findById(reqC.getId()).get().getStatus());
     }
 
     /**
-     * Test Setup Step: Generate Requests
-     * Sends requests to Prof A, Prof B, and Prof C from the created group.
+     * AC 2: Mükerrer İşlem Engeli
      */
     @Test
-    @Order(2)
-    @DisplayName("Setup: POST requests to multiple professors")
-    void sendRequests_toMultipleProfessors() {
-        // Request to Prof A
-        Response resA = sendAdvisorRequest(profAUserId);
-        reqIdA = extractRequestId(resA, 101);
+    @DisplayName("PATCH /advisor-requests → 400: Error when responding to already processed request")
+    void approveAlreadyProcessed_returns400() throws Exception {
+        Notification req = createRequest(professorB);
+        req.setStatus(NotificationStatus.ACCEPTED); // Already processed
+        notificationRepository.save(req);
 
-        // Request to Prof B
-        Response resB = sendAdvisorRequest(profBUserId);
-        reqIdB = extractRequestId(resB, 102);
+        AdvisorRequestDecisionDto decision = new AdvisorRequestDecisionDto(testGroup.getId(), "approved");
 
-        // Request to Prof C
-        Response resC = sendAdvisorRequest(profCUserId);
-        reqIdC = extractRequestId(resC, 103);
+        mockMvc.perform(patch("/api/v1/professors/advisor-requests")
+                        .requestAttr("jwt_userId", professorB.getUserId())
+                        .requestAttr("jwt_role", "professor")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decision)))
+                .andExpect(status().isBadRequest());
     }
 
     /**
-     * Test scenario: Auto Reject Mechanism
-     * Professor B approves. Prof A and C's requests should be auto-rejected.
+     * AC 3: Çift Danışman Engeli
      */
     @Test
-    @Order(3)
-    @DisplayName("PATCH Request → Approve by B auto-rejects A and C")
-    void approveRequest_autoRejectsOthers() {
-        given()
-            .header("Authorization", "Bearer " + profBToken)
-            .body(Map.of("status", "approved"))
-        .when()
-            .patch("/api/v1/professors/advisor-requests/" + reqIdB)
-        .then()
-            // Accept 404 due to unimplemented endpoints, 200 upon success
-            .statusCode(anyOf(is(200), is(404)));
+    @DisplayName("PATCH /advisor-requests → 400: Error when group already has another advisor")
+    void approveGroupWithExistingAdvisor_returns400() throws Exception {
+        // Group already has Professor A as advisor
+        testGroup.setAdvisor(professorA);
+        groupRepository.save(testGroup);
 
-        // Expect Prof A and C's requests to be updated to "rejected"
-        // 1. Verify group advisor was set
-        Response groupResponse = given()
-            .header("Authorization", "Bearer " + leaderToken)
-        .when()
-            .get("/api/v1/groups/" + createdGroupId)
-        .then()
-            .extract().response();
+        createRequest(professorB); // Professor B tries to approve
 
-        if (groupResponse.statusCode() == 200) {
-            groupResponse.then()
-                .body("data.advisorId", equalTo(profBUserId.intValue()));
-        }
+        AdvisorRequestDecisionDto decision = new AdvisorRequestDecisionDto(testGroup.getId(), "approved");
 
-        // 2. Verify requests A and C are 'rejected'
-        Response reqAResponse = given()
-            .header("Authorization", "Bearer " + profAToken)
-        .when()
-            .get("/api/v1/professors/advisor-requests/" + reqIdA)
-        .then()
-            .extract().response();
-
-        if (reqAResponse.statusCode() == 200) {
-            reqAResponse.then().body("data.status", equalTo("rejected"));
-        }
-
-        Response reqCResponse = given()
-            .header("Authorization", "Bearer " + profCToken)
-        .when()
-            .get("/api/v1/professors/advisor-requests/" + reqIdC)
-        .then()
-            .extract().response();
-
-        if (reqCResponse.statusCode() == 200) {
-            reqCResponse.then().body("data.status", equalTo("rejected"));
-        }
+        mockMvc.perform(patch("/api/v1/professors/advisor-requests")
+                        .requestAttr("jwt_userId", professorB.getUserId())
+                        .requestAttr("jwt_role", "professor")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decision)))
+                .andExpect(status().isBadRequest());
     }
 
     /**
-     * Test scenario: Double Approve 
-     * Prof B tries to approve the same request again. Expect 400.
+     * AC 4: Bildirim Kontrolü
      */
     @Test
-    @Order(4)
-    @DisplayName("Double Approve → Returns 400 Bad Request")
-    void doubleApprove_returns400() {
-        given()
-            .header("Authorization", "Bearer " + profBToken)
-            .body(Map.of("status", "approved"))
-        .when()
-            .patch("/api/v1/professors/advisor-requests/" + reqIdB)
-        .then()
-            .statusCode(anyOf(is(400), is(404)));
+    @DisplayName("PATCH /advisor-requests → Verify NotificationService notifications for auto-rejected professors")
+    void autoReject_notifiesProfessors() throws Exception {
+        createAndSaveUser(101L, "Professor A", "professor");
+        Notification reqA = createRequest(professorA);
+        createRequest(professorB);
+
+        AdvisorRequestDecisionDto decision = new AdvisorRequestDecisionDto(testGroup.getId(), "approved");
+
+        mockMvc.perform(patch("/api/v1/professors/advisor-requests")
+                        .requestAttr("jwt_userId", professorB.getUserId())
+                        .requestAttr("jwt_role", "professor")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decision)))
+                .andExpect(status().isOk());
+
+        // Verify that notificationService.createSystemAlert was called for professorA
+        Mockito.verify(notificationService).createSystemAlert(
+                eq(professorA.getUserId()),
+                argThat(msg -> msg.contains("automatically cancelled")),
+                eq("ADVISOR_AUTO_REJECT"),
+                anyString()
+        );
     }
 
     /**
-     * Test scenario: Already Rejected
-     * Prof A tries to approve their auto-rejected request. Expect 400.
+     * AC 5: Veri Doğruluğu
      */
     @Test
-    @Order(5)
-    @DisplayName("Already Rejected → Returns 400 Bad Request")
-    void alreadyRejected_returns400() {
-        given()
-            .header("Authorization", "Bearer " + profAToken)
-            .body(Map.of("status", "approved"))
-        .when()
-            .patch("/api/v1/professors/advisor-requests/" + reqIdA)
-        .then()
-            .statusCode(anyOf(is(400), is(404)));
+    @DisplayName("PATCH /advisor-requests → Verify advisor_id is set correctly after approval")
+    void approval_updatesAdvisorId() throws Exception {
+        createRequest(professorB);
+
+        AdvisorRequestDecisionDto decision = new AdvisorRequestDecisionDto(testGroup.getId(), "approved");
+
+        mockMvc.perform(patch("/api/v1/professors/advisor-requests")
+                        .requestAttr("jwt_userId", professorB.getUserId())
+                        .requestAttr("jwt_role", "professor")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decision)))
+                .andExpect(status().isOk());
+
+        Group updatedGroup = groupRepository.findById(testGroup.getId()).get();
+        assertEquals(professorB.getUserId(), updatedGroup.getAdvisor().getUserId());
+        assertEquals(GroupStatus.ADVISED, updatedGroup.getStatus());
     }
 
     /**
-     * Test scenario: Already Has Advisor
-     * A new request is sent to Prof C (e.g., simulating concurrent event).
-     * Group already has Prof B. Prof C tries to approve. Expect 400.
+     * AC 6: Güvenlik/Yetki
      */
     @Test
-    @Order(6)
-    @DisplayName("Already Has Advisor → Returns 400 Bad Request")
-    void alreadyHasAdvisor_returns400() {
-        int newReqIdToC = reqIdC;
-        
-        // Let's attempt to send a brand new request to Prof C just in case.
-        Response newReqRes = sendAdvisorRequest(profCUserId);
-        if (newReqRes.statusCode() == 200) {
-            newReqIdToC = newReqRes.jsonPath().getInt("data.requestId");
-        }
+    @DisplayName("PATCH /advisor-requests → 403: Forbidden if user role is student")
+    void studentDecision_returns403() throws Exception {
+        createRequest(professorB);
+        AdvisorRequestDecisionDto decision = new AdvisorRequestDecisionDto(testGroup.getId(), "approved");
 
-        given()
-            .header("Authorization", "Bearer " + profCToken)
-            .body(Map.of("status", "approved"))
-        .when()
-            .patch("/api/v1/professors/advisor-requests/" + newReqIdToC)
-        .then()
-            .statusCode(anyOf(is(400), is(404)));
+        mockMvc.perform(patch("/api/v1/professors/advisor-requests")
+                        .requestAttr("jwt_userId", leader.getUserId())
+                        .requestAttr("jwt_role", "student") // WRONG ROLE
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decision)))
+                .andExpect(status().isForbidden());
     }
 
-    /**
-     * Test scenario: Unauthorized Access
-     * A normal student tries to approve a request. Expect 403 or 401.
-     */
-    @Test
-    @Order(7)
-    @DisplayName("Unauthorized Access → Student gets 403 Forbidden")
-    void unauthorizedAccess_returnsForbidden() {
-        given()
-            .header("Authorization", "Bearer " + leaderToken)
-            .body(Map.of("status", "approved"))
-        .when()
-            .patch("/api/v1/professors/advisor-requests/" + reqIdA)
-        .then()
-            .statusCode(anyOf(is(401), is(403), is(404)));
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  HELPER METHODS
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * Helper to send an advisor request endpoint.
-     */
-    private Response sendAdvisorRequest(Long targetProfId) {
-        return given()
-            .header("Authorization", "Bearer " + leaderToken)
-            .body(Map.of("professorId", targetProfId))
-        .when()
-            .post("/api/v1/groups/" + createdGroupId + "/advisor-request")
-        .then()
-            .extract().response();
-    }
-
-    /**
-     * Helper to extract request ID or return a fallback if 404.
-     */
-    private int extractRequestId(Response response, int fallback) {
-        if (response.statusCode() == 200 || response.statusCode() == 201) {
-            return response.jsonPath().getInt("data.requestId");
-        }
-        return fallback;
-    }
-
-    private void deleteUserSafely(Long userId) {
-        if (userId == null) return;
-        try {
-            userRepository.findByUserId(userId).ifPresent(user -> userRepository.delete(user));
-        } catch (Exception ignored) { }
-    }
-
-    private void deleteStudentIdSafely(String studentId) {
-        if (studentId == null) return;
-        try {
-            validStudentIdRepository.deleteByStudentId(studentId);
-        } catch (Exception ignored) { }
+    private Notification createRequest(User toProfessor) {
+        Notification req = new Notification();
+        req.setGroupId(testGroup.getId());
+        req.setType(NotificationType.ADVISOR_REQUEST);
+        req.setStatus(NotificationStatus.PENDING);
+        req.setToUser(toProfessor);
+        req.setFromUser(leader);
+        return notificationRepository.save(req);
     }
 }

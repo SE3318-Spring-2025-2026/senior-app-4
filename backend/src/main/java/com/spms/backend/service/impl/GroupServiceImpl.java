@@ -491,13 +491,23 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     @AuditableOperation(actionType = ActionType.ADVISOR_ASSIGNED)
-    public void handleAdvisorRequestDecision(Long professorId, Long groupId, String status) {
+    public void handleAdvisorRequestDecision(Long professorId, Long groupId, String status, String role) {
+        // AC: Security check -> Only professors can decide on advisor requests
+        if (!"professor".equalsIgnoreCase(role)) {
+            throw new ForbiddenException("Only professors can approve or reject advisor requests.");
+        }
+
         Notification request = notificationRepository.findByGroupIdAndToUser_UserIdAndTypeAndStatus(
                 groupId, professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING)
-                .orElseThrow(() -> new BadRequestException("Pending advisor request not found for this group."));
+                .orElseThrow(() -> new BadRequestException("Pending advisor request not found for this group (it might have been cancelled or already processed)."));
 
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
+
+        // AC: Prevent double-advisor assignment
+        if (group.getAdvisor() != null && "approved".equalsIgnoreCase(status)) {
+            throw new BadRequestException("This group already has an advisor assigned.");
+        }
 
         User professor = userRepository.findById(professorId)
                 .orElseThrow(() -> new NotFoundException("Professor not found."));
@@ -517,14 +527,19 @@ public class GroupServiceImpl implements GroupService {
                 otherReq.setStatus(NotificationStatus.REJECTED);
                 notificationRepository.save(otherReq);
 
-                Notification rejectNotif = new Notification();
-                rejectNotif.setType(NotificationType.SYSTEM_ALERT);
-                rejectNotif.setStatus(NotificationStatus.PENDING);
-                rejectNotif.setMessage("Your request to be advisor for group " + group.getGroupName()
-                        + " was automatically cancelled because they were assigned another advisor.");
-                rejectNotif.setGroupId(groupId);
-                rejectNotif.setToUser(otherReq.getToUser());
-                notificationRepository.save(rejectNotif);
+                notificationRepository.save(otherReq);
+
+                // AC: Inform the rejected professor via NotificationService
+                try {
+                   notificationService.createSystemAlert(
+                        otherReq.getToUser().getUserId(),
+                        "Your request to be advisor for group " + group.getGroupName() + " was automatically cancelled.",
+                        "ADVISOR_AUTO_REJECT",
+                        group.getId().toString()
+                   );
+                } catch (Exception e) {
+                    log.warn("Failed to send auto-reject alert to professor {}", otherReq.getToUser().getUserId());
+                }
 
                 AuditLog log = new AuditLog();
                 log.setActionType(ActionType.ADVISOR_REJECTED);
