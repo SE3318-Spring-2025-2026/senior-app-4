@@ -6,6 +6,7 @@ import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.ActionType;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.model.Group;
+import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.User;
 import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupRepository;
@@ -107,6 +108,7 @@ class AdvisorAssignmentServiceImplTest {
         service.releaseAdvisor(10L, 300L, "PROFESSOR");
 
         assertNull(group.getAdvisor());
+        assertEquals(GroupStatus.FORMING, group.getStatus());
         verify(groupRepository).save(group);
 
         ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);

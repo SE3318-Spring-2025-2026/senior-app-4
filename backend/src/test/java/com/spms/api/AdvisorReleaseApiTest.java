@@ -139,6 +139,7 @@ public class AdvisorReleaseApiTest extends BaseApiTest {
 
         Group reloaded = groupRepository.findById(groupId).orElseThrow();
         assertNull(reloaded.getAdvisor(), "advisor should be cleared after release");
+        assertEquals(com.spms.backend.model.GroupStatus.FORMING, reloaded.getStatus(), "status should revert to FORMING after release");
 
         boolean hasAuditLog = auditLogRepository.findAll().stream()
                 .anyMatch(log -> com.spms.backend.model.ActionType.ADVISOR_RELEASED == log.getActionType()
@@ -229,9 +230,11 @@ public class AdvisorReleaseApiTest extends BaseApiTest {
         Group group = groupRepository.findById(groupId).orElseThrow();
         if (advisorUserId == null) {
             group.setAdvisor(null);
+            group.setStatus(com.spms.backend.model.GroupStatus.FORMING);
         } else {
             User advisor = userRepository.findById(advisorUserId).orElseThrow();
             group.setAdvisor(advisor);
+            group.setStatus(com.spms.backend.model.GroupStatus.ADVISED);
         }
         groupRepository.save(group);
     }

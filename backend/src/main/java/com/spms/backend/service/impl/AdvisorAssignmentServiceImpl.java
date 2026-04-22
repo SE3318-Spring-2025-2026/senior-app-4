@@ -4,10 +4,11 @@ import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.ActionType;
-import java.time.Instant;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.model.Group;
+import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.User;
+import java.time.Instant;
 import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.service.AdvisorAssignmentService;
@@ -55,6 +56,7 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         }
 
         group.setAdvisor(null);
+        group.setStatus(GroupStatus.FORMING);
         group.setUpdatedAt(Instant.now());
         groupRepository.save(group);
 
