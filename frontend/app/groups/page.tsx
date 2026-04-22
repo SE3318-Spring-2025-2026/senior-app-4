@@ -5,7 +5,6 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import GroupCard from "@/components/GroupCard";
 import GroupCardSkeleton from "@/components/GroupCardSkeleton";
 import AppTopbar from "@/components/AppTopbar";
-import { useNotifications } from "@/components/NotificationProvider";
 import { fetchGroups, createGroupApi, ApiGroupListItem } from "@/lib/groups-api";
 import { Group } from "@/lib/group-types";
 import { getUser } from "@/lib/auth";
@@ -53,7 +52,6 @@ export default function GroupsPage() {
     const [showCreateForm, setShowCreateForm] = useState(false);
 
     const pageSize = 6;
-    const { unreadOrPendingCount } = useNotifications();
     const currentUser = getUser();
 
     useEffect(() => {
@@ -157,7 +155,7 @@ export default function GroupsPage() {
     return (
         <main className="min-h-screen bg-gray-950 px-6 py-10">
             <div className="mx-auto max-w-6xl">
-                <AppTopbar title="Groups" notificationCount={unreadOrPendingCount} />
+                <AppTopbar />
 
                 <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                     <div>

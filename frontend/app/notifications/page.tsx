@@ -10,7 +10,6 @@ export default function NotificationsPage() {
     const router = useRouter();
     const {
         notifications,
-        unreadOrPendingCount,
         respondToNotification,
         clearNotification,
     } = useNotifications();
@@ -44,11 +43,7 @@ export default function NotificationsPage() {
     return (
         <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
             <div className="mx-auto max-w-5xl space-y-8">
-                <AppTopbar
-                    title="Notifications"
-                    notificationCount={unreadOrPendingCount}
-                    hideNotification
-                />
+                <AppTopbar hideNotification />
 
                 <div>
                     <button
