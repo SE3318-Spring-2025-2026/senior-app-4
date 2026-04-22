@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
-import { fetchGroupDetail } from "@/lib/groups-api";
+import {
+    ApiGroupDetail,
+    ApiGroupMember,
+    fetchGroupDetail,
+} from "@/lib/groups-api";
 
 function formatDate(dateString: string) {
     return new Date(dateString).toLocaleString("en-US", {
@@ -20,7 +24,7 @@ export default function GroupDetailPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
 
-    const [group, setGroup] = useState<any>(null);
+    const [group, setGroup] = useState<ApiGroupDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -77,7 +81,7 @@ export default function GroupDetailPage() {
         <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
             <div className="mx-auto max-w-5xl">
                 <Link href="/groups" className="text-sm text-blue-400 hover:underline">
-                    ← Back to groups
+                    {"<- Back to groups"}
                 </Link>
 
                 <div className="mt-6 mb-6 flex items-start justify-between gap-4">
@@ -92,6 +96,16 @@ export default function GroupDetailPage() {
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2 mb-8">
+                    <Link href={`/groups/${group.id}/committee-grading`}>
+                        <div className="cursor-pointer rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">
+                            <p className="mb-2 text-sm text-blue-200">Committee Grading</p>
+                            <p className="font-medium text-white">Open grading drawer</p>
+                            <p className="mt-2 text-sm text-blue-100/70">
+                                Review submission details, add comments, and submit the final score.
+                            </p>
+                        </div>
+                    </Link>
+
                     <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
                         <p className="text-sm text-gray-400 mb-2">GitHub</p>
                         <p className="text-gray-500 font-medium">Unknown</p>
@@ -117,7 +131,7 @@ export default function GroupDetailPage() {
                     <h2 className="text-2xl font-semibold mb-5">Members</h2>
 
                     <div className="space-y-4">
-                        {group.members?.map((member: any) => (
+                        {group.members?.map((member: ApiGroupMember) => (
                             <div
                                 key={member.userId}
                                 className="flex items-center justify-between rounded-xl bg-white/5 px-5 py-4"
