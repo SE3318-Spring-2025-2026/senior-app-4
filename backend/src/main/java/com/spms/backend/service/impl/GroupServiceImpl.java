@@ -624,7 +624,7 @@ public class GroupServiceImpl implements GroupService {
         User professor = userRepository.findById(professorId)
                 .orElseThrow(() -> new NotFoundException("Professor not found."));
 
-        if ("approved".equalsIgnoreCase(status)) {
+        if ("approved".equalsIgnoreCase(status) || "approve".equalsIgnoreCase(status)) {
             group.setAdvisor(professor);
             group.setStatus(GroupStatus.ADVISED);
             group.setUpdatedAt(Instant.now());
@@ -667,7 +667,7 @@ public class GroupServiceImpl implements GroupService {
             notif.setToUser(group.getLeader());
             notificationRepository.save(notif);
 
-        } else if ("rejected".equalsIgnoreCase(status)) {
+        } else if ("rejected".equalsIgnoreCase(status) || "reject".equalsIgnoreCase(status)) {
             request.setStatus(NotificationStatus.REJECTED);
             notificationRepository.save(request);
 

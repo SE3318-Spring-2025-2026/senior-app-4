@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Pattern;
 
 public record AdvisorDecisionRequestDto(
         @NotNull(message = "Status is required")
-        @Pattern(regexp = "^(?i)(approved|rejected)$", message = "Status must be 'approved' or 'rejected'")
+        @Pattern(regexp = "^(?i)(approve|reject|approved|rejected)$", message = "Status must be 'APPROVE' or 'REJECT'")
         String status,
         
         String reason
