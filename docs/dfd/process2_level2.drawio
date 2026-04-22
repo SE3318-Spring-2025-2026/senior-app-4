@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e">
     <diagram id="level2-p2" name="Level-2 DFD — P2: Group Management &amp; Integrations">
-        <mxGraphModel dx="2519" dy="1757" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1200" math="0" shadow="0">
+        <mxGraphModel dx="3617" dy="2462" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1200" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -22,10 +22,10 @@
                 <mxCell id="d1" value="D1 | Users" style="shape=partialRectangle;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;top=1;left=0;right=0;bottom=0;" parent="1" vertex="1">
                     <mxGeometry x="500" y="20" width="150" height="40" as="geometry"/>
                 </mxCell>
-                <mxCell id="d3" value="D3 | Groups" style="shape=partialRectangle;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;top=1;left=0;right=0;bottom=0;" parent="1" vertex="1">
+                <mxCell id="d3" value="D2 | Groups" style="shape=partialRectangle;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;top=1;left=0;right=0;bottom=0;" parent="1" vertex="1">
                     <mxGeometry x="1480" y="530" width="150" height="40" as="geometry"/>
                 </mxCell>
-                <mxCell id="d8" value="D8 | Integrations" style="shape=partialRectangle;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;top=1;left=0;right=0;bottom=0;" parent="1" vertex="1">
+                <mxCell id="d8" value="D3 | Integrations" style="shape=partialRectangle;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;top=1;left=0;right=0;bottom=0;" parent="1" vertex="1">
                     <mxGeometry x="1480" y="20" width="150" height="40" as="geometry"/>
                 </mxCell>
                 <mxCell id="p2_1" value="&lt;b&gt;2.1&lt;/b&gt;&lt;br&gt;Manage Project&lt;br&gt;Groups" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
@@ -300,10 +300,10 @@
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="p2_5" value="&lt;b&gt;2.5&lt;/b&gt;&lt;br&gt;Notification&lt;br&gt;Service&lt;br&gt;&lt;font color='#666666' style='font-size:8px;'&gt;(auto-reject others&lt;br&gt;on approval)&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                <mxCell id="p2_5" value="&lt;b&gt;2.5&lt;/b&gt;&lt;br&gt;Notification&lt;br&gt;Service&lt;br&gt;&lt;font color=&#39;#666666&#39; style=&#39;font-size:8px;&#39;&gt;(auto-reject others&lt;br&gt;on approval)&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
                     <mxGeometry x="650" y="890" width="160" height="110" as="geometry"/>
                 </mxCell>
-                <mxCell id="d10" value="D10 | Notifications" style="shape=partialRectangle;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;top=1;left=0;right=0;bottom=0;" parent="1" vertex="1">
+                <mxCell id="d10" value="D8 | Notifications" style="shape=partialRectangle;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;top=1;left=0;right=0;bottom=0;" parent="1" vertex="1">
                     <mxGeometry x="650" y="1120" width="160" height="40" as="geometry"/>
                 </mxCell>
                 <mxCell id="ns_f1" value="membershipRequest" style="html=1;edgeStyle=orthogonalEdgeStyle;rounded=1;fontSize=9;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="p2_2" edge="1">
@@ -608,7 +608,7 @@
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="4" value="D11 | Schedule" style="shape=partialRectangle;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;top=1;left=0;right=0;bottom=0;" parent="1" vertex="1">
+                <mxCell id="4" value="D10 | Schedule" style="shape=partialRectangle;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;top=1;left=0;right=0;bottom=0;" parent="1" vertex="1">
                     <mxGeometry x="750" y="20" width="150" height="40" as="geometry"/>
                 </mxCell>
                 <mxCell id="5" style="edgeStyle=none;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" parent="1" source="4" target="p2_7" edge="1">

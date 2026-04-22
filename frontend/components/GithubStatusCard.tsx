@@ -3,7 +3,11 @@
 import { GithubIntegration } from "@/lib/github-types";
 
 type Props = {
-    integration?: GithubIntegration;
+    integration?: {
+        status: string;
+        organizationName?: string | null;
+        connectedAt?: string | null;
+    } | null;
 };
 
 export default function GithubStatusCard({ integration }: Props) {

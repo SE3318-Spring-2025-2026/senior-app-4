@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Group } from "@/lib/group-types";
 import StatusBadge from "@/components/StatusBadge";
 
+
 type Props = {
     group: Group;
     isOwnGroup?: boolean;

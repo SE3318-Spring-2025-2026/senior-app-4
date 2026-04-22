@@ -1,12 +1,15 @@
 package com.spms.backend.model;
-
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import jakarta.persistence.Convert;
 
 @Entity
-@Table(name = "groups")
+@Table(name = "groups", indexes = {
+    @Index(name = "idx_group_status", columnList = "status"),
+    @Index(name = "idx_group_advisor", columnList = "advisor_id")
+})
 public class Group {
 
     @Id
@@ -24,7 +27,7 @@ public class Group {
     @JoinColumn(name = "advisor_id")
     private User advisor;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = GroupStatusConverter.class)
     @Column(nullable = false)
     private GroupStatus status = GroupStatus.FORMING;
 
@@ -37,7 +40,8 @@ public class Group {
     @Column(name = "updated_at")
     private Instant updatedAt = Instant.now();
 
-    public Group() {}
+    public Group() {
+    }
 
     public Long getId() {
         return id;
