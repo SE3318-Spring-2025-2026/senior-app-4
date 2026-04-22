@@ -31,7 +31,7 @@ public class AdvisorRequestController {
             @Valid @RequestBody AdvisorDecisionRequestDto request,
             @RequestAttribute("jwt_userId") Object userId) {
         Long professorId = Long.valueOf(userId.toString());
-        groupService.processAdvisorRequestDecision(professorId, requestId, request.status(), request.reason());
+        groupService.processAdvisorRequestDecision(professorId, requestId, request.decision(), request.reason());
         return ResponseEntity.ok().build();
     }
 }
