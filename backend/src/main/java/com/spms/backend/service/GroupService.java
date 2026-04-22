@@ -10,6 +10,8 @@ import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.dto.response.GithubIntegrationResponse;
 import com.spms.backend.dto.response.AdvisorDecisionResponseDto;
+import com.spms.backend.dto.request.OverrideAssignmentRequest;
+import com.spms.backend.dto.response.OverrideAssignmentResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -51,6 +53,7 @@ public interface GroupService {
     void handleAdvisorRequestDecision(Long professorId, Long groupId, String status);
     AdvisorDecisionResponseDto processAdvisorRequestDecision(Long professorId, Long requestId, String status, String reason);
     void transferAdvisor(Long groupId, Long professorId, String requesterRole);
+    OverrideAssignmentResponse overrideAdvisorAssignment(OverrideAssignmentRequest request, Long requesterId, String requesterRole);
     com.spms.backend.dto.response.GroupFormationReportDto getGroupFormationReport(String role);
     
 }
