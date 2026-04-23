@@ -84,13 +84,12 @@ export default function GroupsPage() {
                 setLoading(true);
                 setError("");
 
-                const response = await fetchGroups(page, pageSize, statusFilter, searchQuery, advisorFilter);
+                const response = await fetchGroups(0, 1000);
 
                 if (cancelled) return;
 
                 const mappedGroups = response.content.map(mapApiGroupToUiGroup);
                 setGroups(mappedGroups);
-                setTotalPages(Math.max(response.totalPages, 1));
             } catch (err) {
                 if (cancelled) return;
 
@@ -98,7 +97,6 @@ export default function GroupsPage() {
                     err instanceof Error ? err.message : "Failed to load groups.";
                 setError(message);
                 setGroups([]);
-                setTotalPages(1);
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -109,11 +107,46 @@ export default function GroupsPage() {
         return () => {
             cancelled = true;
         };
-    }, [page, statusFilter, searchQuery, advisorFilter]);
+    }, []);
 
-    const sortedGroups = useMemo(() => {
-        return [...groups].sort((a, b) => a.groupName.localeCompare(b.groupName));
-    }, [groups]);
+    const filteredGroups = useMemo(() => {
+        let filtered = [...groups];
+
+        if (statusFilter !== "all") {
+            filtered = filtered.filter(g => g.status === statusFilter);
+        }
+
+        if (advisorFilter !== "all") {
+            filtered = filtered.filter(g => 
+                advisorFilter === "has_advisor" ? g.advisorId !== null : g.advisorId === null
+            );
+        }
+
+        if (searchQuery) {
+            filtered = filtered.filter(g => g.groupName.toLowerCase().includes(searchQuery.toLowerCase()));
+        }
+
+        filtered.sort((a, b) => {
+            if (currentUser && a.leaderId === currentUser.userId) return -1;
+            if (currentUser && b.leaderId === currentUser.userId) return 1;
+            return a.groupName.localeCompare(b.groupName);
+        });
+
+        return filtered;
+    }, [groups, statusFilter, advisorFilter, searchQuery, currentUser]);
+
+    useEffect(() => {
+        setTotalPages(Math.max(Math.ceil(filteredGroups.length / pageSize), 1));
+        
+        if (page >= Math.max(Math.ceil(filteredGroups.length / pageSize), 1)) {
+            updateParams({ page: 0 });
+        }
+    }, [filteredGroups.length, pageSize]);
+
+    const paginatedGroups = useMemo(() => {
+        const start = page * pageSize;
+        return filteredGroups.slice(start, start + pageSize);
+    }, [filteredGroups, page, pageSize]);
 
     async function handleCreateGroup(e: React.FormEvent) {
         e.preventDefault();
@@ -136,12 +169,11 @@ export default function GroupsPage() {
             showToast("Group created successfully!", "success");
             setGroupName("");
             setShowCreateForm(false);
-            setPage(0);
+            updateParams({ page: 0 });
 
-            const response = await fetchGroups(0, pageSize);
+            const response = await fetchGroups(0, 1000);
             const mappedGroups = response.content.map(mapApiGroupToUiGroup);
             setGroups(mappedGroups);
-            setTotalPages(Math.max(response.totalPages, 1));
         } catch (err) {
             const message =
                 err instanceof Error ? err.message : "Failed to create group.";
@@ -167,7 +199,7 @@ export default function GroupsPage() {
 
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <div className="rounded-2xl border border-white/10 bg-gray-900 px-4 py-3 text-sm text-gray-400 shadow-lg shadow-black/20">
-                            <span className="font-semibold text-white">{sortedGroups.length}</span>{" "}
+                            <span className="font-semibold text-white">{filteredGroups.length}</span>{" "}
                             groups listed
                         </div>
 
@@ -291,19 +323,19 @@ export default function GroupsPage() {
                             <p className="mt-2 text-red-200/80">{error}</p>
                         </div>
                     </div>
-                ) : sortedGroups.length === 0 ? (
+                ) : paginatedGroups.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 bg-gray-900 px-6 py-16 text-center shadow-lg shadow-black/20">
                         <div className="mx-auto max-w-md">
                             <h2 className="text-xl font-semibold text-white">No groups found</h2>
                             <p className="mt-2 text-gray-400">
-                                There are currently no project groups to display.
+                                There are currently no project groups matching your filters.
                             </p>
                         </div>
                     </div>
                 ) : (
                     <>
                         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                            {sortedGroups.map((group) => (
+                            {paginatedGroups.map((group) => (
                                 <GroupCard
                                     key={group.groupId}
                                     group={group}
@@ -312,28 +344,30 @@ export default function GroupsPage() {
                             ))}
                         </div>
 
-                        <div className="mt-8 flex items-center justify-center gap-3">
-                            <button
-                                onClick={() => updateParams({ page: Math.max(page - 1, 0) })}
-                                disabled={page === 0}
-                                className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
-                            >
-                                Previous
-                            </button>
+                        {totalPages > 1 && (
+                            <div className="mt-8 flex items-center justify-center gap-3">
+                                <button
+                                    onClick={() => updateParams({ page: Math.max(page - 1, 0) })}
+                                    disabled={page === 0}
+                                    className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
+                                >
+                                    Previous
+                                </button>
 
-                            <span className="text-sm text-gray-400">
-                                Page <span className="text-white">{page + 1}</span> /{" "}
-                                <span className="text-white">{Math.max(totalPages, 1)}</span>
-                            </span>
+                                <span className="text-sm text-gray-400">
+                                    Page <span className="text-white">{page + 1}</span> /{" "}
+                                    <span className="text-white">{totalPages}</span>
+                                </span>
 
-                            <button
-                                onClick={() => updateParams({ page: Math.min(page + 1, totalPages - 1) })}
-                                disabled={page >= totalPages - 1}
-                                className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
-                            >
-                                Next
-                            </button>
-                        </div>
+                                <button
+                                    onClick={() => updateParams({ page: Math.min(page + 1, totalPages - 1) })}
+                                    disabled={page >= totalPages - 1}
+                                    className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
                     </>
                 )}
             </div>
