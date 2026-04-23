@@ -2,30 +2,49 @@ package com.spms.backend.service.impl;
 
 import com.spms.backend.dto.response.AdvisorAssignmentListResponse;
 import com.spms.backend.dto.response.GroupAdvisorAssignmentDto;
+import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
+import com.spms.backend.exception.NotFoundException;
+import com.spms.backend.model.ActionType;
+import com.spms.backend.model.AuditLog;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupStatus;
+import com.spms.backend.model.User;
+import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.service.AdvisorAssignmentService;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import com.spms.backend.service.NotificationService;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
- * P4-ASSIGN-1 list logic.
+ * P4-ASSIGN-1 list logic + professor release of advisee group.
  * TODO(P4-ASSIGN-2): expose {@code assignmentType} and accurate {@code assignedAt} once stored on group or derivable from audit.
  */
 @Service
 public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
 
-    private final GroupRepository groupRepository;
+    private static final Logger log = LoggerFactory.getLogger(AdvisorAssignmentServiceImpl.class);
+    private static final String PROFESSOR_ROLE = "professor";
 
-    public AdvisorAssignmentServiceImpl(GroupRepository groupRepository) {
+    private final GroupRepository groupRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final NotificationService notificationService;
+
+    public AdvisorAssignmentServiceImpl(
+            GroupRepository groupRepository,
+            AuditLogRepository auditLogRepository,
+            NotificationService notificationService) {
         this.groupRepository = groupRepository;
+        this.auditLogRepository = auditLogRepository;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -38,8 +57,7 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         }
 
         if ("coordinator".equalsIgnoreCase(requesterRole.trim())) {
-            List<GroupAdvisorAssignmentDto> rows =
-                    buildCoordinatorRows(filterAdvisorId, hasAdvisor);
+            List<GroupAdvisorAssignmentDto> rows = buildCoordinatorRows(filterAdvisorId, hasAdvisor);
             return new AdvisorAssignmentListResponse("success", rows);
         }
 
@@ -79,14 +97,11 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Default (hasAdvisor null): only groups that have an advisor assigned (#160 acceptance).
-     */
+    /** Default (hasAdvisor null): only groups that have an advisor assigned (#160 acceptance). */
     private static boolean matchesHasAdvisorFilter(Group g, Boolean hasAdvisor) {
         if (Boolean.FALSE.equals(hasAdvisor)) {
             return g.getAdvisor() == null;
         }
-        // null or true → assigned teams only
         return g.getAdvisor() != null;
     }
 
@@ -105,5 +120,51 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
                 g.getAdvisor() != null ? g.getAdvisor().getUserId() : null,
                 g.getAdvisor() != null ? g.getAdvisor().getFullName() : null,
                 g.getStatus().name());
+    }
+
+    @Override
+    @Transactional
+    public void releaseAdvisor(Long groupId, Long professorId, String role) {
+        if (role == null || !PROFESSOR_ROLE.equalsIgnoreCase(role)) {
+            throw new ForbiddenException("Only professors can release an advisee group.");
+        }
+
+        Group group = groupRepository
+                .findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+
+        User currentAdvisor = group.getAdvisor();
+        if (currentAdvisor == null || group.getStatus() != GroupStatus.ADVISED) {
+            throw new BadRequestException("Group does not have an assigned advisor.");
+        }
+
+        if (!currentAdvisor.getUserId().equals(professorId)) {
+            throw new ForbiddenException("You are not the advisor of this group.");
+        }
+
+        group.setAdvisor(null);
+        group.setStatus(GroupStatus.FORMING);
+        group.setUpdatedAt(Instant.now());
+        groupRepository.save(group);
+
+        AuditLog auditLog = new AuditLog();
+        auditLog.setActionType(ActionType.ADVISOR_RELEASED);
+        auditLog.setUserId(professorId);
+        auditLog.setGroupId(groupId);
+        auditLog.setEventDetails("Professor " + professorId + " released advisee group " + groupId);
+        auditLogRepository.save(auditLog);
+
+        Long leaderId = group.getLeader() != null ? group.getLeader().getUserId() : null;
+        if (leaderId != null) {
+            try {
+                notificationService.createSystemAlert(
+                        leaderId,
+                        "Your advisor has released your group. You may submit a new advisor request.",
+                        "ADVISOR_RELEASED",
+                        "groupId=" + groupId);
+            } catch (Exception exception) {
+                log.warn("Failed to send release notification for group {}: {}", groupId, exception.getMessage());
+            }
+        }
     }
 }

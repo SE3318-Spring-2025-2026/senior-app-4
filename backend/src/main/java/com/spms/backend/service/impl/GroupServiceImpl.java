@@ -1,5 +1,6 @@
 package com.spms.backend.service.impl;
 
+import com.spms.backend.dto.request.GithubBindingRequest;
 import com.spms.backend.dto.request.GroupCreateRequestDto;
 import com.spms.backend.dto.request.GroupUpdateRequestDto;
 import com.spms.backend.dto.response.GroupDetailDto;
@@ -8,6 +9,7 @@ import com.spms.backend.dto.response.GroupResponseDto;
 import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.dto.response.GithubIntegrationResponse;
+import com.spms.backend.dto.response.IntegrationsTestResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
@@ -22,11 +24,14 @@ import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.JiraIntegration;
 import com.spms.backend.model.JiraIntegrationStatus;
 import com.spms.backend.model.GithubIntegration;
+import com.spms.backend.model.GithubIntegrationStatus;
+import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.JiraIntegrationRepository;
 import com.spms.backend.repository.GithubIntegrationRepository;
 import com.spms.backend.service.GroupService;
+import com.spms.backend.client.GithubApiClient;
 import com.spms.backend.client.JiraApiClient;
 import com.spms.backend.service.NotificationService;
 import com.spms.backend.service.StudentAuthorizationService;
@@ -43,21 +48,23 @@ import com.spms.backend.model.notification.Notification;
 import com.spms.backend.model.notification.NotificationStatus;
 import com.spms.backend.model.notification.NotificationType;
 import com.spms.backend.repository.NotificationRepository;
-import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.dto.response.GroupFormationReportDto;
 import com.spms.backend.dto.response.AdvisorRequestResponseDto;
+import com.spms.backend.dto.response.AdvisorDecisionResponseDto;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+
 @Service
 public class GroupServiceImpl implements GroupService {
     private static final Logger log = LoggerFactory.getLogger(GroupServiceImpl.class);
     private static final String STUDENT_ROLE = "student";
 
+    private final GithubApiClient githubApiClient;
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
@@ -71,15 +78,17 @@ public class GroupServiceImpl implements GroupService {
     private final AuditLogRepository auditLogRepository;
 
     public GroupServiceImpl(GroupRepository groupRepository,
-            GroupMemberRepository groupMemberRepository,
-            UserRepository userRepository,
-            NotificationService notificationService,
-            StudentAuthorizationService authService,
-            JiraIntegrationRepository jiraIntegrationRepository,
-            GithubIntegrationRepository githubIntegrationRepository,
-            JiraApiClient jiraApiClient,
-            NotificationRepository notificationRepository,
-            AuditLogRepository auditLogRepository) {
+                            GroupMemberRepository groupMemberRepository,
+                            UserRepository userRepository,
+                            NotificationService notificationService,
+                            AuditLogRepository auditLogRepository,
+                            StudentAuthorizationService authService,
+                            JiraIntegrationRepository jiraIntegrationRepository,
+                            GithubIntegrationRepository githubIntegrationRepository,
+                            JiraApiClient jiraApiClient,
+                            NotificationRepository notificationRepository,
+                            GithubApiClient githubApiClient) 
+                            {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
@@ -88,9 +97,9 @@ public class GroupServiceImpl implements GroupService {
         this.jiraIntegrationRepository = jiraIntegrationRepository;
         this.githubIntegrationRepository = githubIntegrationRepository;
         this.jiraApiClient = jiraApiClient;
+        this.githubApiClient = githubApiClient;
         this.notificationRepository = notificationRepository;
-        this.auditLogRepository = auditLogRepository;
-    }
+        this.auditLogRepository = auditLogRepository;}
 
     @Override
     @Transactional
@@ -153,7 +162,7 @@ public class GroupServiceImpl implements GroupService {
     @Transactional(readOnly = true)
     public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole) {
 
-        Page<Group> groupsPage = null;
+        Page<Group> groupsPage;
 
         String role = (requesterRole != null) ? requesterRole.toLowerCase() : "guest";
 
@@ -234,16 +243,21 @@ public class GroupServiceImpl implements GroupService {
                 .map(member -> member.getUser().getUserId())
                 .toList();
 
-        group.setStatus(GroupStatus.DISBANDED);
-        group.setUpdatedAt(Instant.now());
-
+        // Üyelerin rolünü sıfırla
         for (GroupMember member : currentMembers) {
             User user = member.getUser();
             user.setRole(STUDENT_ROLE);
             userRepository.save(user);
         }
 
-        groupMemberRepository.deleteAll(currentMembers);
+        // JPA cascade/orphanRemoval çakışmasını önlemek için önce in-memory koleksiyonu temizle
+        group.getMembers().clear();
+
+        // Üyeleri doğrudan veritabanından sil (cascade conflict olmadan)
+        groupMemberRepository.deleteAllInBatch(currentMembers);
+
+        group.setStatus(GroupStatus.DISBANDED);
+        group.setUpdatedAt(Instant.now());
         groupRepository.save(group);
 
         try {
@@ -327,26 +341,18 @@ public class GroupServiceImpl implements GroupService {
         groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));
 
-        var integration = githubIntegrationRepository.findByGroup_Id(groupId);
+        GithubIntegration github = githubIntegrationRepository.findByGroup_Id(groupId)
+                .orElseThrow(() -> new NotFoundException("No GitHub integration exists for this group."));
 
-        if (integration.isEmpty()) {
-            return new GithubIntegrationResponse(
-                    true,
-                    new GithubIntegrationResponse.GithubIntegrationData(
-                            "inactive",
-                            null,
-                            null,
-                            "Not connected"));
-        }
-
-        GithubIntegration github = integration.get();
         return new GithubIntegrationResponse(
                 true,
                 new GithubIntegrationResponse.GithubIntegrationData(
                         github.getStatus().name().toLowerCase(),
                         github.getOrganizationName(),
                         github.getCreatedAt().toString(),
-                        github.getLastError()));
+                        github.getLastError() != null ? github.getLastError() : "Connected successfully"
+                )
+        );
     }
 
     @Override
@@ -472,24 +478,58 @@ public class GroupServiceImpl implements GroupService {
         }
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId) {
-        List<Notification> requests = notificationRepository.findByToUser_UserIdAndTypeAndStatus(
-                professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
+    private void ensureRequesterIsGithubLeader(Group group, Long requesterId) {
+        Long leaderUserId = group.getLeader().getUserId();
+        String leaderStudentId = group.getLeader().getStudentId(); // Modelinde bu alan varsa
+        
+        // Hem normal User ID'yi hem de Öğrenci Numarasını kontrol et
+        boolean isUserIdMatch = leaderUserId != null && leaderUserId.equals(requesterId);
+        boolean isStudentIdMatch = leaderStudentId != null && leaderStudentId.equals(String.valueOf(requesterId));
 
-        return requests.stream()
-                .filter(req -> req.getGroupId() != null)
-                .map(req -> {
-                    Group group = groupRepository.findById(req.getGroupId()).orElse(null);
-                    String groupName = group != null ? group.getGroupName() : "Unknown Group";
-                    return new AdvisorRequestResponseDto(req.getId(), req.getGroupId(), groupName, req.getCreatedAt());
-                })
-                .collect(Collectors.toList());
+        if (!isUserIdMatch && !isStudentIdMatch) {
+            throw new ForbiddenException("Only the group leader can manage GitHub integration.");
+        }
     }
 
     @Override
     @Transactional
+    public void bindGithubIntegration(Long groupId, Long requesterId, GithubBindingRequest request) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+
+        ensureRequesterIsGithubLeader(group, requesterId);
+
+        boolean valid = githubApiClient.validateOrganizationAccess(request.organizationName(), request.githubPat());
+        if (!valid) {
+            throw new BadRequestException("GitHub connection validation failed. Check PAT or Organization Name.");
+        }
+
+        GithubIntegration integration = githubIntegrationRepository.findByGroup_Id(groupId)
+                .orElseGet(GithubIntegration::new);
+        
+        integration.setGroup(group);
+        integration.setOrganizationName(request.organizationName().trim());
+        integration.setGithubPatEncrypted(request.githubPat().trim()); 
+        integration.setStatus(GithubIntegrationStatus.ACTIVE);
+        integration.setUpdatedAt(Instant.now());
+
+        githubIntegrationRepository.save(integration);
+    }
+
+    @Override
+    @Transactional
+    public void unbindGithubIntegration(Long groupId, Long requesterId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+                
+        ensureRequesterIsGithubLeader(group, requesterId);
+
+        GithubIntegration integration = githubIntegrationRepository.findByGroup_Id(groupId)
+                .orElseThrow(() -> new NotFoundException("GitHub integration not found."));
+
+        githubIntegrationRepository.delete(integration);
+    }
+
     @AuditableOperation(actionType = ActionType.ADVISOR_ASSIGNED)
     public void handleAdvisorRequestDecision(Long professorId, Long groupId, String status) {
         Notification request = notificationRepository.findByGroupIdAndToUser_UserIdAndTypeAndStatus(
@@ -564,6 +604,123 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
+    public AdvisorDecisionResponseDto processAdvisorRequestDecision(Long professorId, Long requestId, String status, String reason) {
+        Notification request = notificationRepository.findById(requestId)
+                .orElseThrow(() -> new NotFoundException("Advisor request not found."));
+
+        if (!request.getToUser().getUserId().equals(professorId)) {
+            throw new ForbiddenException("You are not authorized to process this request.");
+        }
+        
+        if (request.getType() != NotificationType.ADVISOR_REQUEST || request.getStatus() != NotificationStatus.PENDING) {
+            throw new BadRequestException("Request is not a pending advisor request.");
+        }
+
+        Long groupId = request.getGroupId();
+        if (groupId == null) {
+            throw new BadRequestException("Request is missing group information.");
+        }
+
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+
+        User professor = userRepository.findById(professorId)
+                .orElseThrow(() -> new NotFoundException("Professor not found."));
+
+        if ("APPROVE".equals(status)) {
+            group.setAdvisor(professor);
+            group.setStatus(GroupStatus.ADVISED);
+            group.setUpdatedAt(Instant.now());
+            groupRepository.save(group);
+
+            // Increment workload (FIX-1)
+            professor.setCurrentAdviseeCount(professor.getCurrentAdviseeCount() + 1);
+            userRepository.save(professor);
+
+            request.setStatus(NotificationStatus.ACCEPTED);
+            notificationRepository.save(request);
+
+            // Manual Audit Log for APPROVE (FIX-3)
+            AuditLog approveLog = new AuditLog();
+            approveLog.setActionType(ActionType.ADVISOR_ASSIGNED);
+            approveLog.setUserId(professorId);
+            approveLog.setGroupId(groupId);
+            approveLog.setEventDetails("Advisor request approved by professor " + professor.getFullName());
+            auditLogRepository.save(approveLog);
+
+            List<Notification> otherRequests = notificationRepository.findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(
+                    groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, professorId);
+            for (Notification otherReq : otherRequests) {
+                otherReq.setStatus(NotificationStatus.REJECTED);
+                notificationRepository.save(otherReq);
+
+                Notification rejectNotif = new Notification();
+                rejectNotif.setType(NotificationType.SYSTEM_ALERT);
+                rejectNotif.setStatus(NotificationStatus.PENDING);
+                rejectNotif.setMessage("Your request to be advisor for group " + group.getGroupName()
+                        + " was automatically cancelled because they were assigned another advisor.");
+                rejectNotif.setGroupId(groupId);
+                rejectNotif.setToUser(otherReq.getToUser());
+                notificationRepository.save(rejectNotif);
+
+                AuditLog log = new AuditLog();
+                log.setActionType(ActionType.ADVISOR_REJECTED);
+                log.setUserId(professorId);
+                log.setGroupId(groupId);
+                log.setEventDetails(
+                        "Auto-rejected pending advisor request for professor " + otherReq.getToUser().getUserId() + " ("
+                                + otherReq.getToUser().getFullName() + ") due to approval of a different advisor.");
+                auditLogRepository.save(log);
+            }
+
+            Notification notif = new Notification();
+            notif.setType(NotificationType.ADVISOR_DECISION);
+            notif.setStatus(NotificationStatus.PENDING);
+            notif.setMessage("Professor " + professor.getFullName() + " has approved your advisor request.");
+            notif.setGroupId(groupId);
+            notif.setFromUser(professor);
+            notif.setToUser(group.getLeader());
+            notificationRepository.save(notif);
+
+            return new AdvisorDecisionResponseDto(
+                    "success",
+                    "Request approved. Advisor assigned to group.",
+                    new AdvisorDecisionResponseDto.AdvisorDecisionData(requestId, "APPROVE", groupId, professorId)
+            );
+
+        } else if ("REJECT".equals(status)) {
+            request.setStatus(NotificationStatus.REJECTED);
+            notificationRepository.save(request);
+
+            AuditLog log = new AuditLog();
+            log.setActionType(ActionType.ADVISOR_REJECTED);
+            log.setUserId(professorId);
+            log.setGroupId(groupId);
+            log.setEventDetails("Advisor request rejected. Reason: " + reason);
+            auditLogRepository.save(log);
+
+            Notification notif = new Notification();
+            notif.setType(NotificationType.ADVISOR_DECISION);
+            notif.setStatus(NotificationStatus.PENDING);
+            String rejectMsg = "Professor " + professor.getFullName() + " has rejected your advisor request. Reason: " + reason;
+            notif.setMessage(rejectMsg);
+            notif.setGroupId(groupId);
+            notif.setFromUser(professor);
+            notif.setToUser(group.getLeader());
+            notificationRepository.save(notif);
+
+            return new AdvisorDecisionResponseDto(
+                    "success",
+                    "Request rejected.",
+                    new AdvisorDecisionResponseDto.AdvisorDecisionData(requestId, "REJECT", groupId, professorId)
+            );
+        } else {
+            throw new BadRequestException("Status must be 'APPROVE' or 'REJECT'.");
+        }
+    }
+
+    @Override
+    @Transactional
     @AuditableOperation(actionType = ActionType.ADVISOR_ASSIGNED)
     public void transferAdvisor(Long groupId, Long professorId, String requesterRole) {
         if (!"coordinator".equalsIgnoreCase(requesterRole)) {
@@ -600,6 +757,43 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional(readOnly = true)
+    public IntegrationsTestResponse testIntegrations(Long groupId, Long requesterId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+        ensureRequesterIsGroupLeader(group, requesterId);
+
+        // 1. GitHub Test
+        boolean githubConnected = false;
+        String githubMsg = "Not configured";
+        var githubOpt = githubIntegrationRepository.findByGroup_Id(groupId);
+        if (githubOpt.isPresent()) {
+            githubConnected = githubApiClient.validateOrganizationAccess(
+                    githubOpt.get().getOrganizationName(), githubOpt.get().getGithubPatEncrypted());
+            githubMsg = githubConnected ? "Connected" : "Token or Organization invalid";
+        }
+
+        // 2. Jira Test
+        boolean jiraConnected = false;
+        String jiraMsg = "Not configured";
+        var jiraOpt = jiraIntegrationRepository.findByGroup_Id(groupId);
+        if (jiraOpt.isPresent()) {
+            jiraConnected = jiraApiClient.validateSpaceConnection(
+                    jiraOpt.get().getJiraSpaceUrl(), jiraOpt.get().getProjectKey(), jiraOpt.get().getApiKey());
+            jiraMsg = jiraConnected ? "Connected" : "Jira credentials invalid";
+        }
+
+        // En az biri kurulu olmalı
+        if (githubOpt.isEmpty() && jiraOpt.isEmpty()) {
+            throw new BadRequestException("No integrations configured to test.");
+        }
+
+        // Kabul kriteri: Biri bile başarısızsa 400 dön
+
+        return new IntegrationsTestResponse(
+                new IntegrationsTestResponse.IntegrationStatus(githubConnected, githubMsg),
+                new IntegrationsTestResponse.IntegrationStatus(jiraConnected, jiraMsg)
+        );}
+
     public GroupFormationReportDto getGroupFormationReport(String role) {
         if (!"coordinator".equalsIgnoreCase(role)) {
             throw new ForbiddenException("Only coordinators can view group formation reports.");
@@ -626,5 +820,20 @@ public class GroupServiceImpl implements GroupService {
                 .collect(Collectors.toList());
 
         return new GroupFormationReportDto(totalGroups, formedGroupsCnt, unadvisedGroupsCnt, details);
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId) {
+        List<Notification> requests = notificationRepository.findByToUser_UserIdAndTypeAndStatus(
+                professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
+
+        return requests.stream()
+                .filter(req -> req.getGroupId() != null)
+                .map(req -> {
+                    Group group = groupRepository.findById(req.getGroupId()).orElse(null);
+                    String groupName = group != null ? group.getGroupName() : "Unknown Group";
+                    return new AdvisorRequestResponseDto(req.getId(), req.getGroupId(), groupName, req.getCreatedAt());
+                })
+                .collect(Collectors.toList());
     }
 }

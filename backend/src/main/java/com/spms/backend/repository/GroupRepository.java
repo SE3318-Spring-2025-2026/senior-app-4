@@ -12,27 +12,25 @@ import com.spms.backend.model.GroupStatus;
 
 @Repository
 public interface GroupRepository extends JpaRepository<Group, Long> {
-    
+
     // --- Takım arkadaşlarının eski metotları (Korundu) ---
     java.util.List<Group> findByStatus(com.spms.backend.model.GroupStatus status);
     java.util.List<Group> findByAdvisorIsNullAndStatusNot(com.spms.backend.model.GroupStatus status);
 
-    // --- ISSUE İÇİN YENİ EKLENEN METOTLAR ---
-
-    // 1. Profesör için: advisor nesnesinin içindeki userId'ye göre arama yapıyoruz
     @Query("SELECT g FROM Group g WHERE g.advisor.userId = :advisorId")
     Page<Group> findByAdvisorId(@Param("advisorId") Long advisorId, Pageable pageable);
-    
+
     @Query("SELECT g.status, COUNT(g) FROM Group g GROUP BY g.status")
     List<Object[]> countGroupsByStatus();
 
-    // 2. Öğrenci için: Kendi grubunu en üste koyan kod
-    @Query("SELECT g FROM Group g LEFT JOIN g.members m " +
-           "ORDER BY CASE WHEN m.user.userId = :studentId THEN 0 ELSE 1 END, g.id ASC")
+    @Query("SELECT g FROM Group g LEFT JOIN g.members m "
+            + "ORDER BY CASE WHEN m.user.userId = :studentId THEN 0 ELSE 1 END, g.id ASC")
     Page<Group> findAllWithStudentGroupFirst(@Param("studentId") Long studentId, Pageable pageable);
 
     /** All non-disbanded groups with advisor and leader loaded (P4-ASSIGN-1 list). */
     @Query("SELECT DISTINCT g FROM Group g LEFT JOIN FETCH g.advisor LEFT JOIN FETCH g.leader "
             + "WHERE g.status <> :disbanded")
     List<Group> findAllNonDisbandedWithAdvisorAndLeaderFetched(@Param("disbanded") GroupStatus disbanded);
+
+    long countByAdvisor_UserId(Long advisorId);
 }

@@ -6,6 +6,7 @@ import com.spms.backend.dto.external.GithubUserResponse;
 import com.spms.backend.exception.GithubAuthenticationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.StringUtils;
@@ -75,5 +76,23 @@ public class GithubApiClient {
 
     public String fetchGithubUsername(String accessToken) {
         return fetchGithubUser(accessToken).login().trim();
+    }
+
+    // issue 19 için eklenen method dk
+    public boolean validateOrganizationAccess(String organizationName, String pat) {
+        String url = "https://api.github.com/orgs/" + organizationName;
+        
+        try {
+            ResponseEntity<Void> response = restClient.get()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + pat)
+                    .header(HttpHeaders.ACCEPT, "application/vnd.github.v3+json")
+                    .retrieve()
+                    .toBodilessEntity();
+            
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (RestClientException exception) {
+            return false;
+        }
     }
 }

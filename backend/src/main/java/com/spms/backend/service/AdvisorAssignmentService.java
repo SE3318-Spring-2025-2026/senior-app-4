@@ -4,6 +4,8 @@ import com.spms.backend.dto.response.AdvisorAssignmentListResponse;
 
 public interface AdvisorAssignmentService {
 
+    void releaseAdvisor(Long groupId, Long professorId, String role);
+
     /**
      * P4-ASSIGN-1 / #160 — list group–advisor mappings.
      * Coordinators: system-wide (optional {@code advisorId}, {@code hasAdvisor}).

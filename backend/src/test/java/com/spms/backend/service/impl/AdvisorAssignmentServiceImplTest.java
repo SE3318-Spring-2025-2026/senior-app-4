@@ -5,7 +5,9 @@ import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.User;
+import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupRepository;
+import com.spms.backend.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -21,12 +23,18 @@ class AdvisorAssignmentServiceImplTest {
     @Mock
     private GroupRepository groupRepository;
 
+    @Mock
+    private AuditLogRepository auditLogRepository;
+
+    @Mock
+    private NotificationService notificationService;
+
     private AdvisorAssignmentServiceImpl service;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        service = new AdvisorAssignmentServiceImpl(groupRepository);
+        service = new AdvisorAssignmentServiceImpl(groupRepository, auditLogRepository, notificationService);
     }
 
     @Test
