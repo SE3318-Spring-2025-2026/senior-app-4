@@ -38,6 +38,12 @@ public class SubmissionService {
         revision.setVersion(parent.getVersion() + 1);
         revision.setStatus(SubmissionStatus.PENDING); // newly created revision is PENDING by default
         
+        // Copy fields from parent
+        revision.setGroupId(parent.getGroupId());
+        revision.setDeliverableType(parent.getDeliverableType());
+        revision.setContent(parent.getContent());
+        revision.setCommitteeId(parent.getCommitteeId());
+        
         return submissionRepository.save(revision);
     }
 
