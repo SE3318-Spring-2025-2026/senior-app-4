@@ -25,7 +25,7 @@ public interface GroupService {
     void updateGroupName(Long groupId, GroupUpdateRequestDto request, Long requesterId);
     
     //Rol bazlı sorgulama yapabilmek için requesterId ve requesterRole ekledim
-    Page<GroupResponseDto> getGroups(String status, String groupName, Boolean advisorAssigned, Pageable pageable, Long requesterId, String requesterRole);
+    Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole);
     
     void disbandGroup(Long groupId, Long requesterId, String requesterRole);
 
