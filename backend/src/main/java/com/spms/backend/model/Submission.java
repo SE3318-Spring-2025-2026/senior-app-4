@@ -23,6 +23,9 @@ public class Submission {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
+    @Column(nullable = true)
+    private String fileUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SubmissionStatus status;
@@ -53,6 +56,9 @@ public class Submission {
     
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+    
+    public String getFileUrl() { return fileUrl; }
+    public void setFileUrl(String fileUrl) { this.fileUrl = fileUrl; }
     
     public SubmissionStatus getStatus() { return status; }
     public void setStatus(SubmissionStatus status) { this.status = status; }
