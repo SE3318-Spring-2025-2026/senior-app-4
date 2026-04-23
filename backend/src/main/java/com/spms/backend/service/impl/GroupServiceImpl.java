@@ -161,7 +161,7 @@ public class GroupServiceImpl implements GroupService {
     @Transactional(readOnly = true)
     public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole) {
 
-        Page<Group> groupsPage = null;
+        Page<Group> groupsPage;
 
         String role = (requesterRole != null) ? requesterRole.toLowerCase() : "guest";
 
@@ -242,16 +242,21 @@ public class GroupServiceImpl implements GroupService {
                 .map(member -> member.getUser().getUserId())
                 .toList();
 
-        group.setStatus(GroupStatus.DISBANDED);
-        group.setUpdatedAt(Instant.now());
-
+        // Üyelerin rolünü sıfırla
         for (GroupMember member : currentMembers) {
             User user = member.getUser();
             user.setRole(STUDENT_ROLE);
             userRepository.save(user);
         }
 
-        groupMemberRepository.deleteAll(currentMembers);
+        // JPA cascade/orphanRemoval çakışmasını önlemek için önce in-memory koleksiyonu temizle
+        group.getMembers().clear();
+
+        // Üyeleri doğrudan veritabanından sil (cascade conflict olmadan)
+        groupMemberRepository.deleteAllInBatch(currentMembers);
+
+        group.setStatus(GroupStatus.DISBANDED);
+        group.setUpdatedAt(Instant.now());
         groupRepository.save(group);
 
         try {
@@ -665,9 +670,6 @@ public class GroupServiceImpl implements GroupService {
         }
 
         // Kabul kriteri: Biri bile başarısızsa 400 dön
-        if ((githubOpt.isPresent() && !githubConnected) || (jiraOpt.isPresent() && !jiraConnected)) {
-            // Loglama yapabilirsin
-        }
 
         return new IntegrationsTestResponse(
                 new IntegrationsTestResponse.IntegrationStatus(githubConnected, githubMsg),
