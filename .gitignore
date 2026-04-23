@@ -1,5 +1,6 @@
 backend/target/
 .DS_Store
+CLAUDE.md
 
 # Environment files
 .env
