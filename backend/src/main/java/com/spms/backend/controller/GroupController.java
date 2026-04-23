@@ -55,7 +55,7 @@ public class GroupController {
     @PostMapping("/{groupId}/leave")
     public ResponseEntity<Void> leaveGroup(
             @PathVariable Long groupId,
-            @RequestAttribute("jwt_user_id") Object userId) {
+            @RequestAttribute("jwt_userId") Object userId) {
         
         Long requesterId = Long.valueOf(userId.toString());
         groupService.leaveGroup(groupId, requesterId);
@@ -189,27 +189,15 @@ public class GroupController {
         ));
     }
     // ==============================================================================
-    // GITHUB & JIRA ENTEGRASYON UÇ NOKTALARI (ISSUE #...)
+    // GITHUB ENTEGRASYON UÇ NOKTALARI (ISSUE #...)
     // ==============================================================================
-
-    //@PostMapping("/{groupId}/integrations/github")
-    //public ResponseEntity<Void> bindGithubIntegration(
-    //        @PathVariable Long groupId,
-     //       @RequestAttribute("userId") Long requesterId, 
-     //       @Valid @RequestBody GithubBindingRequest request) {
-     //   groupService.bindGithubIntegration(groupId, requesterId, request);
-     //   return ResponseEntity.ok().build();
-    //}
 
     @PostMapping("/{groupId}/integrations/github")
     public ResponseEntity<Void> bindGithubIntegration(
             @PathVariable Long groupId,
-            // @RequestAttribute kısmını yorum satırı yapıyoruz
+            @RequestAttribute("jwt_userId") Long requesterId, 
             @Valid @RequestBody GithubBindingRequest request) {
-        
-        Long testUserId = 654321L; // <--- BURAYA VERİTABANINDAKİ LİDERİN GERÇEK ID'SİNİ YAZ (Örn: 1, 5, 10)
-        
-        groupService.bindGithubIntegration(groupId, testUserId, request);
+        groupService.bindGithubIntegration(groupId, requesterId, request);
         return ResponseEntity.ok().build();
     }
 
@@ -218,7 +206,7 @@ public class GroupController {
     @DeleteMapping("/{groupId}/integrations/github")
     public ResponseEntity<Void> unbindGithubIntegration(
             @PathVariable Long groupId,
-            @RequestAttribute("userId") Long requesterId) {
+            @RequestAttribute("jwt_userId") Long requesterId) {
         groupService.unbindGithubIntegration(groupId, requesterId);
         return ResponseEntity.ok().build();
     }
@@ -226,7 +214,7 @@ public class GroupController {
     @PostMapping("/{groupId}/integrations/test")
     public ResponseEntity<IntegrationsTestResponse> testIntegrations(
             @PathVariable Long groupId,
-            @RequestAttribute("userId") Long requesterId) {
+            @RequestAttribute("jwt_userId") Long requesterId) {
         return ResponseEntity.ok(groupService.testIntegrations(groupId, requesterId));}
 
     @PostMapping("/{groupId}/advisor/transfer")

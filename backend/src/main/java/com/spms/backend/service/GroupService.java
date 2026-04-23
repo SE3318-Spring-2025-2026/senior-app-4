@@ -52,4 +52,5 @@ public interface GroupService {
     AdvisorDecisionResponseDto processAdvisorRequestDecision(Long professorId, Long requestId, String status, String reason);
     void transferAdvisor(Long groupId, Long professorId, String requesterRole);
     com.spms.backend.dto.response.GroupFormationReportDto getGroupFormationReport(String role);
+    
 }
