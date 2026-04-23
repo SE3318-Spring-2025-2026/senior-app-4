@@ -23,14 +23,19 @@ public class NotificationController {
 
 
     @PostMapping("/api/v1/groups/{groupId}/advisor-request")
-    public ResponseEntity<Void> requestAdvisor(
+    public ResponseEntity<?> requestAdvisor(
             @PathVariable Long groupId,
             @Valid @RequestBody AdvisorRequestDto request,
             @RequestAttribute("jwt_userId") Object userId) {
 
         Long leaderId = Long.valueOf(userId.toString());
-        notificationService.requestAdvisor(groupId, request, leaderId);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        Long requestId = notificationService.requestAdvisor(groupId, request, leaderId);
+        
+        return ResponseEntity.status(HttpStatus.CREATED).body(java.util.Map.of(
+                "success", true,
+                "message", "Advisor request sent successfully",
+                "data", java.util.Map.of("requestId", requestId)
+        ));
     }
 
 
@@ -52,6 +57,30 @@ public class NotificationController {
         notificationService.cancelAdvisorRequest(groupId);
         return ResponseEntity.noContent().build();
     }
+
+
+    /**
+     * withdrawRequest / revokeNotification  (Related: Issue #80)
+     * DELETE /api/v1/advisor-requests/{id}
+     *
+     * Allows a student (group leader) to withdraw a PENDING advisor request
+     * by notification ID. Soft-deletes the notification in D8 (status → REVOKED).
+     *
+     * Returns 204 No Content on success.
+     * Returns 404 if the notification does not exist.
+     * Returns 400 if the request is not PENDING.
+     * Returns 403 if the caller is not the original sender.
+     */
+    @DeleteMapping("/api/v1/advisor-requests/{id}")
+    public ResponseEntity<Void> withdrawAdvisorRequest(
+            @PathVariable Long id,
+            @RequestAttribute("jwt_userId") Object userId) {
+
+        Long requesterId = Long.valueOf(userId.toString());
+        notificationService.withdrawAdvisorRequest(id, requesterId);
+        return ResponseEntity.noContent().build();
+    }
+
 
 
     @GetMapping("/api/v1/notifications")

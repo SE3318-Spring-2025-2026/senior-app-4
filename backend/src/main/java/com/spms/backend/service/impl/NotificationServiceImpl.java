@@ -18,6 +18,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.spms.backend.annotation.AuditableOperation;
+import com.spms.backend.model.ActionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +44,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
-    public void requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId) {
+    public Long requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId) {
 
         Optional<Notification> existingPendingRequest = notificationRepository
                 .findByGroupIdAndTypeAndStatus(groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
@@ -66,7 +68,7 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setFromUser(leader);
         notification.setToUser(professor);
 
-        notificationRepository.save(notification);
+        return notificationRepository.save(notification).getId();
     }
 
     @Override
@@ -93,8 +95,41 @@ public class NotificationServiceImpl implements NotificationService {
         request.setStatus(NotificationStatus.CLEARED);
         notificationRepository.save(request);
 
-        // TODO: (Optional) If Process P2.9 requires saving to an Audit Log table, add it here
+        // log_f2 – P2.9 audit: advisor request cancelled
+        log.info("[AUDIT] cancelAdvisorRequest: groupId={} notificationId={} newStatus=CLEARED",
+                groupId, request.getId());
     }
+
+    @Override
+    @Transactional
+    @AuditableOperation(actionType = ActionType.ADVISOR_REJECTED)
+    public void withdrawAdvisorRequest(Long notificationId, Long requesterId) {
+
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new com.spms.backend.exception.NotFoundException(
+                        "Advisor request not found with id: " + notificationId));
+
+        if (notification.getType() != NotificationType.ADVISOR_REQUEST) {
+            throw new com.spms.backend.exception.BadRequestException(
+                    "Notification is not an advisor request.");
+        }
+
+        if (notification.getStatus() != NotificationStatus.PENDING) {
+            throw new com.spms.backend.exception.BadRequestException(
+                    "Only pending advisor requests can be withdrawn. Current status: "
+                            + notification.getStatus().name());
+        }
+
+        if (notification.getFromUser() == null
+                || !notification.getFromUser().getUserId().equals(requesterId)) {
+            throw new com.spms.backend.exception.ForbiddenException(
+                    "You are not authorized to withdraw this advisor request.");
+        }
+
+        notification.setStatus(NotificationStatus.REVOKED);
+        notificationRepository.save(notification);
+    }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -141,7 +176,6 @@ public class NotificationServiceImpl implements NotificationService {
 
         if ("accept".equalsIgnoreCase(decision)) {
             notification.setStatus(NotificationStatus.ACCEPTED);
-            // ns_f4 → P2.2: student accepted the membership invite, add them to the group
             if (notification.getType() == NotificationType.MEMBERSHIP_INVITE
                     && notification.getGroupId() != null) {
                 memberService.addMember(notification.getGroupId(), userId);
@@ -158,11 +192,9 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(readOnly = true)
     public Page<NotificationDto> getSystemAlerts(Pageable pageable, String role) {
-        // Validation: Only users with the COORDINATOR role can view system alerts
         if (!"COORDINATOR".equalsIgnoreCase(role)) {
             throw new UnauthorizedException("You are not authorized to view system alerts! Required role: COORDINATOR.");
         }
-
         return Page.empty(pageable);
     }
 
@@ -230,7 +262,7 @@ public class NotificationServiceImpl implements NotificationService {
         );
     }
     @Override
-public void sendMembershipInvite(Long toUserId, Long groupId, String groupName) {
-    log.info("Membership invite notification sent to user {} for group {}", toUserId, groupName);
-}
+    public void sendMembershipInvite(Long toUserId, Long groupId, String groupName) {
+        log.info("Membership invite notification sent to user {} for group {}", toUserId, groupName);
+    }
 }

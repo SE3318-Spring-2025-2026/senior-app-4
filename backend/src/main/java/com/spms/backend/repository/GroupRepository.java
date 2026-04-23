@@ -16,9 +16,6 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
     java.util.List<Group> findByStatus(com.spms.backend.model.GroupStatus status);
     java.util.List<Group> findByAdvisorIsNullAndStatusNot(com.spms.backend.model.GroupStatus status);
 
-    // --- ISSUE İÇİN YENİ EKLENEN METOTLAR ---
-
-    // 1. Profesör için: advisor nesnesinin içindeki userId'ye göre arama yapıyoruz
     @Query("SELECT g FROM Group g WHERE g.advisor.userId = :advisorId " +
            "AND (:status IS NULL OR g.status = :status) " +
            "AND (:groupName IS NULL OR LOWER(g.groupName) LIKE LOWER(CONCAT('%', :groupName, '%'))) " +
@@ -30,11 +27,13 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
                                         @Param("groupName") String groupName, 
                                         @Param("advisorAssigned") Boolean advisorAssigned, 
                                         Pageable pageable);
-    
+
+    @Query("SELECT g FROM Group g WHERE g.advisor.userId = :advisorId")
+    Page<Group> findByAdvisorId(@Param("advisorId") Long advisorId, Pageable pageable);
+
     @Query("SELECT g.status, COUNT(g) FROM Group g GROUP BY g.status")
     List<Object[]> countGroupsByStatus();
 
-    // 2. Öğrenci için: Kendi grubunu en üste koyan kod
     @Query("SELECT g FROM Group g LEFT JOIN g.members m " +
            "WHERE (:status IS NULL OR g.status = :status) " +
            "AND (:groupName IS NULL OR LOWER(g.groupName) LIKE LOWER(CONCAT('%', :groupName, '%'))) " +
@@ -48,7 +47,10 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
                                                      @Param("advisorAssigned") Boolean advisorAssigned, 
                                                      Pageable pageable);
 
-    // 3. Genel (Coordinator/Guest) için filtreli getirme
+    @Query("SELECT g FROM Group g LEFT JOIN g.members m " +
+           "ORDER BY CASE WHEN m.user.userId = :studentId THEN 0 ELSE 1 END, g.id ASC")
+    Page<Group> findAllWithStudentGroupFirst(@Param("studentId") Long studentId, Pageable pageable);
+
     @Query("SELECT g FROM Group g " +
            "WHERE (:status IS NULL OR g.status = :status) " +
            "AND (:groupName IS NULL OR LOWER(g.groupName) LIKE LOWER(CONCAT('%', :groupName, '%'))) " +
@@ -59,4 +61,6 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
                                 @Param("groupName") String groupName, 
                                 @Param("advisorAssigned") Boolean advisorAssigned, 
                                 Pageable pageable);
+
+    long countByAdvisor_UserId(Long advisorId);
 }

@@ -1,11 +1,13 @@
 package com.spms.backend.controller;
 
+import com.spms.backend.dto.request.GithubBindingRequest;
 import com.spms.backend.dto.request.GroupCreateRequestDto;
 import com.spms.backend.dto.request.GroupUpdateRequestDto;
 import com.spms.backend.dto.request.InviteMemberRequestDto;
 import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.GroupDetailDto;
 import com.spms.backend.dto.response.GroupResponseDto;
+import com.spms.backend.dto.response.IntegrationsTestResponse;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.dto.response.GithubIntegrationResponse;
 import com.spms.backend.dto.response.AuditLogResponseDto;
@@ -53,7 +55,7 @@ public class GroupController {
     @PostMapping("/{groupId}/leave")
     public ResponseEntity<Void> leaveGroup(
             @PathVariable Long groupId,
-            @RequestAttribute("jwt_user_id") Object userId) {
+            @RequestAttribute("jwt_userId") Object userId) {
         
         Long requesterId = Long.valueOf(userId.toString());
         groupService.leaveGroup(groupId, requesterId);
@@ -189,6 +191,34 @@ public class GroupController {
                 "message", "Membership invitation sent successfully"
         ));
     }
+    // ==============================================================================
+    // GITHUB ENTEGRASYON UÇ NOKTALARI (ISSUE #...)
+    // ==============================================================================
+
+    @PostMapping("/{groupId}/integrations/github")
+    public ResponseEntity<Void> bindGithubIntegration(
+            @PathVariable Long groupId,
+            @RequestAttribute("jwt_userId") Long requesterId, 
+            @Valid @RequestBody GithubBindingRequest request) {
+        groupService.bindGithubIntegration(groupId, requesterId, request);
+        return ResponseEntity.ok().build();
+    }
+
+
+
+    @DeleteMapping("/{groupId}/integrations/github")
+    public ResponseEntity<Void> unbindGithubIntegration(
+            @PathVariable Long groupId,
+            @RequestAttribute("jwt_userId") Long requesterId) {
+        groupService.unbindGithubIntegration(groupId, requesterId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{groupId}/integrations/test")
+    public ResponseEntity<IntegrationsTestResponse> testIntegrations(
+            @PathVariable Long groupId,
+            @RequestAttribute("jwt_userId") Long requesterId) {
+        return ResponseEntity.ok(groupService.testIntegrations(groupId, requesterId));}
 
     @PostMapping("/{groupId}/advisor/transfer")
     public ResponseEntity<?> transferAdvisor(

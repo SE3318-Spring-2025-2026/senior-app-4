@@ -8,7 +8,6 @@ import GithubStatusCard from "@/components/GithubStatusCard";
 import IntegrationTestCard from "@/components/IntegrationTestCard";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import AppTopbar from "@/components/AppTopbar";
-import { useNotifications } from "@/components/NotificationProvider";
 import { fetchGroupDetail } from "@/lib/groups-api";
 import { fetchGithubIntegration, type GithubIntegrationApiResponse } from "@/lib/integrations-api";
 import { getUser } from "@/lib/auth";
@@ -17,7 +16,6 @@ export default function GithubIntegrationPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
 
-    const { unreadOrPendingCount } = useNotifications();
     const currentUser = getUser();
 
     const [group, setGroup] = useState<any>(null);
@@ -101,10 +99,7 @@ export default function GithubIntegrationPage() {
         <>
             <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
                 <div className="mx-auto max-w-4xl space-y-8">
-                    <AppTopbar
-                        title="GitHub Integration"
-                        notificationCount={unreadOrPendingCount}
-                    />
+                    <AppTopbar />
 
                     <Link
                         href={`/groups/${groupId}`}
