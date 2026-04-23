@@ -24,8 +24,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.spms.backend.annotation.AuditableOperation;
-import com.spms.backend.model.ActionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -147,27 +145,23 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
-    @AuditableOperation(actionType = ActionType.ADVISOR_REJECTED)
     public void withdrawAdvisorRequest(Long notificationId, Long requesterId) {
-
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new com.spms.backend.exception.NotFoundException(
-                        "Advisor request not found with id: " + notificationId));
+                .orElseThrow(() -> new BadRequestException("Advisor request notification not found."));
 
         if (notification.getType() != NotificationType.ADVISOR_REQUEST) {
-            throw new com.spms.backend.exception.BadRequestException(
-                    "Notification is not an advisor request.");
+            throw new BadRequestException("Notification is not an advisor request.");
         }
 
         if (notification.getStatus() != NotificationStatus.PENDING) {
-            throw new com.spms.backend.exception.BadRequestException(
+            throw new BadRequestException(
                     "Only pending advisor requests can be withdrawn. Current status: "
                             + notification.getStatus().name());
         }
 
         if (notification.getFromUser() == null
                 || !notification.getFromUser().getUserId().equals(requesterId)) {
-            throw new com.spms.backend.exception.ForbiddenException(
+            throw new UnauthorizedException(
                     "You are not authorized to withdraw this advisor request.");
         }
 
