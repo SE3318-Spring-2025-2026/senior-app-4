@@ -627,19 +627,4 @@ public class GroupServiceImpl implements GroupService {
 
         return new GroupFormationReportDto(totalGroups, formedGroupsCnt, unadvisedGroupsCnt, details);
     }
-
-    @Override
-    @Transactional(readOnly = true)
-    public java.util.List<com.spms.backend.dto.response.GroupAdvisorAssignmentDto> getAdvisorAssignments() {
-        return groupRepository.findAll().stream()
-                .filter(g -> g.getAdvisor() != null)
-                .map(g -> new com.spms.backend.dto.response.GroupAdvisorAssignmentDto(
-                        g.getId(),
-                        g.getGroupName(),
-                        g.getLeader() != null ? g.getLeader().getFullName() : "N/A",
-                        g.getAdvisor().getFullName(),
-                        g.getStatus().name()
-                ))
-                .collect(java.util.stream.Collectors.toList());
-    }
 }

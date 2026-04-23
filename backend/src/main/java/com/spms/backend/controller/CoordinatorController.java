@@ -29,23 +29,6 @@ public class CoordinatorController {
     }
 
     // ── GET /api/v1/coordinator/schedule ────────────────────────────────
-    // ... (existing codes)
-    
-    // ── GET /api/v1/coordinator/advisor-assignments ─────────────────────
-
-    @Operation(summary = "Get list of all assigned teams and their advisors (P4-ASSIGN-1)")
-    @GetMapping("/advisor-assignments")
-    public ResponseEntity<List<com.spms.backend.dto.response.GroupAdvisorAssignmentDto>> getAdvisorAssignments(
-            HttpServletRequest httpReq) {
-
-        String role = (String) httpReq.getAttribute("jwt_role");
-        if (!"coordinator".equals(role)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-
-        List<com.spms.backend.dto.response.GroupAdvisorAssignmentDto> assignments = groupService.getAdvisorAssignments();
-        return ResponseEntity.ok(assignments);
-    }
 
     @Operation(summary = "Get current deadline schedule (D11)")
     @GetMapping("/schedule")

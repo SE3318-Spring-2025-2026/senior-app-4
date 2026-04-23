@@ -26,9 +26,6 @@ public interface GroupService {
     
     void disbandGroup(Long groupId, Long requesterId, String requesterRole);
 
-    /** coordinator_fX: Retrieve all system group-advisor mappings. */
-    List<com.spms.backend.dto.response.GroupAdvisorAssignmentDto> getAdvisorAssignments();
-
     void bindJiraIntegration(Long groupId, Long requesterId, JiraBindingRequest request);
     JiraIntegrationResponse getJiraIntegration(Long groupId);
     GithubIntegrationResponse getGithubIntegration(Long groupId);
