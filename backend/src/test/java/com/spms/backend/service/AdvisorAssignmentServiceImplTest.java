@@ -86,6 +86,20 @@ class AdvisorAssignmentServiceImplTest {
     }
 
     @Test
+    void releaseAdvisor_returns400WhenAdvisorSetButStatusNotAdvised() {
+        User advisor = advisor(300L);
+        Group group = groupWith(10L, leader(200L), advisor);
+        group.setStatus(GroupStatus.FORMING);
+        when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
+
+        assertThrows(BadRequestException.class,
+                () -> service.releaseAdvisor(10L, 300L, "professor"));
+
+        verify(groupRepository, never()).save(any());
+        verify(auditLogRepository, never()).save(any());
+    }
+
+    @Test
     void releaseAdvisor_returns403WhenRequesterIsNotCurrentAdvisor() {
         User currentAdvisor = advisor(300L);
         Group group = groupWith(10L, leader(200L), currentAdvisor);
@@ -147,6 +161,7 @@ class AdvisorAssignmentServiceImplTest {
         group.setId(groupId);
         group.setLeader(leader);
         group.setAdvisor(advisor);
+        group.setStatus(advisor != null ? GroupStatus.ADVISED : GroupStatus.FORMING);
         return group;
     }
 

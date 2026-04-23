@@ -186,6 +186,10 @@ public class AdvisorReleaseApiTest extends BaseApiTest {
             .post("/api/v1/advisor-assignments/" + groupId + "/release")
         .then()
             .statusCode(400);
+
+        Group reloaded = groupRepository.findById(groupId).orElseThrow();
+        assertNull(reloaded.getAdvisor(), "advisor must remain null on 400");
+        assertEquals(com.spms.backend.model.GroupStatus.FORMING, reloaded.getStatus(), "status must remain FORMING on 400");
     }
 
     @Test

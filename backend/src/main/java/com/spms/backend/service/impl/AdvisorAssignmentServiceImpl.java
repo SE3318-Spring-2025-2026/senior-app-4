@@ -47,7 +47,7 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
                 .orElseThrow(() -> new NotFoundException("Group not found."));
 
         User currentAdvisor = group.getAdvisor();
-        if (currentAdvisor == null) {
+        if (currentAdvisor == null || group.getStatus() != GroupStatus.ADVISED) {
             throw new BadRequestException("Group does not have an assigned advisor.");
         }
 
