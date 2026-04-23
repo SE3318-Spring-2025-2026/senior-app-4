@@ -33,8 +33,8 @@ public class NotificationServiceImpl implements NotificationService {
     private static final Logger log = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
     public NotificationServiceImpl(NotificationRepository notificationRepository,
-                                   UserRepository userRepository,
-                                   @Lazy MemberService memberService) {
+            UserRepository userRepository,
+            @Lazy MemberService memberService) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.memberService = memberService;
@@ -57,7 +57,6 @@ public class NotificationServiceImpl implements NotificationService {
         User professor = userRepository.findById(request.professorId())
                 .orElseThrow(() -> new BadRequestException("Professor not found."));
 
-
         Notification notification = new Notification();
         notification.setType(NotificationType.ADVISOR_REQUEST);
         notification.setStatus(NotificationStatus.PENDING);
@@ -79,8 +78,7 @@ public class NotificationServiceImpl implements NotificationService {
         return new AdvisorRequestStatusDto(
                 lastRequest.getId(),
                 lastRequest.getToUser() != null ? lastRequest.getToUser().getFullName() : "Unknown",
-                lastRequest.getStatus().name()
-        );
+                lastRequest.getStatus().name());
     }
 
     @Override
@@ -93,7 +91,9 @@ public class NotificationServiceImpl implements NotificationService {
         request.setStatus(NotificationStatus.CLEARED);
         notificationRepository.save(request);
 
-        // TODO: (Optional) If Process P2.9 requires saving to an Audit Log table, add it here
+        // log_f2 – P2.9 audit: advisor request cancelled
+        log.info("[AUDIT] cancelAdvisorRequest: groupId={} notificationId={} newStatus=CLEARED",
+                groupId, request.getId());
     }
 
     @Override
@@ -108,7 +108,6 @@ public class NotificationServiceImpl implements NotificationService {
     public void clearNotification(Long notificationId, Long userId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new BadRequestException("Notification not found."));
-
 
         if (!notification.getToUser().getUserId().equals(userId)) {
             throw new UnauthorizedException("You are not authorized to clear this notification.");
@@ -155,16 +154,6 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.save(notification);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Page<NotificationDto> getSystemAlerts(Pageable pageable, String role) {
-        // Validation: Only users with the COORDINATOR role can view system alerts
-        if (!"COORDINATOR".equalsIgnoreCase(role)) {
-            throw new UnauthorizedException("You are not authorized to view system alerts! Required role: COORDINATOR.");
-        }
-
-        return Page.empty(pageable);
-    }
 
     @Override
     @Transactional
@@ -188,7 +177,6 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-
     @Override
     @Transactional
     public Notification createSystemAlert(Long toUserId, String message, String alertType, String metadata) {
@@ -206,7 +194,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(readOnly = true)
     public List<Notification> getSystemAlertsByUserId(Long userId) {
-        return notificationRepository.findByToUser_UserIdAndTypeOrderByCreatedAtDesc(userId, NotificationType.SYSTEM_ALERT);
+        return notificationRepository.findByToUser_UserIdAndTypeOrderByCreatedAtDesc(userId,
+                NotificationType.SYSTEM_ALERT);
     }
 
     @Override
@@ -226,11 +215,11 @@ public class NotificationServiceImpl implements NotificationService {
                 notif.getFromUser() != null ? notif.getFromUser().getFullName() : null,
                 notif.getToUser() != null ? notif.getToUser().getUserId() : null,
                 notif.getGroupId(),
-                notif.getCreatedAt()
-        );
+                notif.getCreatedAt());
     }
+
     @Override
-public void sendMembershipInvite(Long toUserId, Long groupId, String groupName) {
-    log.info("Membership invite notification sent to user {} for group {}", toUserId, groupName);
-}
+    public void sendMembershipInvite(Long toUserId, Long groupId, String groupName) {
+        log.info("Membership invite notification sent to user {} for group {}", toUserId, groupName);
+    }
 }
