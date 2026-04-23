@@ -10,7 +10,7 @@ type Props = {
     notifications: Notification[];
     page: number;
     totalPages: number;
-    onRespond: (id: number, decision: NotificationDecision) => void;
+    onRespond: (id: number, decision: NotificationDecision) => Promise<void>;
     onClear: (id: number) => void;
     onPrevPage: () => void;
     onNextPage: () => void;
