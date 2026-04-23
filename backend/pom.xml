@@ -76,7 +76,39 @@
             <version>5.4.0</version>
             <scope>test</scope>
         </dependency>
+
+
+
+        <!-- info about lombok; -->
+        <!-- lombok is optional, but it can help reduce boilerplate code for getters/setters, constructors, etc. -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
     </dependencies>
+
+
+
+
+
+    
 
     <build>
         <plugins>

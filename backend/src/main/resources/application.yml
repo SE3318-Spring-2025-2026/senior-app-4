@@ -1,6 +1,6 @@
 spring:
   config:
-    import: "optional:file:./backend/application.properties, optional:file:./application.properties"
+    import: "optional:file:./application.properties"
 
   application:
     name: spms-backend
@@ -10,6 +10,9 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 2
+  flyway:
+    baseline-on-migrate: true
+    enabled: true
 
   jpa:
     hibernate:

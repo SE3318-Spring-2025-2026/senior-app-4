@@ -22,10 +22,14 @@ public class CoordinatorController {
 
     private final ScheduleService scheduleService;
     private final com.spms.backend.repository.UserRepository userRepository;
+    private final com.spms.backend.service.GroupService groupService;
 
-    public CoordinatorController(ScheduleService scheduleService, com.spms.backend.repository.UserRepository userRepository) {
+    public CoordinatorController(ScheduleService scheduleService, 
+                                 com.spms.backend.repository.UserRepository userRepository,
+                                 com.spms.backend.service.GroupService groupService) {
         this.scheduleService = scheduleService;
         this.userRepository = userRepository;
+        this.groupService = groupService;
     }
 
     // ── GET /api/v1/coordinator/schedule ────────────────────────────────
@@ -93,5 +97,14 @@ public class CoordinatorController {
 
         List<com.spms.backend.dto.response.CoordinatorStudentResponseDto> results = userRepository.searchStudentsWithGroups(query);
         return ResponseEntity.ok(results);
+    }
+
+    // ── GET /api/v1/coordinator/reports/group-formation ───────────────────────────
+
+    @Operation(summary = "Get detailed group formation report")
+    @GetMapping("/reports/group-formation")
+    public ResponseEntity<com.spms.backend.dto.response.GroupFormationReportDto> getGroupFormationReport(HttpServletRequest httpReq) {
+        String role = (String) httpReq.getAttribute("jwt_role");
+        return ResponseEntity.ok(groupService.getGroupFormationReport(role));
     }
 }

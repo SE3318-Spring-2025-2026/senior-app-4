@@ -9,9 +9,11 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 public interface NotificationService {
-    void requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId);
+    Long requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId);
     AdvisorRequestStatusDto getAdvisorRequestStatus(Long groupId);
     void cancelAdvisorRequest(Long groupId);
+    /** withdrawRequest / revokeNotification — sets notification status to REVOKED (soft-delete). */
+    void withdrawAdvisorRequest(Long notificationId, Long requesterId);
     Page<NotificationDto> getUserNotifications(Long userId, Pageable pageable);
     void clearNotification(Long notificationId, Long userId);
     void clearAllNotifications(Long userId);
@@ -21,4 +23,5 @@ public interface NotificationService {
     com.spms.backend.model.notification.Notification createSystemAlert(Long toUserId, String message, String alertType, String metadata);
     List<com.spms.backend.model.notification.Notification> getSystemAlertsByUserId(Long userId);
     boolean systemAlertExists(Long toUserId, String alertType);
+    void sendMembershipInvite(Long toUserId, Long groupId, String groupName);
 }
