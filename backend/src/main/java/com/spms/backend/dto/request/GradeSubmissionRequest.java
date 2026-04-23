@@ -6,17 +6,17 @@ import jakarta.validation.constraints.Min;
 
 public class GradeSubmissionRequest {
     
-    @NotNull(message = "Score cannot be null")
-    @Min(value = 0, message = "Score must be at least 0")
-    @Max(value = 100, message = "Score must not exceed 100")
-    private Double score;
+    @NotNull(message = "Grade cannot be null")
+    @Min(value = 0, message = "Grade must be at least 0")
+    @Max(value = 100, message = "Grade must not exceed 100")
+    private Double grade;
     
     private String comments;
 
     public GradeSubmissionRequest() {}
 
-    public Double getScore() { return score; }
-    public void setScore(Double score) { this.score = score; }
+    public Double getGrade() { return grade; }
+    public void setGrade(Double grade) { this.grade = grade; }
 
     public String getComments() { return comments; }
     public void setComments(String comments) { this.comments = comments; }

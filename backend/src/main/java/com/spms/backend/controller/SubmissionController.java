@@ -4,6 +4,7 @@ import com.spms.backend.dto.SubmissionResponse;
 import com.spms.backend.dto.response.ErrorResponse;
 import com.spms.backend.model.enums.DeliverableType;
 import com.spms.backend.service.SubmissionService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -62,7 +63,7 @@ public class SubmissionController {
     @PostMapping("/{id}/grades")
     public ResponseEntity<?> submitGrade(
             @PathVariable Long id,
-            @RequestBody GradeSubmissionRequest request,
+            @Valid @RequestBody GradeSubmissionRequest request,
             @RequestAttribute("jwt_userId") Object userId) {
         try {
             Long reviewerId = Long.valueOf(userId.toString());
