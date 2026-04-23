@@ -18,6 +18,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.spms.backend.annotation.AuditableOperation;
+import com.spms.backend.model.ActionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,8 +35,8 @@ public class NotificationServiceImpl implements NotificationService {
     private static final Logger log = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
     public NotificationServiceImpl(NotificationRepository notificationRepository,
-            UserRepository userRepository,
-            @Lazy MemberService memberService) {
+                                   UserRepository userRepository,
+                                   @Lazy MemberService memberService) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.memberService = memberService;
@@ -42,7 +44,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
-    public void requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId) {
+    public Long requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId) {
 
         Optional<Notification> existingPendingRequest = notificationRepository
                 .findByGroupIdAndTypeAndStatus(groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
@@ -57,6 +59,7 @@ public class NotificationServiceImpl implements NotificationService {
         User professor = userRepository.findById(request.professorId())
                 .orElseThrow(() -> new BadRequestException("Professor not found."));
 
+
         Notification notification = new Notification();
         notification.setType(NotificationType.ADVISOR_REQUEST);
         notification.setStatus(NotificationStatus.PENDING);
@@ -65,7 +68,7 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setFromUser(leader);
         notification.setToUser(professor);
 
-        notificationRepository.save(notification);
+        return notificationRepository.save(notification).getId();
     }
 
     @Override
@@ -78,7 +81,8 @@ public class NotificationServiceImpl implements NotificationService {
         return new AdvisorRequestStatusDto(
                 lastRequest.getId(),
                 lastRequest.getToUser() != null ? lastRequest.getToUser().getFullName() : "Unknown",
-                lastRequest.getStatus().name());
+                lastRequest.getStatus().name()
+        );
     }
 
     @Override
@@ -97,6 +101,37 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    @Transactional
+    @AuditableOperation(actionType = ActionType.ADVISOR_REJECTED)
+    public void withdrawAdvisorRequest(Long notificationId, Long requesterId) {
+
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new com.spms.backend.exception.NotFoundException(
+                        "Advisor request not found with id: " + notificationId));
+
+        if (notification.getType() != NotificationType.ADVISOR_REQUEST) {
+            throw new com.spms.backend.exception.BadRequestException(
+                    "Notification is not an advisor request.");
+        }
+
+        if (notification.getStatus() != NotificationStatus.PENDING) {
+            throw new com.spms.backend.exception.BadRequestException(
+                    "Only pending advisor requests can be withdrawn. Current status: "
+                            + notification.getStatus().name());
+        }
+
+        if (notification.getFromUser() == null
+                || !notification.getFromUser().getUserId().equals(requesterId)) {
+            throw new com.spms.backend.exception.ForbiddenException(
+                    "You are not authorized to withdraw this advisor request.");
+        }
+
+        notification.setStatus(NotificationStatus.REVOKED);
+        notificationRepository.save(notification);
+    }
+
+
+    @Override
     @Transactional(readOnly = true)
     public Page<NotificationDto> getUserNotifications(Long userId, Pageable pageable) {
         return notificationRepository.findByToUser_UserId(userId, pageable)
@@ -108,6 +143,7 @@ public class NotificationServiceImpl implements NotificationService {
     public void clearNotification(Long notificationId, Long userId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new BadRequestException("Notification not found."));
+
 
         if (!notification.getToUser().getUserId().equals(userId)) {
             throw new UnauthorizedException("You are not authorized to clear this notification.");
@@ -140,7 +176,6 @@ public class NotificationServiceImpl implements NotificationService {
 
         if ("accept".equalsIgnoreCase(decision)) {
             notification.setStatus(NotificationStatus.ACCEPTED);
-            // ns_f4 → P2.2: student accepted the membership invite, add them to the group
             if (notification.getType() == NotificationType.MEMBERSHIP_INVITE
                     && notification.getGroupId() != null) {
                 memberService.addMember(notification.getGroupId(), userId);
@@ -154,6 +189,14 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.save(notification);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<NotificationDto> getSystemAlerts(Pageable pageable, String role) {
+        if (!"COORDINATOR".equalsIgnoreCase(role)) {
+            throw new UnauthorizedException("You are not authorized to view system alerts! Required role: COORDINATOR.");
+        }
+        return Page.empty(pageable);
+    }
 
     @Override
     @Transactional
@@ -177,6 +220,7 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
+
     @Override
     @Transactional
     public Notification createSystemAlert(Long toUserId, String message, String alertType, String metadata) {
@@ -194,8 +238,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(readOnly = true)
     public List<Notification> getSystemAlertsByUserId(Long userId) {
-        return notificationRepository.findByToUser_UserIdAndTypeOrderByCreatedAtDesc(userId,
-                NotificationType.SYSTEM_ALERT);
+        return notificationRepository.findByToUser_UserIdAndTypeOrderByCreatedAtDesc(userId, NotificationType.SYSTEM_ALERT);
     }
 
     @Override
@@ -215,9 +258,9 @@ public class NotificationServiceImpl implements NotificationService {
                 notif.getFromUser() != null ? notif.getFromUser().getFullName() : null,
                 notif.getToUser() != null ? notif.getToUser().getUserId() : null,
                 notif.getGroupId(),
-                notif.getCreatedAt());
+                notif.getCreatedAt()
+        );
     }
-
     @Override
     public void sendMembershipInvite(Long toUserId, Long groupId, String groupName) {
         log.info("Membership invite notification sent to user {} for group {}", toUserId, groupName);
