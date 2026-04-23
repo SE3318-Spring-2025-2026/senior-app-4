@@ -4,10 +4,13 @@ import { showToast } from "@/components/toast/ToastContext";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import AdvisorRequestPanel from "@/components/AdvisorRequestPanel";
 import StatusBadge from "@/components/StatusBadge";
 import GithubStatusCard from "@/components/GithubStatusCard";
 import JiraStatusCard from "@/components/JiraStatusCard";
 import {
+    ApiGroupDetail,
+    ApiGroupMember,
     fetchGroupDetail,
     updateGroupNameApi,
     removeMemberApi,
@@ -36,7 +39,7 @@ export default function GroupDetailPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
 
-    const [group, setGroup] = useState<any>(null);
+    const [group, setGroup] = useState<ApiGroupDetail | null>(null);
     const [githubIntegration, setGithubIntegration] =
         useState<GithubIntegrationApiResponse | null>(null);
     const [jiraIntegration, setJiraIntegration] =
@@ -44,24 +47,20 @@ export default function GroupDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
-    // Update group name state
     const [newGroupName, setNewGroupName] = useState("");
     const [updatingName, setUpdatingName] = useState(false);
     const [updateSuccess, setUpdateSuccess] = useState("");
     const [updateError, setUpdateError] = useState("");
 
-    // Invite state
     const [inviteStudentId, setInviteStudentId] = useState("");
     const [inviting, setInviting] = useState(false);
     const [inviteSuccess, setInviteSuccess] = useState("");
     const [inviteError, setInviteError] = useState("");
 
-    // Remove member state
     const [removingMemberId, setRemovingMemberId] = useState<number | null>(null);
     const [removeError, setRemoveError] = useState("");
     const [removeSuccess, setRemoveSuccess] = useState("");
 
-    // Leave group state
     const [leaving, setLeaving] = useState(false);
     const [leaveError, setLeaveError] = useState("");
 
@@ -71,10 +70,10 @@ export default function GroupDetailPage() {
 
     const currentUserId = Number(
         decoded?.userId ??
-        decoded?.jwt_userId ??
-        decoded?.user_id ??
-        decoded?.id ??
-        decoded?.sub
+            decoded?.jwt_userId ??
+            decoded?.user_id ??
+            decoded?.id ??
+            decoded?.sub
     );
 
     const isLeader =
@@ -111,7 +110,9 @@ export default function GroupDetailPage() {
             } catch (err) {
                 if (cancelled) return;
                 const message =
-                    err instanceof Error ? err.message : "Failed to load group details.";
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to load group details.";
                 setError(message);
             } finally {
                 if (!cancelled) setLoading(false);
@@ -144,14 +145,16 @@ export default function GroupDetailPage() {
         setUpdatingName(true);
         try {
             await updateGroupNameApi(groupId, trimmedName);
-            setGroup((prev: any) =>
+            setGroup((prev: ApiGroupDetail | null) =>
                 prev ? { ...prev, groupName: trimmedName } : prev
             );
             setUpdateSuccess("Group name updated successfully!");
             showToast("Group name updated successfully!", "success");
         } catch (err) {
             const message =
-                err instanceof Error ? err.message : "Failed to update group name.";
+                err instanceof Error
+                    ? err.message
+                    : "Failed to update group name.";
             setUpdateError(message);
             showToast(message, "error");
         } finally {
@@ -201,11 +204,13 @@ export default function GroupDetailPage() {
         try {
             await removeMemberApi(groupId, studentId);
 
-            setGroup((prev: any) => {
+            setGroup((prev: ApiGroupDetail | null) => {
                 if (!prev) return prev;
                 return {
                     ...prev,
-                    members: prev.members.filter((m: any) => m.userId !== studentId),
+                    members: prev.members.filter(
+                        (member: ApiGroupMember) => member.userId !== studentId
+                    ),
                 };
             });
 
@@ -260,12 +265,11 @@ export default function GroupDetailPage() {
         );
     }
 
-
     return (
         <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
             <div className="mx-auto max-w-5xl">
                 <Link href="/groups" className="text-sm text-blue-400 hover:underline">
-                    ← Back to groups
+                    {"<- Back to groups"}
                 </Link>
 
                 <div className="mt-6 mb-6 flex items-start justify-between gap-4">
@@ -318,18 +322,28 @@ export default function GroupDetailPage() {
 
                         {updateSuccess && (
                             <p className="mt-3 text-sm text-green-400 font-medium">
-                                ✓ {updateSuccess}
+                                Success: {updateSuccess}
                             </p>
                         )}
                         {updateError && (
                             <p className="mt-3 text-sm text-red-400 font-medium">
-                                ✗ {updateError}
+                                Error: {updateError}
                             </p>
                         )}
                     </div>
                 )}
 
                 <div className="grid gap-6 md:grid-cols-2 mb-8">
+                    <Link href={`/groups/${group.id}/submissions/new`}>
+                        <div className="cursor-pointer rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">
+                            <p className="mb-2 text-sm text-blue-200">Deliverables</p>
+                            <p className="font-medium text-white">Submit Proposal / SoW</p>
+                            <p className="mt-2 text-sm text-blue-100/70">
+                                Open the student submission form for Process 3 deliverables.
+                            </p>
+                        </div>
+                    </Link>
+
                     <GithubStatusCard
                         integration={
                             githubIntegration?.data?.status === "inactive"
@@ -357,6 +371,12 @@ export default function GroupDetailPage() {
                     </div>
                 </div>
 
+                <AdvisorRequestPanel
+                    groupId={group.id}
+                    leaderId={group.leaderId}
+                    advisorId={group.advisorId ?? null}
+                />
+
                 <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-7 shadow-lg shadow-black/20 backdrop-blur mb-6">
                     <div className="flex items-center justify-between mb-5">
                         <h2 className="text-2xl font-semibold">Members</h2>
@@ -366,7 +386,7 @@ export default function GroupDetailPage() {
                     </div>
 
                     <div className="space-y-4">
-                        {group.members?.map((member: any) => (
+                        {group.members?.map((member: ApiGroupMember) => (
                             <div
                                 key={member.userId}
                                 className="flex items-center justify-between rounded-xl bg-white/5 px-5 py-4"
@@ -408,12 +428,12 @@ export default function GroupDetailPage() {
 
                     {removeSuccess && (
                         <p className="mt-4 text-sm text-green-400 font-medium">
-                            ✓ {removeSuccess}
+                            Success: {removeSuccess}
                         </p>
                     )}
                     {removeError && (
                         <p className="mt-4 text-sm text-red-400 font-medium">
-                            ✗ {removeError}
+                            Error: {removeError}
                         </p>
                     )}
                 </div>
@@ -458,12 +478,12 @@ export default function GroupDetailPage() {
 
                         {inviteSuccess && (
                             <p className="mt-3 text-sm text-green-400 font-medium">
-                                ✓ {inviteSuccess}
+                                Success: {inviteSuccess}
                             </p>
                         )}
                         {inviteError && (
                             <p className="mt-3 text-sm text-red-400 font-medium">
-                                ✗ {inviteError}
+                                Error: {inviteError}
                             </p>
                         )}
                     </div>
@@ -486,7 +506,7 @@ export default function GroupDetailPage() {
 
                         {leaveError && (
                             <p className="mt-3 text-sm text-red-400 font-medium">
-                                ✗ {leaveError}
+                                Error: {leaveError}
                             </p>
                         )}
                     </div>
