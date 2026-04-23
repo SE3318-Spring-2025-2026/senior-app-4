@@ -9,23 +9,23 @@ public class GradeUpdateRequest {
     @NotNull(message = "Score cannot be null")
     @Min(value = 0, message = "Score cannot be less than 0")
     @Max(value = 100, message = "Score cannot be more than 100")
-    private Integer score;
+    private Double score;
 
     private String feedback;
 
     public GradeUpdateRequest() {
     }
 
-    public GradeUpdateRequest(Integer score, String feedback) {
+    public GradeUpdateRequest(Double score, String feedback) {
         this.score = score;
         this.feedback = feedback;
     }
 
-    public Integer getScore() {
+    public Double getScore() {
         return score;
     }
 
-    public void setScore(Integer score) {
+    public void setScore(Double score) {
         this.score = score;
     }
 

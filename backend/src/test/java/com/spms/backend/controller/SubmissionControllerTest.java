@@ -58,7 +58,7 @@ class SubmissionControllerTest {
                 Long gradeId = 1L;
                 Long professorId = 100L;
 
-                Grade mockGrade = new Grade(gradeId, submissionId, professorId, 85, "Good");
+                Grade mockGrade = new Grade(gradeId, submissionId, professorId, 85.0, "Good", Instant.now());
                 when(gradeRepository.findByIdAndSubmissionId(gradeId, submissionId)).thenReturn(Optional.of(mockGrade));
 
                 // Mock schedule with a future deadline
@@ -67,7 +67,7 @@ class SubmissionControllerTest {
                                 new ScheduleResponse(1L, futureDate.toString(), futureDate.toString(),
                                                 Instant.now().toString()));
 
-                GradeUpdateRequest req = new GradeUpdateRequest(95, "Excellent");
+                GradeUpdateRequest req = new GradeUpdateRequest(95.0, "Excellent");
 
                 mockMvc.perform(put("/api/v1/submissions/{submissionId}/grades/{gradeId}", submissionId, gradeId)
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -86,10 +86,10 @@ class SubmissionControllerTest {
                 Long realProfessorId = 100L;
                 Long requestingProfessorId = 200L;
 
-                Grade mockGrade = new Grade(gradeId, submissionId, realProfessorId, 85, "Good");
+                Grade mockGrade = new Grade(gradeId, submissionId, realProfessorId, 85.0, "Good", Instant.now());
                 when(gradeRepository.findByIdAndSubmissionId(gradeId, submissionId)).thenReturn(Optional.of(mockGrade));
 
-                GradeUpdateRequest req = new GradeUpdateRequest(95, "Excellent");
+                GradeUpdateRequest req = new GradeUpdateRequest(95.0, "Excellent");
 
                 mockMvc.perform(put("/api/v1/submissions/{submissionId}/grades/{gradeId}", submissionId, gradeId)
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -105,7 +105,7 @@ class SubmissionControllerTest {
                 Long gradeId = 1L;
                 Long professorId = 100L;
 
-                Grade mockGrade = new Grade(gradeId, submissionId, professorId, 85, "Good");
+                Grade mockGrade = new Grade(gradeId, submissionId, professorId, 85.0, "Good", Instant.now());
                 when(gradeRepository.findByIdAndSubmissionId(gradeId, submissionId)).thenReturn(Optional.of(mockGrade));
 
                 // Mock schedule with a past deadline
@@ -114,7 +114,7 @@ class SubmissionControllerTest {
                                 new ScheduleResponse(1L, pastDate.toString(), pastDate.toString(),
                                                 Instant.now().toString()));
 
-                GradeUpdateRequest req = new GradeUpdateRequest(95, "Excellent");
+                GradeUpdateRequest req = new GradeUpdateRequest(95.0, "Excellent");
 
                 mockMvc.perform(put("/api/v1/submissions/{submissionId}/grades/{gradeId}", submissionId, gradeId)
                                 .contentType(MediaType.APPLICATION_JSON)

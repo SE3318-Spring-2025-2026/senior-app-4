@@ -56,6 +56,7 @@ public class GradeService {
 
         grade.setScore(request.getScore());
         grade.setFeedback(request.getFeedback());
+        grade.setGradedAt(Instant.now());
 
         gradeRepository.save(grade);
     }

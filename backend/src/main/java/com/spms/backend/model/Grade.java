@@ -1,6 +1,7 @@
 package com.spms.backend.model;
 
 import jakarta.persistence.*;
+import java.time.Instant;
 
 @Entity
 @Table(name = "grades")
@@ -17,20 +18,24 @@ public class Grade {
     private Long professorId;
 
     @Column(name = "score", nullable = false)
-    private Integer score;
+    private Double score;
 
     @Column(name = "feedback", length = 1000)
     private String feedback;
 
+    @Column(name = "graded_at")
+    private Instant gradedAt;
+
     public Grade() {
     }
 
-    public Grade(Long id, Long submissionId, Long professorId, Integer score, String feedback) {
+    public Grade(Long id, Long submissionId, Long professorId, Double score, String feedback, Instant gradedAt) {
         this.id = id;
         this.submissionId = submissionId;
         this.professorId = professorId;
         this.score = score;
         this.feedback = feedback;
+        this.gradedAt = gradedAt;
     }
 
     public Long getId() {
@@ -57,11 +62,11 @@ public class Grade {
         this.professorId = professorId;
     }
 
-    public Integer getScore() {
+    public Double getScore() {
         return score;
     }
 
-    public void setScore(Integer score) {
+    public void setScore(Double score) {
         this.score = score;
     }
 
@@ -71,5 +76,13 @@ public class Grade {
 
     public void setFeedback(String feedback) {
         this.feedback = feedback;
+    }
+
+    public Instant getGradedAt() {
+        return gradedAt;
+    }
+
+    public void setGradedAt(Instant gradedAt) {
+        this.gradedAt = gradedAt;
     }
 }
