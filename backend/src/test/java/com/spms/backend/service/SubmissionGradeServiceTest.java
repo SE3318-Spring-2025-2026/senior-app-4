@@ -24,7 +24,7 @@ class SubmissionGradeServiceTest {
     @Mock
     private SubmissionRepository submissionRepository;
     @Mock
-    private SubmissionGradeRepository gradeRepository;
+    private GradeRepository gradeRepository;
     @Mock
     private GroupCommitteeAssignmentRepository assignmentRepository;
     @Mock
@@ -44,7 +44,7 @@ class SubmissionGradeServiceTest {
     void submitGrade_DuplicateGrade_ThrowsException() {
         // Arrange
         Long submissionId = 1L;
-        Long reviewerId = 5L;
+        Long professorId = 5L;
         GradeSubmissionRequest request = new GradeSubmissionRequest();
         request.setGrade(85.0);
 
@@ -52,11 +52,11 @@ class SubmissionGradeServiceTest {
         submission.setId(submissionId);
 
         when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(submission));
-        when(gradeRepository.existsBySubmissionIdAndReviewerId(submissionId, reviewerId)).thenReturn(true);
+        when(gradeRepository.existsBySubmissionIdAndProfessorId(submissionId, professorId)).thenReturn(true);
 
         // Act & Assert
         assertThrows(IllegalArgumentException.class, () -> 
-            submissionGradeService.submitGrade(submissionId, reviewerId, request)
+            submissionGradeService.submitGrade(submissionId, professorId, request)
         );
     }
 
@@ -64,7 +64,7 @@ class SubmissionGradeServiceTest {
     void submitGrade_CompletesGradingAndNotifies_WhenAllMembersGraded() {
         // Arrange
         Long submissionId = 1L;
-        Long reviewerId = 5L;
+        Long professorId = 5L;
         Long groupId = 10L;
         GradeSubmissionRequest request = new GradeSubmissionRequest();
         request.setGrade(80.0);
@@ -78,7 +78,7 @@ class SubmissionGradeServiceTest {
         
         CommitteeAdvisor advisor = new CommitteeAdvisor();
         User advisorUser = new User();
-        advisorUser.setUserId(reviewerId);
+        advisorUser.setUserId(professorId);
         advisor.setAdvisor(advisorUser);
         committee.setAdvisors(Collections.singletonList(advisor));
         committee.setJuryMembers(Collections.emptyList());
@@ -91,19 +91,19 @@ class SubmissionGradeServiceTest {
         leader.setUserId(200L); // Group Leader ID
         group.setLeader(leader);
 
-        SubmissionGrade grade = new SubmissionGrade(submissionId, reviewerId, 80.0, null);
-        grade.setGradeId(1L);
+        Grade grade = new Grade(submissionId, professorId, 80.0, null);
+        grade.setId(1L);
 
         when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(submission));
-        when(gradeRepository.existsBySubmissionIdAndReviewerId(submissionId, reviewerId)).thenReturn(false);
+        when(gradeRepository.existsBySubmissionIdAndProfessorId(submissionId, professorId)).thenReturn(false);
         when(assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(groupId, "ASSIGNED"))
                 .thenReturn(Optional.of(assignment));
-        when(gradeRepository.save(any(SubmissionGrade.class))).thenReturn(grade);
+        when(gradeRepository.save(any(Grade.class))).thenReturn(grade);
         when(gradeRepository.findBySubmissionId(submissionId)).thenReturn(Collections.singletonList(grade));
         when(groupRepository.findById(groupId)).thenReturn(Optional.of(group));
 
         // Act
-        GradeSubmissionResponse response = submissionGradeService.submitGrade(submissionId, reviewerId, request);
+        GradeSubmissionResponse response = submissionGradeService.submitGrade(submissionId, professorId, request);
 
         // Assert
         assertTrue(response.getData().getIsGradingComplete());
@@ -119,7 +119,7 @@ class SubmissionGradeServiceTest {
     void submitGrade_DoesNotCompleteGrading_WhenMoreMembersPending() {
         // Arrange
         Long submissionId = 1L;
-        Long reviewerId = 5L;
+        Long professorId = 5L;
         Long groupId = 10L;
         GradeSubmissionRequest request = new GradeSubmissionRequest();
         request.setGrade(80.0);
@@ -144,18 +144,18 @@ class SubmissionGradeServiceTest {
         GroupCommitteeAssignment assignment = new GroupCommitteeAssignment();
         assignment.setCommittee(committee);
 
-        SubmissionGrade grade = new SubmissionGrade(submissionId, reviewerId, 80.0, null);
-        grade.setGradeId(1L);
+        Grade grade = new Grade(submissionId, professorId, 80.0, null);
+        grade.setId(1L);
 
         when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(submission));
-        when(gradeRepository.existsBySubmissionIdAndReviewerId(submissionId, reviewerId)).thenReturn(false);
+        when(gradeRepository.existsBySubmissionIdAndProfessorId(submissionId, professorId)).thenReturn(false);
         when(assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(groupId, "ASSIGNED"))
                 .thenReturn(Optional.of(assignment));
-        when(gradeRepository.save(any(SubmissionGrade.class))).thenReturn(grade);
+        when(gradeRepository.save(any(Grade.class))).thenReturn(grade);
         when(gradeRepository.findBySubmissionId(submissionId)).thenReturn(Collections.singletonList(grade));
 
         // Act
-        GradeSubmissionResponse response = submissionGradeService.submitGrade(submissionId, reviewerId, request);
+        GradeSubmissionResponse response = submissionGradeService.submitGrade(submissionId, professorId, request);
 
         // Assert
         assertFalse(response.getData().getIsGradingComplete());
@@ -163,3 +163,4 @@ class SubmissionGradeServiceTest {
         verify(notificationService, never()).createSystemAlert(anyLong(), anyString(), anyString(), anyString());
     }
 }
+

@@ -11,13 +11,13 @@ public class GradeSubmissionRequest {
     @Max(value = 100, message = "Grade must not exceed 100")
     private Double grade;
     
-    private String comments;
+    private String feedback;
 
     public GradeSubmissionRequest() {}
 
     public Double getGrade() { return grade; }
     public void setGrade(Double grade) { this.grade = grade; }
 
-    public String getComments() { return comments; }
-    public void setComments(String comments) { this.comments = comments; }
+    public String getFeedback() { return feedback; }
+    public void setFeedback(String feedback) { this.feedback = feedback; }
 }

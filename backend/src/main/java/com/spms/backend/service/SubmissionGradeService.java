@@ -6,11 +6,11 @@ import com.spms.backend.model.Committee;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupCommitteeAssignment;
 import com.spms.backend.model.Submission;
-import com.spms.backend.model.SubmissionGrade;
+import com.spms.backend.model.Grade;
 import com.spms.backend.model.enums.SubmissionStatus;
 import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupRepository;
-import com.spms.backend.repository.SubmissionGradeRepository;
+import com.spms.backend.repository.GradeRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import com.spms.backend.service.NotificationService;
 import org.springframework.stereotype.Service;
@@ -22,14 +22,14 @@ import java.util.List;
 public class SubmissionGradeService {
 
     private final SubmissionRepository submissionRepository;
-    private final SubmissionGradeRepository gradeRepository;
+    private final GradeRepository gradeRepository;
     private final GroupCommitteeAssignmentRepository assignmentRepository;
     private final GroupRepository groupRepository;
     private final NotificationService notificationService;
 
     public SubmissionGradeService(
             SubmissionRepository submissionRepository,
-            SubmissionGradeRepository gradeRepository,
+            GradeRepository gradeRepository,
             GroupCommitteeAssignmentRepository assignmentRepository,
             GroupRepository groupRepository,
             NotificationService notificationService) {
@@ -41,18 +41,18 @@ public class SubmissionGradeService {
     }
 
     @Transactional
-    public GradeSubmissionResponse submitGrade(Long submissionId, Long reviewerId, GradeSubmissionRequest request) {
+    public GradeSubmissionResponse submitGrade(Long submissionId, Long professorId, GradeSubmissionRequest request) {
 
         // 1. Check if submission exists
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new IllegalStateException("Submission not found"));
 
-        // 2. Check if this reviewer already submitted a grade
-        if (gradeRepository.existsBySubmissionIdAndReviewerId(submissionId, reviewerId)) {
-            throw new IllegalArgumentException("Reviewer has already submitted a grade for this submission");
+        // 2. Check if this professor already submitted a grade
+        if (gradeRepository.existsBySubmissionIdAndProfessorId(submissionId, professorId)) {
+            throw new IllegalArgumentException("Professor has already submitted a grade for this submission");
         }
 
-        // Process 1: Fetch GroupCommitteeAssignment and verify reviewerId is part of
+        // Process 1: Fetch GroupCommitteeAssignment and verify professorId is part of
         // the assigned committee (Advisor/Jury).
         GroupCommitteeAssignment assignment = assignmentRepository
                 .findTopByGroupIdAndStatusOrderByAssignedAtDesc(submission.getGroupId(), "ASSIGNED")
@@ -61,30 +61,30 @@ public class SubmissionGradeService {
         Committee committee = assignment.getCommittee();
 
         boolean isAuthorized = committee.getAdvisors().stream()
-                .anyMatch(adv -> adv.getAdvisor().getUserId().equals(reviewerId)) ||
+                .anyMatch(adv -> adv.getAdvisor().getUserId().equals(professorId)) ||
                 committee.getJuryMembers().stream()
-                        .anyMatch(jury -> jury.getJuryMember().getUserId().equals(reviewerId));
+                        .anyMatch(jury -> jury.getJuryMember().getUserId().equals(professorId));
 
         if (!isAuthorized) {
-            throw new SecurityException("Reviewer is not authorized to grade this submission");
+            throw new SecurityException("Professor is not authorized to grade this submission");
         }
 
         // 4. Save the grade
-        SubmissionGrade grade = new SubmissionGrade(submissionId, reviewerId, request.getGrade(),
-                request.getComments());
+        Grade grade = new Grade(submissionId, professorId, request.getGrade(),
+                request.getFeedback());
         grade = gradeRepository.save(grade);
 
         // Process 1: Retrieve the actual total number of committee members assigned to
         // this group.
         int totalCommitteeMembers = committee.getAdvisors().size() + committee.getJuryMembers().size();
 
-        List<SubmissionGrade> allGrades = gradeRepository.findBySubmissionId(submissionId);
+        List<Grade> allGrades = gradeRepository.findBySubmissionId(submissionId);
 
         boolean isGradingComplete = false;
         if (allGrades.size() == totalCommitteeMembers) {
             isGradingComplete = true;
             double average = allGrades.stream()
-                    .mapToDouble(SubmissionGrade::getScore)
+                    .mapToDouble(Grade::getScore)
                     .average()
                     .orElse(0.0);
 
@@ -113,6 +113,6 @@ public class SubmissionGradeService {
             }
         }
 
-        return new GradeSubmissionResponse("success", "Grade submitted successfully.", grade.getGradeId(), isGradingComplete);
+        return new GradeSubmissionResponse("success", "Grade submitted successfully.", grade.getId(), isGradingComplete);
     }
 }
