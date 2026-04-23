@@ -4,6 +4,7 @@ import { showToast } from "@/components/toast/ToastContext";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import AdvisorRequestPanel from "@/components/AdvisorRequestPanel";
 import StatusBadge from "@/components/StatusBadge";
 import GithubStatusCard from "@/components/GithubStatusCard";
 import JiraStatusCard from "@/components/JiraStatusCard";
@@ -339,6 +340,12 @@ export default function GroupDetailPage() {
                             <p className="font-medium text-white">Open grading drawer</p>
                             <p className="mt-2 text-sm text-blue-100/70">
                                 Review submission details, add comments, and submit the final score.
+                    <Link href={`/groups/${group.id}/submissions/new`}>
+                        <div className="cursor-pointer rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">
+                            <p className="mb-2 text-sm text-blue-200">Deliverables</p>
+                            <p className="font-medium text-white">Submit Proposal / SoW</p>
+                            <p className="mt-2 text-sm text-blue-100/70">
+                                Open the student submission form for Process 3 deliverables.
                             </p>
                         </div>
                     </Link>
@@ -369,6 +376,12 @@ export default function GroupDetailPage() {
                         <p className="text-white font-medium">{formatDate(group.updatedAt)}</p>
                     </div>
                 </div>
+
+                <AdvisorRequestPanel
+                    groupId={group.id}
+                    leaderId={group.leaderId}
+                    advisorId={group.advisorId ?? null}
+                />
 
                 <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-7 shadow-lg shadow-black/20 backdrop-blur mb-6">
                     <div className="flex items-center justify-between mb-5">
