@@ -24,4 +24,7 @@ public interface NotificationRepository extends JpaRepository<Notification,Long>
     java.util.List<Notification> findByToUser_UserIdAndTypeAndStatus(Long toUserId, NotificationType type, NotificationStatus status);
     
     java.util.List<Notification> findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(Long groupId, NotificationType type, NotificationStatus status, Long excludedUserId);
+
+    java.util.List<Notification> findByTypeOrderByCreatedAtDesc(NotificationType type);
+    java.util.List<Notification> findByGroupIdAndTypeOrderByCreatedAtDesc(Long groupId, NotificationType type);
 }
