@@ -1,12 +1,11 @@
 package com.spms.backend.model;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "grades")
-public class SubmissionGrade {
-    
+public class Grade {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -17,20 +16,25 @@ public class SubmissionGrade {
     @Column(name = "professor_id", nullable = false)
     private Long professorId;
 
-    @Transient
-    private String professorName;
-
     @Column(name = "score", nullable = false)
     private Double score;
 
     @Column(name = "feedback", columnDefinition = "TEXT")
     private String feedback;
 
-    @Column(name = "graded_at", nullable = false, updatable = false)
-    private LocalDateTime gradedAt;
+    @Column(name = "graded_at")
+    private java.time.Instant gradedAt;
 
-    public SubmissionGrade() {
-        this.gradedAt = LocalDateTime.now();
+    public Grade() {
+        this.gradedAt = java.time.Instant.now();
+    }
+
+    public Grade(Long submissionId, Long professorId, Double score, String feedback) {
+        this.submissionId = submissionId;
+        this.professorId = professorId;
+        this.score = score;
+        this.feedback = feedback;
+        this.gradedAt = java.time.Instant.now();
     }
 
     public Long getId() { return id; }
@@ -42,15 +46,12 @@ public class SubmissionGrade {
     public Long getProfessorId() { return professorId; }
     public void setProfessorId(Long professorId) { this.professorId = professorId; }
 
-    public String getProfessorName() { return professorName; }
-    public void setProfessorName(String professorName) { this.professorName = professorName; }
-
     public Double getScore() { return score; }
     public void setScore(Double score) { this.score = score; }
 
     public String getFeedback() { return feedback; }
     public void setFeedback(String feedback) { this.feedback = feedback; }
 
-    public LocalDateTime getGradedAt() { return gradedAt; }
-    public void setGradedAt(LocalDateTime gradedAt) { this.gradedAt = gradedAt; }
+    public java.time.Instant getGradedAt() { return gradedAt; }
+    public void setGradedAt(java.time.Instant gradedAt) { this.gradedAt = gradedAt; }
 }

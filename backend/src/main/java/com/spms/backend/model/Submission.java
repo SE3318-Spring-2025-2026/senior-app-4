@@ -20,8 +20,11 @@ public class Submission {
     @Column(name = "deliverable_type", nullable = false)
     private DeliverableType deliverableType;
 
-    @Column(name = "content", columnDefinition = "TEXT")
+    @Column(name = "content", columnDefinition = "TEXT", nullable = false)
     private String content;
+
+    @Column(name = "file_url", nullable = true)
+    private String fileUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
@@ -36,9 +39,12 @@ public class Submission {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    public Submission() {
+    @PrePersist
+    protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
+
+    public Submission() {}
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -51,6 +57,9 @@ public class Submission {
     
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+    
+    public String getFileUrl() { return fileUrl; }
+    public void setFileUrl(String fileUrl) { this.fileUrl = fileUrl; }
     
     public SubmissionStatus getStatus() { return status; }
     public void setStatus(SubmissionStatus status) { this.status = status; }

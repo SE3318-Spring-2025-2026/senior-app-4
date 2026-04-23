@@ -1,13 +1,13 @@
 package com.spms.backend.repository;
 
-import com.spms.backend.model.SubmissionGrade;
-import java.util.List;
-
+import com.spms.backend.model.Grade;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
-public interface SubmissionGradeRepository extends JpaRepository<SubmissionGrade, Long> {
-    List<SubmissionGrade> findBySubmissionId(Long submissionId);
+public interface GradeRepository extends JpaRepository<Grade, Long> {
     boolean existsBySubmissionIdAndProfessorId(Long submissionId, Long professorId);
+    List<Grade> findBySubmissionId(Long submissionId);
 }

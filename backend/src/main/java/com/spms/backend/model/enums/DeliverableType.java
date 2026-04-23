@@ -3,5 +3,7 @@ package com.spms.backend.model.enums;
 public enum DeliverableType {
     PROPOSAL,
     REVISION,
-    SOW
+    SOW,
+    REVISED_PROPOSAL,
+    STATEMENT_OF_WORK
 }
