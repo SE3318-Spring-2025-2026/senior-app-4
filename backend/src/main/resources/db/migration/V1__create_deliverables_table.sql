@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS submissions (
+CREATE TABLE IF NOT EXISTS deliverables (
     id BIGSERIAL PRIMARY KEY,
     group_id BIGINT NOT NULL,
     deliverable_type VARCHAR(50) NOT NULL,

@@ -56,7 +56,7 @@ public class SubmissionGradeService {
             
         List<SubmissionGrade> grades = gradeRepository.findBySubmissionId(submissionId);
         
-        final int[] totalCommitteeMembers = {3}; // Default to 3, wrapped in array to be effectively final for lambda
+        final int[] totalCommitteeMembers = {3}; 
         
         Submission sub = submissionRepository.findById(submissionId).orElse(null);
         if (sub != null) {
@@ -78,7 +78,6 @@ public class SubmissionGradeService {
         List<GradeItemDTO> gradeItems = new ArrayList<>();
         
         if (!"STUDENT".equalsIgnoreCase(userRole)) {
-            // BUG-1 Fix: Resolve professorName at read time using UserRepository
             gradeItems = grades.stream().map(g -> {
                 String name = userRepository.findById(g.getProfessorId())
                         .map(User::getFullName)
@@ -143,11 +142,11 @@ public class SubmissionGradeService {
         
         grade = gradeRepository.save(grade);
 
-        int totalCommitteeMembers = committee.getAdvisors().size() + committee.getJuryMembers().size();
+        int totalCommitteeMembersCount = committee.getAdvisors().size() + committee.getJuryMembers().size();
         List<SubmissionGrade> allGrades = gradeRepository.findBySubmissionId(submissionId);
 
         boolean isGradingComplete = false;
-        if (allGrades.size() >= totalCommitteeMembers) {
+        if (allGrades.size() >= totalCommitteeMembersCount) {
             isGradingComplete = true;
             double average = allGrades.stream()
                     .mapToDouble(SubmissionGrade::getScore)
