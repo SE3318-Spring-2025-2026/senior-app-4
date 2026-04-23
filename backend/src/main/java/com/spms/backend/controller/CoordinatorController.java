@@ -21,9 +21,11 @@ import java.util.List;
 public class CoordinatorController {
 
     private final ScheduleService scheduleService;
+    private final com.spms.backend.repository.UserRepository userRepository;
 
-    public CoordinatorController(ScheduleService scheduleService) {
+    public CoordinatorController(ScheduleService scheduleService, com.spms.backend.repository.UserRepository userRepository) {
         this.scheduleService = scheduleService;
+        this.userRepository = userRepository;
     }
 
     // ── GET /api/v1/coordinator/schedule ────────────────────────────────
@@ -73,5 +75,23 @@ public class CoordinatorController {
                 alerts.size(),
                 alerts
         ));
+    }
+
+    // ── GET /api/v1/coordinator/students/search ───────────────────────────
+
+    @Operation(summary = "Search students with group information")
+    @GetMapping("/students/search")
+    public ResponseEntity<List<com.spms.backend.dto.response.CoordinatorStudentResponseDto>> searchStudents(
+            @RequestParam("q") String query,
+            HttpServletRequest httpReq,
+            @org.springframework.beans.factory.annotation.Autowired com.spms.backend.repository.UserRepository userRepository) {
+
+        String role = (String) httpReq.getAttribute("jwt_role");
+        if (!"coordinator".equals(role)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        List<com.spms.backend.dto.response.CoordinatorStudentResponseDto> results = userRepository.searchStudentsWithGroups(query);
+        return ResponseEntity.ok(results);
     }
 }

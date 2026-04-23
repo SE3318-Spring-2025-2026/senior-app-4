@@ -18,6 +18,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findAllByRole(String role);
 
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT new com.spms.backend.dto.response.CoordinatorStudentResponseDto(" +
+        "u.userId, u.fullName, u.email, u.studentId, g.id, g.groupName) " +
+        "FROM User u " +
+        "LEFT JOIN GroupMember gm ON gm.user = u " +
+        "LEFT JOIN gm.group g " +
+        "WHERE u.role = 'student' AND (" +
+        "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+        "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+        "LOWER(u.studentId) LIKE LOWER(CONCAT('%', :search, '%')))"
+    )
+    List<com.spms.backend.dto.response.CoordinatorStudentResponseDto> searchStudentsWithGroups(@org.springframework.data.repository.query.Param("search") String search);
+
     default boolean deleteByUserId(Long userId) {
         if (userId == null || findByUserId(userId).isEmpty()) return false;
         deleteById(userId);

@@ -100,6 +100,17 @@ public class InMemoryUserRepository extends AbstractStubJpaRepository<User, Long
     }
 
     @Override
+    public List<com.spms.backend.dto.response.CoordinatorStudentResponseDto> searchStudentsWithGroups(String search) {
+        return usersById.values().stream()
+                .filter(u -> "student".equalsIgnoreCase(u.getRole()) && 
+                       ((u.getFullName() != null && u.getFullName().toLowerCase().contains(search.toLowerCase())) ||
+                        (u.getEmail() != null && u.getEmail().toLowerCase().contains(search.toLowerCase())) ||
+                        (u.getStudentId() != null && u.getStudentId().toLowerCase().contains(search.toLowerCase()))))
+                .map(u -> new com.spms.backend.dto.response.CoordinatorStudentResponseDto(u.getUserId(), u.getFullName(), u.getEmail(), u.getStudentId(), null, null))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public synchronized boolean deleteByUserId(Long userId) {
         User removed = usersById.remove(userId);
         if (removed == null) return false;
