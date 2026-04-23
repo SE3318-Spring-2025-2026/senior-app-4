@@ -9,6 +9,7 @@ import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.repository.GradingCriteriaRepository;
 import com.spms.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,6 +26,7 @@ public class GradingCriteriaService {
         this.userRepository = userRepository;
     }
 
+    @Transactional
     public GradingCriteriaDto create(GradingCriteriaCreateRequestDto request, Long creatorId) {
         var user = userRepository.findByUserId(creatorId)
                 .orElseThrow(() -> new BadRequestException("User not found."));
@@ -46,6 +48,7 @@ public class GradingCriteriaService {
         return toDto(saved);
     }
 
+    @Transactional(readOnly = true)
     public List<GradingCriteriaDto> list(String deliverableTypeParam) {
         if (deliverableTypeParam == null || deliverableTypeParam.isBlank()) {
             return criteriaRepository.findAll().stream()
