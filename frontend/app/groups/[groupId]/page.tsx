@@ -4,6 +4,7 @@ import { showToast } from "@/components/toast/ToastContext";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import AdvisorRequestPanel from "@/components/AdvisorRequestPanel";
 import StatusBadge from "@/components/StatusBadge";
 import GithubStatusCard from "@/components/GithubStatusCard";
 import JiraStatusCard from "@/components/JiraStatusCard";
@@ -369,6 +370,12 @@ export default function GroupDetailPage() {
                         <p className="text-white font-medium">{formatDate(group.updatedAt)}</p>
                     </div>
                 </div>
+
+                <AdvisorRequestPanel
+                    groupId={group.id}
+                    leaderId={group.leaderId}
+                    advisorId={group.advisorId ?? null}
+                />
 
                 <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-7 shadow-lg shadow-black/20 backdrop-blur mb-6">
                     <div className="flex items-center justify-between mb-5">
