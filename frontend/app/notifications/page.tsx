@@ -1,5 +1,5 @@
 "use client";
-
+import Sidebar from "@/components/Sidebar";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationList from "@/components/NotificationList";
@@ -10,7 +10,6 @@ export default function NotificationsPage() {
     const router = useRouter();
     const {
         notifications,
-        unreadOrPendingCount,
         respondToNotification,
         clearNotification,
     } = useNotifications();
@@ -42,39 +41,38 @@ export default function NotificationsPage() {
     }
 
     return (
-        <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
-            <div className="mx-auto max-w-5xl space-y-8">
-                <AppTopbar
-                    title="Notifications"
-                    notificationCount={unreadOrPendingCount}
-                    hideNotification
-                />
+        <div className="min-h-screen bg-gray-950 flex">
+            <Sidebar activePage="notifications" />
+            <main className="flex-1 min-w-0 px-6 py-10">
+                <div className="mx-auto max-w-6xl">
+                    <AppTopbar title="Notifications" />
 
-                <div>
-                    <button
-                        onClick={handleGoBack}
-                        className="text-sm text-blue-400 hover:underline"
-                    >
-                        ← Back
-                    </button>
+                    <div>
+                        <button
+                            onClick={handleGoBack}
+                            className="text-sm text-blue-400 hover:underline"
+                        >
+                            ← Back
+                        </button>
 
-                    <h1 className="mt-4 text-3xl font-bold">Notifications</h1>
-                    <p className="mt-2 text-gray-400">
-                        View your notifications and respond to pending invitations.
-                    </p>
+                        <h1 className="mt-4 text-3xl font-bold">Notifications</h1>
+                        <p className="mt-2 text-gray-400">
+                            View your notifications and respond to pending invitations.
+                        </p>
+                    </div>
+
+
+                    <NotificationList
+                        notifications={paginatedNotifications}
+                        page={page}
+                        totalPages={totalPages}
+                        onRespond={respondToNotification}
+                        onClear={clearNotification}
+                        onPrevPage={handlePrevPage}
+                        onNextPage={handleNextPage}
+                    />
                 </div>
-
-
-                <NotificationList
-                    notifications={paginatedNotifications}
-                    page={page}
-                    totalPages={totalPages}
-                    onRespond={respondToNotification}
-                    onClear={clearNotification}
-                    onPrevPage={handlePrevPage}
-                    onNextPage={handleNextPage}
-                />
-            </div>
-        </main>
+            </main>
+        </div>
     );
 }

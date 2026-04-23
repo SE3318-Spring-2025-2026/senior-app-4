@@ -17,6 +17,34 @@ export type ApiGroupMember = {
     joinedAt: string;
 };
 
+export type ApiGroupMemberListItem = {
+    userId: number;
+    studentId: string;
+    fullName: string;
+    role: string;
+};
+
+export async function fetchGroupMembers(
+    groupId: number
+): Promise<ApiGroupMemberListItem[]> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/members`, {
+        method: "GET",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
+
+
 export type ApiGroupDetail = {
     id: number;
     groupName: string;
@@ -166,7 +194,7 @@ export async function addMemberApi(
 
 export async function removeMemberApi(
     groupId: number,
-    studentId: number
+    studentId: string
 ) {
     const token = getToken();
 
