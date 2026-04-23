@@ -9,6 +9,7 @@ import com.spms.backend.dto.response.GroupResponseDto;
 import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.dto.response.GithubIntegrationResponse;
+import com.spms.backend.dto.response.AdvisorDecisionResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -48,7 +49,7 @@ public interface GroupService {
     // Advisor Requests & Group Formation
     List<com.spms.backend.dto.response.AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId);
     void handleAdvisorRequestDecision(Long professorId, Long groupId, String status);
-    void processAdvisorRequestDecision(Long professorId, Long requestId, String status, String reason);
+    AdvisorDecisionResponseDto processAdvisorRequestDecision(Long professorId, Long requestId, String status, String reason);
     void transferAdvisor(Long groupId, Long professorId, String requesterRole);
     com.spms.backend.dto.response.GroupFormationReportDto getGroupFormationReport(String role);
 }

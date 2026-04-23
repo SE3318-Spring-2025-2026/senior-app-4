@@ -1,6 +1,7 @@
 package com.spms.backend.controller;
 
 import com.spms.backend.dto.request.AdvisorDecisionRequestDto;
+import com.spms.backend.dto.response.AdvisorDecisionResponseDto;
 import com.spms.backend.service.GroupService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,12 +27,12 @@ public class AdvisorRequestController {
 
     @Operation(summary = "Process an advisor request decision (Approve/Reject)")
     @PostMapping("/{requestId}/decision")
-    public ResponseEntity<Void> processAdvisorRequestDecision(
+    public ResponseEntity<AdvisorDecisionResponseDto> processAdvisorRequestDecision(
             @PathVariable Long requestId,
             @Valid @RequestBody AdvisorDecisionRequestDto request,
             @RequestAttribute("jwt_userId") Object userId) {
         Long professorId = Long.valueOf(userId.toString());
-        groupService.processAdvisorRequestDecision(professorId, requestId, request.decision(), request.reason());
-        return ResponseEntity.ok().build();
+        AdvisorDecisionResponseDto response = groupService.processAdvisorRequestDecision(professorId, requestId, request.decision(), request.reason());
+        return ResponseEntity.ok(response);
     }
 }

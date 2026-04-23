@@ -51,6 +51,7 @@ import com.spms.backend.repository.NotificationRepository;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.dto.response.GroupFormationReportDto;
 import com.spms.backend.dto.response.AdvisorRequestResponseDto;
+import com.spms.backend.dto.response.AdvisorDecisionResponseDto;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -600,8 +601,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
-    @AuditableOperation(actionType = ActionType.ADVISOR_ASSIGNED)
-    public void processAdvisorRequestDecision(Long professorId, Long requestId, String status, String reason) {
+    public AdvisorDecisionResponseDto processAdvisorRequestDecision(Long professorId, Long requestId, String status, String reason) {
         Notification request = notificationRepository.findById(requestId)
                 .orElseThrow(() -> new NotFoundException("Advisor request not found."));
 
@@ -624,14 +624,26 @@ public class GroupServiceImpl implements GroupService {
         User professor = userRepository.findById(professorId)
                 .orElseThrow(() -> new NotFoundException("Professor not found."));
 
-        if ("approved".equalsIgnoreCase(status) || "approve".equalsIgnoreCase(status)) {
+        if ("APPROVE".equals(status)) {
             group.setAdvisor(professor);
             group.setStatus(GroupStatus.ADVISED);
             group.setUpdatedAt(Instant.now());
             groupRepository.save(group);
 
+            // Increment workload (FIX-1)
+            professor.setCurrentAdviseeCount(professor.getCurrentAdviseeCount() + 1);
+            userRepository.save(professor);
+
             request.setStatus(NotificationStatus.ACCEPTED);
             notificationRepository.save(request);
+
+            // Manual Audit Log for APPROVE (FIX-3)
+            AuditLog approveLog = new AuditLog();
+            approveLog.setActionType(ActionType.ADVISOR_ASSIGNED);
+            approveLog.setUserId(professorId);
+            approveLog.setGroupId(groupId);
+            approveLog.setEventDetails("Advisor request approved by professor " + professor.getFullName());
+            auditLogRepository.save(approveLog);
 
             List<Notification> otherRequests = notificationRepository.findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(
                     groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, professorId);
@@ -667,7 +679,13 @@ public class GroupServiceImpl implements GroupService {
             notif.setToUser(group.getLeader());
             notificationRepository.save(notif);
 
-        } else if ("rejected".equalsIgnoreCase(status) || "reject".equalsIgnoreCase(status)) {
+            return new AdvisorDecisionResponseDto(
+                    "success",
+                    "Request approved. Advisor assigned to group.",
+                    new AdvisorDecisionResponseDto.AdvisorDecisionData(requestId, "APPROVE", groupId, professorId)
+            );
+
+        } else if ("REJECT".equals(status)) {
             request.setStatus(NotificationStatus.REJECTED);
             notificationRepository.save(request);
 
@@ -675,23 +693,26 @@ public class GroupServiceImpl implements GroupService {
             log.setActionType(ActionType.ADVISOR_REJECTED);
             log.setUserId(professorId);
             log.setGroupId(groupId);
-            log.setEventDetails("Advisor request rejected. Reason: " + (reason != null ? reason : "No reason provided"));
+            log.setEventDetails("Advisor request rejected. Reason: " + reason);
             auditLogRepository.save(log);
 
             Notification notif = new Notification();
             notif.setType(NotificationType.ADVISOR_DECISION);
             notif.setStatus(NotificationStatus.PENDING);
-            String rejectMsg = "Professor " + professor.getFullName() + " has rejected your advisor request.";
-            if (reason != null && !reason.isBlank()) {
-                rejectMsg += " Reason: " + reason;
-            }
+            String rejectMsg = "Professor " + professor.getFullName() + " has rejected your advisor request. Reason: " + reason;
             notif.setMessage(rejectMsg);
             notif.setGroupId(groupId);
             notif.setFromUser(professor);
             notif.setToUser(group.getLeader());
             notificationRepository.save(notif);
+
+            return new AdvisorDecisionResponseDto(
+                    "success",
+                    "Request rejected.",
+                    new AdvisorDecisionResponseDto.AdvisorDecisionData(requestId, "REJECT", groupId, professorId)
+            );
         } else {
-            throw new BadRequestException("Status must be 'approved' or 'rejected'.");
+            throw new BadRequestException("Status must be 'APPROVE' or 'REJECT'.");
         }
     }
 

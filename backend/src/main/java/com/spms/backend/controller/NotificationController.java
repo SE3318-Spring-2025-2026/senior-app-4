@@ -23,14 +23,19 @@ public class NotificationController {
 
 
     @PostMapping("/api/v1/groups/{groupId}/advisor-request")
-    public ResponseEntity<Void> requestAdvisor(
+    public ResponseEntity<?> requestAdvisor(
             @PathVariable Long groupId,
             @Valid @RequestBody AdvisorRequestDto request,
             @RequestAttribute("jwt_userId") Object userId) {
 
         Long leaderId = Long.valueOf(userId.toString());
-        notificationService.requestAdvisor(groupId, request, leaderId);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        Long requestId = notificationService.requestAdvisor(groupId, request, leaderId);
+        
+        return ResponseEntity.status(HttpStatus.CREATED).body(java.util.Map.of(
+                "success", true,
+                "message", "Advisor request sent successfully",
+                "data", java.util.Map.of("requestId", requestId)
+        ));
     }
 
 

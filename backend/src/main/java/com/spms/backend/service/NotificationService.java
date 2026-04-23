@@ -9,7 +9,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 public interface NotificationService {
-    void requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId);
+    Long requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId);
     AdvisorRequestStatusDto getAdvisorRequestStatus(Long groupId);
     void cancelAdvisorRequest(Long groupId);
     /** withdrawRequest / revokeNotification — sets notification status to REVOKED (soft-delete). */

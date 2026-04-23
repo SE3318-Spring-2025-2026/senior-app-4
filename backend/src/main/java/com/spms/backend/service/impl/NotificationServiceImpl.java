@@ -44,7 +44,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
-    public void requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId) {
+    public Long requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId) {
 
         Optional<Notification> existingPendingRequest = notificationRepository
                 .findByGroupIdAndTypeAndStatus(groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
@@ -68,7 +68,7 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setFromUser(leader);
         notification.setToUser(professor);
 
-        notificationRepository.save(notification);
+        return notificationRepository.save(notification).getId();
     }
 
     @Override
