@@ -4,11 +4,16 @@ import com.spms.backend.dto.response.AdvisorRequestDetailDto;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.*;
-import com.spms.backend.repository.AdvisorRequestRepository;
+import com.spms.backend.model.notification.Notification;
+import com.spms.backend.model.notification.NotificationStatus;
+import com.spms.backend.model.notification.NotificationType;
 import com.spms.backend.repository.GroupRepository;
+import com.spms.backend.repository.NotificationRepository;
 import com.spms.backend.service.impl.AdvisorRequestDetailServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.*;
@@ -17,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AdvisorRequestDetailServiceTest {
 
-    private StubAdvisorRequestRepository advisorRequestRepository;
+    private StubNotificationRepository notificationRepository;
     private StubGroupRepository groupRepository;
     private AdvisorRequestDetailService service;
 
@@ -28,18 +33,18 @@ class AdvisorRequestDetailServiceTest {
     private User stranger;
     private User coordinator;
     private Group group;
-    private AdvisorRequest pendingRequest;
+    private Notification pendingRequest;
 
     @BeforeEach
     void setUp() {
-        advisorRequestRepository = new StubAdvisorRequestRepository();
+        notificationRepository = new StubNotificationRepository();
         groupRepository = new StubGroupRepository();
-        service = new AdvisorRequestDetailServiceImpl(advisorRequestRepository, groupRepository);
+        service = new AdvisorRequestDetailServiceImpl(notificationRepository, groupRepository);
 
-        professor = userWith(10L, "Dr. Smith", "smith@uni.edu", "professor");
-        leader    = userWith(20L, "Alice Leader", "alice@stu.edu", "student");
-        stranger  = userWith(30L, "Bob Stranger", "bob@stu.edu", "student");
-        coordinator = userWith(40L, "Carol Coord", "carol@uni.edu", "coordinator");
+        professor   = userWith(10L, "Dr. Smith",    "smith@uni.edu", "professor");
+        leader      = userWith(20L, "Alice Leader",  "alice@stu.edu", "student");
+        stranger    = userWith(30L, "Bob Stranger",  "bob@stu.edu",   "student");
+        coordinator = userWith(40L, "Carol Coord",   "carol@uni.edu", "coordinator");
 
         group = new Group();
         group.setId(5L);
@@ -53,16 +58,18 @@ class AdvisorRequestDetailServiceTest {
         m.setRole(GroupRole.LEADER);
         group.getMembers().add(m);
 
-        pendingRequest = new AdvisorRequest();
+        pendingRequest = new Notification();
         pendingRequest.setId(1L);
-        pendingRequest.setGroup(group);
-        pendingRequest.setProfessor(professor);
-        pendingRequest.setRequester(leader);
+        pendingRequest.setType(NotificationType.ADVISOR_REQUEST);
+        pendingRequest.setStatus(NotificationStatus.PENDING);
+        pendingRequest.setToUser(professor);
+        pendingRequest.setFromUser(leader);
+        pendingRequest.setGroupId(5L);
         pendingRequest.setMessage("Please be our advisor");
-        pendingRequest.setStatus(AdvisorRequestStatus.PENDING);
-        pendingRequest.setRequestedAt(Instant.now());
+        pendingRequest.setCreatedAt(Instant.now());
 
-        advisorRequestRepository.save(pendingRequest);
+        notificationRepository.save(pendingRequest);
+        groupRepository.addGroup(group);
         groupRepository.setAdviseeCount(professor.getUserId(), 2L);
     }
 
@@ -122,12 +129,40 @@ class AdvisorRequestDetailServiceTest {
         assertTrue(dto.team().hasCurrentAdvisor());
     }
 
+    @Test
+    void statusMappingAccepted() {
+        pendingRequest.setStatus(NotificationStatus.ACCEPTED);
+        AdvisorRequestDetailDto dto = service.getDetail(1L, professor.getUserId(), "professor");
+        assertEquals("APPROVED", dto.status());
+    }
+
+    @Test
+    void statusMappingCleared() {
+        pendingRequest.setStatus(NotificationStatus.CLEARED);
+        AdvisorRequestDetailDto dto = service.getDetail(1L, professor.getUserId(), "professor");
+        assertEquals("WITHDRAWN", dto.status());
+    }
+
     // ── Error paths ────────────────────────────────────────────────
 
     @Test
     void unknownRequestIdThrows404() {
         assertThrows(NotFoundException.class,
                 () -> service.getDetail(999L, professor.getUserId(), "professor"));
+    }
+
+    @Test
+    void nonAdvisorRequestNotificationThrows404() {
+        Notification other = new Notification();
+        other.setId(2L);
+        other.setType(NotificationType.SYSTEM_ALERT);
+        other.setStatus(NotificationStatus.PENDING);
+        other.setToUser(professor);
+        other.setGroupId(5L);
+        notificationRepository.save(other);
+
+        assertThrows(NotFoundException.class,
+                () -> service.getDetail(2L, professor.getUserId(), "professor"));
     }
 
     @Test
@@ -155,66 +190,61 @@ class AdvisorRequestDetailServiceTest {
 
     // ── In-memory stubs ────────────────────────────────────────────
 
-    static class StubAdvisorRequestRepository
-            extends com.spms.backend.repository.AbstractStubJpaRepository<AdvisorRequest, Long>
-            implements AdvisorRequestRepository {
+    static class StubNotificationRepository
+            extends com.spms.backend.repository.AbstractStubJpaRepository<Notification, Long>
+            implements NotificationRepository {
 
-        private final Map<Long, AdvisorRequest> store = new LinkedHashMap<>();
+        private final Map<Long, Notification> store = new LinkedHashMap<>();
         private long nextId = 1;
 
-        @Override public <S extends AdvisorRequest> S save(S entity) {
+        @Override public <S extends Notification> S save(S entity) {
             if (entity.getId() == null) entity.setId(nextId++);
             store.put(entity.getId(), entity);
             return entity;
         }
-        @Override public Optional<AdvisorRequest> findById(Long id) { return Optional.ofNullable(store.get(id)); }
-        @Override public List<AdvisorRequest> findAll() { return new ArrayList<>(store.values()); }
+        @Override public Optional<Notification> findById(Long id) { return Optional.ofNullable(store.get(id)); }
+        @Override public List<Notification> findAll() { return new ArrayList<>(store.values()); }
         @Override public void deleteById(Long id) { store.remove(id); }
-        @Override public void delete(AdvisorRequest e) { store.remove(e.getId()); }
+        @Override public void delete(Notification e) { store.remove(e.getId()); }
         @Override public long count() { return store.size(); }
         @Override public void deleteAll() { store.clear(); }
+
+        @Override public Page<Notification> findByToUser_UserId(Long toUserId, Pageable pageable) { return Page.empty(); }
+        @Override public Optional<Notification> findByGroupIdAndTypeAndStatus(Long groupId, NotificationType type, com.spms.backend.model.notification.NotificationStatus status) { return Optional.empty(); }
+        @Override public Optional<Notification> findByGroupIdAndToUser_UserIdAndTypeAndStatus(Long groupId, Long toUserId, NotificationType type, com.spms.backend.model.notification.NotificationStatus status) { return Optional.empty(); }
+        @Override public void deleteByToUser_UserId(Long userId) {}
+        @Override public List<Notification> findByToUser_UserIdAndTypeOrderByCreatedAtDesc(Long toUserId, NotificationType type) { return List.of(); }
+        @Override public boolean existsByToUser_UserIdAndTypeAndStatusAndMessageContaining(Long toUserId, NotificationType type, com.spms.backend.model.notification.NotificationStatus status, String messageSnippet) { return false; }
+        @Override public List<Notification> findByToUser_UserIdAndTypeAndStatus(Long toUserId, NotificationType type, com.spms.backend.model.notification.NotificationStatus status) { return List.of(); }
+        @Override public List<Notification> findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(Long groupId, NotificationType type, com.spms.backend.model.notification.NotificationStatus status, Long excludedUserId) { return List.of(); }
     }
 
     static class StubGroupRepository
             extends com.spms.backend.repository.AbstractStubJpaRepository<Group, Long>
             implements GroupRepository {
 
+        private final Map<Long, Group> store = new HashMap<>();
         private final Map<Long, Long> adviseeCountByProfessorId = new HashMap<>();
+
+        void addGroup(Group group) { store.put(group.getId(), group); }
 
         void setAdviseeCount(Long professorId, long count) {
             adviseeCountByProfessorId.put(professorId, count);
         }
 
-        @Override public <S extends Group> S save(S e) { return e; }
-        @Override public Optional<Group> findById(Long id) { return Optional.empty(); }
-        @Override public List<Group> findAll() { return List.of(); }
-        @Override public void deleteById(Long id) {}
-        @Override public void delete(Group e) {}
-        @Override public long count() { return 0; }
-        @Override public void deleteAll() {}
+        @Override public <S extends Group> S save(S e) { store.put(e.getId(), e); return e; }
+        @Override public Optional<Group> findById(Long id) { return Optional.ofNullable(store.get(id)); }
+        @Override public List<Group> findAll() { return new ArrayList<>(store.values()); }
+        @Override public void deleteById(Long id) { store.remove(id); }
+        @Override public void delete(Group e) { store.remove(e.getId()); }
+        @Override public long count() { return store.size(); }
+        @Override public void deleteAll() { store.clear(); }
 
-        @Override
-        public List<Group> findByStatus(GroupStatus status) { return List.of(); }
-
-        @Override
-        public List<Group> findByAdvisorIsNullAndStatusNot(GroupStatus status) { return List.of(); }
-
-        @Override
-        public long countByAdvisor_UserId(Long advisorId) {
-            return adviseeCountByProfessorId.getOrDefault(advisorId, 0L);
-        }
-
-        @Override
-        public org.springframework.data.domain.Page<Group> findByAdvisorId(Long advisorId, org.springframework.data.domain.Pageable pageable) {
-            return org.springframework.data.domain.Page.empty();
-        }
-
-        @Override
-        public java.util.List<Object[]> countGroupsByStatus() { return List.of(); }
-
-        @Override
-        public org.springframework.data.domain.Page<Group> findAllWithStudentGroupFirst(Long studentId, org.springframework.data.domain.Pageable pageable) {
-            return org.springframework.data.domain.Page.empty();
-        }
+        @Override public List<Group> findByStatus(GroupStatus status) { return List.of(); }
+        @Override public List<Group> findByAdvisorIsNullAndStatusNot(GroupStatus status) { return List.of(); }
+        @Override public long countByAdvisor_UserId(Long advisorId) { return adviseeCountByProfessorId.getOrDefault(advisorId, 0L); }
+        @Override public Page<Group> findByAdvisorId(Long advisorId, Pageable pageable) { return Page.empty(); }
+        @Override public List<Object[]> countGroupsByStatus() { return List.of(); }
+        @Override public Page<Group> findAllWithStudentGroupFirst(Long studentId, Pageable pageable) { return Page.empty(); }
     }
 }

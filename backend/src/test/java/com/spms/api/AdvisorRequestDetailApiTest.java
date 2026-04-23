@@ -1,16 +1,17 @@
 package com.spms.api;
 
 import com.spms.backend.model.*;
-import com.spms.backend.repository.AdvisorRequestRepository;
+import com.spms.backend.model.notification.Notification;
+import com.spms.backend.model.notification.NotificationStatus;
+import com.spms.backend.model.notification.NotificationType;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
+import com.spms.backend.repository.NotificationRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.repository.ValidStudentIdRepository;
 import com.spms.backend.service.TokenService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-
-import java.time.Instant;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
@@ -19,11 +20,12 @@ import static org.hamcrest.Matchers.*;
  * API tests — GET /api/v1/advisor-requests/{requestId} [P4-DETAIL-1]
  *
  * Covers 200 paths (professor + coordinator). Error paths (403, 404) are
- * covered by AdvisorRequestDetailServiceTest at the service layer, since
- * RestAssured 5.x throws HttpResponseException for non-2xx responses when
- * no prior 2xx warm-up has occurred in the test sequence.
+ * covered by AdvisorRequestDetailServiceTest at the service layer.
  *
- * Cleanup: @AfterAll deletes advisor_requests → group_members → groups → users in FK order.
+ * Advisor requests are tracked via Notification entities (type=ADVISOR_REQUEST),
+ * consistent with Process 2's implementation.
+ *
+ * Cleanup: @AfterAll deletes notification → group_members → groups → users in FK order.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -34,7 +36,7 @@ class AdvisorRequestDetailApiTest extends BaseApiTest {
     @Autowired private ValidStudentIdRepository validStudentIdRepository;
     @Autowired private GroupRepository groupRepository;
     @Autowired private GroupMemberRepository groupMemberRepository;
-    @Autowired private AdvisorRequestRepository advisorRequestRepository;
+    @Autowired private NotificationRepository notificationRepository;
 
     // ── Test actors ────────────────────────────────────────────────
     private User professor;
@@ -82,21 +84,21 @@ class AdvisorRequestDetailApiTest extends BaseApiTest {
         group = groupRepository.save(group);
         groupId = group.getId();
 
-        AdvisorRequest req = new AdvisorRequest();
-        req.setGroup(group);
-        req.setProfessor(professor);
-        req.setRequester(studentLeader);
+        // Advisor request is a Notification with type ADVISOR_REQUEST (P2 design)
+        Notification req = new Notification();
+        req.setType(NotificationType.ADVISOR_REQUEST);
+        req.setStatus(NotificationStatus.PENDING);
+        req.setToUser(professor);
+        req.setFromUser(studentLeader);
+        req.setGroupId(groupId);
         req.setMessage("Please advise us");
-        req.setStatus(AdvisorRequestStatus.PENDING);
-        req.setRequestedAt(Instant.now());
-        requestId = advisorRequestRepository.save(req).getId();
+        requestId = notificationRepository.save(req).getId();
     }
 
     @AfterAll
     void cleanupTestData() {
-        // FK order: advisor_requests → group_members → groups → users → valid_student_ids
         if (requestId != null) {
-            try { advisorRequestRepository.deleteById(requestId); } catch (Exception ignored) {}
+            try { notificationRepository.deleteById(requestId); } catch (Exception ignored) {}
         }
         if (groupId != null) {
             try {
