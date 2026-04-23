@@ -2,6 +2,7 @@ backend/target/
 .DS_Store
 CLAUDE.md
 
+
 # Environment files
 .env
 .env.local
@@ -17,3 +18,4 @@ backend/application.properties
 Thumbs.db
 
 application-local.properties
+CLAUDE.md
