@@ -6,7 +6,7 @@ import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.*;
 import com.spms.backend.repository.AdvisorRequestRepository;
 import com.spms.backend.repository.GroupRepository;
-import com.spms.backend.mocks.MockAdvisorRequestDetailService;
+import com.spms.backend.service.impl.AdvisorRequestDetailServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -34,7 +34,7 @@ class AdvisorRequestDetailServiceTest {
     void setUp() {
         advisorRequestRepository = new StubAdvisorRequestRepository();
         groupRepository = new StubGroupRepository();
-        service = new MockAdvisorRequestDetailService(advisorRequestRepository, groupRepository);
+        service = new AdvisorRequestDetailServiceImpl(advisorRequestRepository, groupRepository);
 
         professor = userWith(10L, "Dr. Smith", "smith@uni.edu", "professor");
         leader    = userWith(20L, "Alice Leader", "alice@stu.edu", "student");
@@ -202,6 +202,19 @@ class AdvisorRequestDetailServiceTest {
         @Override
         public long countByAdvisor_UserId(Long advisorId) {
             return adviseeCountByProfessorId.getOrDefault(advisorId, 0L);
+        }
+
+        @Override
+        public org.springframework.data.domain.Page<Group> findByAdvisorId(Long advisorId, org.springframework.data.domain.Pageable pageable) {
+            return org.springframework.data.domain.Page.empty();
+        }
+
+        @Override
+        public java.util.List<Object[]> countGroupsByStatus() { return List.of(); }
+
+        @Override
+        public org.springframework.data.domain.Page<Group> findAllWithStudentGroupFirst(Long studentId, org.springframework.data.domain.Pageable pageable) {
+            return org.springframework.data.domain.Page.empty();
         }
     }
 }

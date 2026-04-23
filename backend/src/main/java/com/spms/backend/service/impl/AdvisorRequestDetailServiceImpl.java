@@ -1,4 +1,4 @@
-package com.spms.backend.mocks;
+package com.spms.backend.service.impl;
 
 import com.spms.backend.dto.response.AdvisorRequestDetailDto;
 import com.spms.backend.exception.ForbiddenException;
@@ -8,20 +8,16 @@ import com.spms.backend.model.Group;
 import com.spms.backend.repository.AdvisorRequestRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.service.AdvisorRequestDetailService;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-// TODO(P2-dep:#14-22): uses MockAdvisorRequestDetailService until P2 advisor-request workflow merges.
-//   After merge, replace with a real @Service impl and delete this class. See DEPENDENCIES.md.
 @Service
-@Profile("dev-mock")
-public class MockAdvisorRequestDetailService implements AdvisorRequestDetailService {
+public class AdvisorRequestDetailServiceImpl implements AdvisorRequestDetailService {
 
     private final AdvisorRequestRepository advisorRequestRepository;
     private final GroupRepository groupRepository;
 
-    public MockAdvisorRequestDetailService(AdvisorRequestRepository advisorRequestRepository,
+    public AdvisorRequestDetailServiceImpl(AdvisorRequestRepository advisorRequestRepository,
                                            GroupRepository groupRepository) {
         this.advisorRequestRepository = advisorRequestRepository;
         this.groupRepository = groupRepository;

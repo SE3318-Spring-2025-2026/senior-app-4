@@ -9,7 +9,6 @@ import com.spms.backend.repository.ValidStudentIdRepository;
 import com.spms.backend.service.TokenService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
 
@@ -26,7 +25,6 @@ import static org.hamcrest.Matchers.*;
  *
  * Cleanup: @AfterAll deletes advisor_requests → group_members → groups → users in FK order.
  */
-@ActiveProfiles("dev-mock")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AdvisorRequestDetailApiTest extends BaseApiTest {

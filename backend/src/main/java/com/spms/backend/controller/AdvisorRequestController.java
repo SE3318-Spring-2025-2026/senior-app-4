@@ -27,8 +27,6 @@ public class AdvisorRequestController {
         Long callerId = Long.valueOf(userId.toString());
         String callerRole = role != null ? role.toString() : "";
 
-        // TODO(P2-dep:#14-22): delegates to MockAdvisorRequestDetailService until P2 advisor-request workflow merges.
-        //   After merge, delete the mock and this TODO. See DEPENDENCIES.md.
         AdvisorRequestDetailDto detail = advisorRequestDetailService.getDetail(requestId, callerId, callerRole);
 
         return ResponseEntity.ok(Map.of("status", "success", "data", detail));
