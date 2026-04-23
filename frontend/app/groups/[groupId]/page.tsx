@@ -334,6 +334,12 @@ export default function GroupDetailPage() {
                 )}
 
                 <div className="grid gap-6 md:grid-cols-2 mb-8">
+                    <Link href={`/groups/${group.id}/committee-grading`}>
+                        <div className="cursor-pointer rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">
+                            <p className="mb-2 text-sm text-blue-200">Committee Grading</p>
+                            <p className="font-medium text-white">Open grading drawer</p>
+                            <p className="mt-2 text-sm text-blue-100/70">
+                                Review submission details, add comments, and submit the final score.
                     <Link href={`/groups/${group.id}/submissions/new`}>
                         <div className="cursor-pointer rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">
                             <p className="mb-2 text-sm text-blue-200">Deliverables</p>

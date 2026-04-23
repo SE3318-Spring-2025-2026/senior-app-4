@@ -34,7 +34,7 @@ public interface GroupService {
     GithubIntegrationResponse getGithubIntegration(Long groupId);
     void unbindJiraIntegration(Long groupId, Long requesterId);
 
-    //rol bazlı detaylıs sorgu
+    //rol bazlı detaylıs sorgu -
     GroupDetailDto getGroupDetails(Long groupId, Long requesterId, String requesterRole);
 
     //üye yöneyimi
