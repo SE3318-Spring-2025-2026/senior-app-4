@@ -75,6 +75,9 @@ public class GroupController {
 
     @GetMapping
     public ResponseEntity<Page<GroupResponseDto>> getGroups(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String groupName,
+            @RequestParam(required = false) Boolean advisorAssigned,
             @ParameterObject Pageable pageable,  // <-- SADECE BURAYA @ParameterObject EKLENDİ
             @RequestAttribute("jwt_userId") Object userId,
             @RequestAttribute("jwt_role") Object role) {
@@ -82,7 +85,7 @@ public class GroupController {
         Long requesterId = Long.valueOf(userId.toString());
         String requesterRole = role.toString();
 
-        return ResponseEntity.ok(groupService.getGroups(pageable, requesterId, requesterRole));
+        return ResponseEntity.ok(groupService.getGroups(status, groupName, advisorAssigned, pageable, requesterId, requesterRole));
     }
 
     
