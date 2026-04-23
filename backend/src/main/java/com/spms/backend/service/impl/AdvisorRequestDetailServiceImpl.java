@@ -40,6 +40,9 @@ public class AdvisorRequestDetailServiceImpl implements AdvisorRequestDetailServ
             throw new ForbiddenException("Access denied: only the targeted professor or a coordinator may view this request.");
         }
 
+        if (notification.getGroupId() == null) {
+            throw new NotFoundException("No group associated with request: " + requestId);
+        }
         Group group = groupRepository.findById(notification.getGroupId())
                 .orElseThrow(() -> new NotFoundException("Group not found: " + notification.getGroupId()));
 

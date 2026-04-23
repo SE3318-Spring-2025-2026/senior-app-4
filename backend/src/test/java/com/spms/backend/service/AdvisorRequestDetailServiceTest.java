@@ -152,6 +152,13 @@ class AdvisorRequestDetailServiceTest {
     }
 
     @Test
+    void nullGroupIdThrows404() {
+        pendingRequest.setGroupId(null);
+        assertThrows(NotFoundException.class,
+                () -> service.getDetail(1L, professor.getUserId(), "professor"));
+    }
+
+    @Test
     void nonAdvisorRequestNotificationThrows404() {
         Notification other = new Notification();
         other.setId(2L);
