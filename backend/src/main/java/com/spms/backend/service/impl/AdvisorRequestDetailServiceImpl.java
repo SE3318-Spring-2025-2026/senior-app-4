@@ -82,6 +82,7 @@ public class AdvisorRequestDetailServiceImpl implements AdvisorRequestDetailServ
             case ACCEPTED -> "APPROVED";
             case REJECTED -> "REJECTED";
             case CLEARED  -> "WITHDRAWN";
+            case REVOKED  -> "REVOKED";
         };
     }
 }
