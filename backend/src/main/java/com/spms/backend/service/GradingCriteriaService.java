@@ -5,9 +5,7 @@ import com.spms.backend.dto.response.GradingCriteriaDto;
 import com.spms.backend.model.DeliverableType;
 import com.spms.backend.model.GradingCriteria;
 import com.spms.backend.exception.BadRequestException;
-import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.repository.GradingCriteriaRepository;
-import com.spms.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,23 +16,13 @@ import java.util.stream.Collectors;
 public class GradingCriteriaService {
 
     private final GradingCriteriaRepository criteriaRepository;
-    private final UserRepository userRepository;
 
-    public GradingCriteriaService(GradingCriteriaRepository criteriaRepository,
-                                   UserRepository userRepository) {
+    public GradingCriteriaService(GradingCriteriaRepository criteriaRepository) {
         this.criteriaRepository = criteriaRepository;
-        this.userRepository = userRepository;
     }
 
     @Transactional
     public GradingCriteriaDto create(GradingCriteriaCreateRequestDto request, Long creatorId) {
-        var user = userRepository.findByUserId(creatorId)
-                .orElseThrow(() -> new BadRequestException("User not found."));
-
-        if (!"coordinator".equalsIgnoreCase(user.getRole())) {
-            throw new ForbiddenException("Only coordinators can define grading criteria.");
-        }
-
         DeliverableType deliverableType = parseDeliverableType(request.deliverableType());
 
         GradingCriteria criteria = new GradingCriteria();

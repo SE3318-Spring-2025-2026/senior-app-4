@@ -2,6 +2,7 @@ package com.spms.backend.controller;
 
 import com.spms.backend.dto.request.GradingCriteriaCreateRequestDto;
 import com.spms.backend.dto.response.GradingCriteriaDto;
+import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.service.GradingCriteriaService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -24,7 +25,12 @@ public class GradingCriteriaController {
     @PostMapping
     public ResponseEntity<Map<String, Object>> createCriteria(
             @Valid @RequestBody GradingCriteriaCreateRequestDto request,
-            @RequestAttribute("jwt_userId") Object userId) {
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+
+        if (!"coordinator".equals(role)) {
+            throw new ForbiddenException("Only coordinators can create grading criteria.");
+        }
 
         Long creatorId = Long.valueOf(userId.toString());
         GradingCriteriaDto created = gradingCriteriaService.create(request, creatorId);
