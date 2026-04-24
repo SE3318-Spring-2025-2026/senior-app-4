@@ -149,7 +149,7 @@ export default function CommitteeGradingDrawer({
           throw new Error(payload);
         }
 
-        throw new Error(payload?.message || payload?.error || `Grade submission failed (${response.status}).`);
+        throw new Error((payload as any)?.message || (payload as any)?.error || `Grade submission failed (${response.status}).`);
       }
 
       const successMessage =
