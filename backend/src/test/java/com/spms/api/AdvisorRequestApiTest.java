@@ -111,10 +111,10 @@ public class AdvisorRequestApiTest extends BaseApiTest {
     private int sendTestAdvisorRequest(int gId, Long pId, String lToken) {
         return given()
                 .header("Authorization", "Bearer " + lToken)
-                .body(Map.of("professorId", pId))
-            .post("/api/v1/groups/" + gId + "/advisor-request")
+                .body(Map.of("teamId", String.valueOf(gId), "professorId", pId))
+            .post("/api/v1/advisor-requests")
             .then()
                 .statusCode(201)
-                .extract().path("data.requestId");
+                .extract().path("id");
     }
 }

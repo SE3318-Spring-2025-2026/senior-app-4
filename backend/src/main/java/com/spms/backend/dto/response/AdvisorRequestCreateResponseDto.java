@@ -1,6 +1,6 @@
 package com.spms.backend.dto.response;
 
 public record AdvisorRequestCreateResponseDto(
-        Long requestId,
+        Long id,
         String status
 ) {}

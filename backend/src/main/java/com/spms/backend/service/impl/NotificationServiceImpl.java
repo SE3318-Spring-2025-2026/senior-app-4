@@ -99,9 +99,9 @@ public class NotificationServiceImpl implements NotificationService {
         User professor = userRepository.findById(request.professorId())
                 .orElseThrow(() -> new BadRequestException("Professor not found."));
 
-        // TODO: Validate that the target user actually has the 'professor' role.
-        //       Role/permission management is handled by another team member.
-        //       This check should be enabled once the professor role assignment flow is confirmed.
+        if (!"professor".equalsIgnoreCase(professor.getRole())) {
+            throw new BadRequestException("Target user is not a professor.");
+        }
 
         // ── D8: Create ADVISOR_REQUEST notification for the professor ──────────
         Notification notification = new Notification();

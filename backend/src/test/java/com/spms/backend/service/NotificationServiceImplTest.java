@@ -119,6 +119,28 @@ class NotificationServiceImplTest {
         assertEquals(99L, saved.getToUser().getUserId());
     }
 
+    @Test
+    void requestAdvisorReturnsBadRequestWhenTargetUserIsNotProfessor() {
+        Group group = baseGroup();
+        User leader = buildUser(1L, "leader", "STUDENT");
+        User targetUser = buildUser(99L, "not-prof", "STUDENT");
+
+        when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
+        when(scheduleRepository.findTopByOrderByIdDesc()).thenReturn(Optional.empty());
+        when(notificationRepository.findByGroupIdAndTypeAndStatus(
+                10L, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING))
+                .thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(leader));
+        when(userRepository.findById(99L)).thenReturn(Optional.of(targetUser));
+
+        assertThrows(
+                BadRequestException.class,
+                () -> notificationService.requestAdvisor(10L, new AdvisorRequestDto(99L), 1L)
+        );
+
+        verify(notificationRepository, never()).save(any(Notification.class));
+    }
+
     private Group baseGroup() {
         Group group = new Group();
         group.setId(10L);
