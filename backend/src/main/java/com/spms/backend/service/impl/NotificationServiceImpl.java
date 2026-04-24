@@ -174,7 +174,7 @@ public class NotificationServiceImpl implements NotificationService {
     }
     /**
      * getNotifications (Enhanced Version)
-     * Supports filtering by UNREAD (readStatus=false) or ALL.
+     * Supports filtering by UNREAD (readStatus=false), READ (readStatus=true), or ALL.
      */
     @Override
     @Transactional(readOnly = true)
@@ -183,11 +183,15 @@ public class NotificationServiceImpl implements NotificationService {
             return notificationRepository.findByToUser_UserIdAndReadStatus(userId, false, pageable)
                     .map(this::mapToDto);
         }
+        if ("READ".equalsIgnoreCase(readStatus)) {
+            return notificationRepository.findByToUser_UserIdAndReadStatus(userId, true, pageable)
+                    .map(this::mapToDto);
+        }
         if ("ALL".equalsIgnoreCase(readStatus)) {
             return notificationRepository.findByToUser_UserId(userId, pageable)
                     .map(this::mapToDto);
         }
-        throw new BadRequestException("Invalid readStatus. Supported values: UNREAD or ALL.");
+        throw new BadRequestException("Invalid readStatus. Supported values: UNREAD, READ, or ALL.");
     }
 
     /**
@@ -200,7 +204,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .orElseThrow(() -> new NotFoundException("Notification not found."));
 
         if (!notification.getToUser().getUserId().equals(userId)) {
-            throw new UnauthorizedException("You are not authorized to access this notification.");
+            throw new ForbiddenException("You are not authorized to access this notification.");
         }
 
         notification.setReadStatus(true);

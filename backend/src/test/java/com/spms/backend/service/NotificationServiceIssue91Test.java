@@ -2,8 +2,8 @@ package com.spms.backend.service;
 
 import com.spms.backend.dto.response.NotificationDto;
 import com.spms.backend.exception.BadRequestException;
+import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
-import com.spms.backend.exception.UnauthorizedException;
 import com.spms.backend.model.User;
 import com.spms.backend.model.notification.Notification;
 import com.spms.backend.model.notification.NotificationStatus;
@@ -62,6 +62,19 @@ class NotificationServiceIssue91Test {
     }
 
     @Test
+    void getNotificationsReturnsReadWhenReadStatusRead() {
+        Notification notification = buildNotification(16L, 100L);
+        notification.setReadStatus(true);
+        when(notificationRepository.findByToUser_UserIdAndReadStatus(100L, true, pageable))
+                .thenReturn(new PageImpl<>(List.of(notification)));
+
+        Page<NotificationDto> result = notificationService.getNotifications(100L, "READ", pageable);
+
+        assertEquals(1, result.getTotalElements());
+        verify(notificationRepository).findByToUser_UserIdAndReadStatus(100L, true, pageable);
+    }
+
+    @Test
     void getNotificationsRejectsInvalidReadStatus() {
         assertThrows(
                 BadRequestException.class,
@@ -87,7 +100,7 @@ class NotificationServiceIssue91Test {
         when(notificationRepository.findById(22L)).thenReturn(Optional.of(notification));
 
         assertThrows(
-                UnauthorizedException.class,
+                ForbiddenException.class,
                 () -> notificationService.markAsRead(22L, 999L)
         );
     }
