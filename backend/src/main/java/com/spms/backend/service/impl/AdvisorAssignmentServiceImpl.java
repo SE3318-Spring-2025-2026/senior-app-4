@@ -77,7 +77,7 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
                 .filter(g -> matchesAdvisorIdFilter(g, filterAdvisorId))
                 .filter(g -> matchesHasAdvisorFilter(g, hasAdvisor))
                 .map(AdvisorAssignmentServiceImpl::toDto)
-                .sorted(Comparator.comparing(GroupAdvisorAssignmentDto::groupId))
+                .sorted(Comparator.comparing(GroupAdvisorAssignmentDto::teamId))
                 .collect(Collectors.toList());
     }
 
@@ -93,7 +93,7 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
                 .filter(g -> g.getAdvisor() != null && Objects.equals(g.getAdvisor().getUserId(), professorUserId))
                 .filter(g -> matchesHasAdvisorFilter(g, hasAdvisor))
                 .map(AdvisorAssignmentServiceImpl::toDto)
-                .sorted(Comparator.comparing(GroupAdvisorAssignmentDto::groupId))
+                .sorted(Comparator.comparing(GroupAdvisorAssignmentDto::teamId))
                 .collect(Collectors.toList());
     }
 
@@ -119,7 +119,9 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
                 g.getLeader() != null ? g.getLeader().getFullName() : "N/A",
                 g.getAdvisor() != null ? g.getAdvisor().getUserId() : null,
                 g.getAdvisor() != null ? g.getAdvisor().getFullName() : null,
-                g.getStatus().name());
+                g.getStatus().name(),
+                null,
+                null);
     }
 
     @Override
