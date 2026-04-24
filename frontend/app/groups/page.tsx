@@ -1,14 +1,18 @@
 "use client";
-
+import Sidebar from "@/components/Sidebar";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import GroupCard from "@/components/GroupCard";
 import GroupCardSkeleton from "@/components/GroupCardSkeleton";
-import AppTopbar from "@/components/AppTopbar";
 import { useNotifications } from "@/components/NotificationProvider";
-import { fetchGroups, createGroupApi, ApiGroupListItem } from "@/lib/groups-api";
+import {
+    fetchGroups,
+    fetchGroupDetail,
+    createGroupApi,
+    ApiGroupListItem,
+} from "@/lib/groups-api";
 import { Group } from "@/lib/group-types";
-import { getUser } from "@/lib/auth";
+import { getUser, getToken, decodeToken } from "@/lib/auth";
 import { showToast } from "@/components/toast/ToastContext";
 
 function mapApiGroupToUiGroup(apiGroup: ApiGroupListItem): Group {
@@ -36,7 +40,8 @@ export default function GroupsPage() {
 
     const [groups, setGroups] = useState<Group[]>([]);
     const [loading, setLoading] = useState(true);
-    
+    const [ownGroupId, setOwnGroupId] = useState<number | null>(null);
+
     const page = parseInt(searchParams.get("page") || "0");
     const statusFilter = searchParams.get("status") || "all";
     const advisorFilter = searchParams.get("advisorAssigned") || "all";
@@ -53,8 +58,18 @@ export default function GroupsPage() {
     const [showCreateForm, setShowCreateForm] = useState(false);
 
     const pageSize = 6;
-    const { unreadOrPendingCount } = useNotifications();
     const currentUser = getUser();
+
+    const token = getToken();
+    const decoded = token ? decodeToken(token) : null;
+
+    const currentUserId = Number(
+        decoded?.userId ??
+        decoded?.jwt_userId ??
+        decoded?.user_id ??
+        decoded?.id ??
+        decoded?.sub
+    );
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -93,6 +108,32 @@ export default function GroupsPage() {
                 const mappedGroups = response.content.map(mapApiGroupToUiGroup);
                 setGroups(mappedGroups);
                 setTotalPages(Math.max(response.totalPages, 1));
+
+                if (currentUser?.role === "student" && Number.isFinite(currentUserId)) {
+                    let detectedOwnGroupId: number | null = null;
+
+                    for (const groupItem of mappedGroups) {
+                        try {
+                            const detail = await fetchGroupDetail(groupItem.groupId);
+                            const isMember = detail.members?.some(
+                                (member) => Number(member.userId) === currentUserId
+                            );
+
+                            if (isMember) {
+                                detectedOwnGroupId = groupItem.groupId;
+                                break;
+                            }
+                        } catch {
+                            // ignore detail lookup failures for own-group detection
+                        }
+                    }
+
+                    if (!cancelled) {
+                        setOwnGroupId(detectedOwnGroupId);
+                    }
+                } else {
+                    setOwnGroupId(null);
+                }
             } catch (err) {
                 if (cancelled) return;
 
@@ -111,11 +152,15 @@ export default function GroupsPage() {
         return () => {
             cancelled = true;
         };
-    }, [page, statusFilter, searchQuery, advisorFilter]);
+    }, [page, statusFilter, searchQuery, advisorFilter, currentUser?.role, currentUserId]);
 
-    const sortedGroups = useMemo(() => {
-        return [...groups].sort((a, b) => a.groupName.localeCompare(b.groupName));
-    }, [groups]);
+    const displayGroups = useMemo(() => {
+        if (currentUser?.role !== "student") {
+            return [...groups].sort((a, b) => a.groupName.localeCompare(b.groupName));
+        }
+
+        return groups;
+    }, [groups, currentUser?.role]);
 
     async function handleCreateGroup(e: React.FormEvent) {
         e.preventDefault();
@@ -133,17 +178,19 @@ export default function GroupsPage() {
 
         setCreating(true);
         try {
-            await createGroupApi(trimmed);
+            const createdGroup = await createGroupApi(trimmed);
+
             setCreateSuccess("Group created successfully!");
             showToast("Group created successfully!", "success");
             setGroupName("");
             setShowCreateForm(false);
-            setPage(0);
+            updateParams({ page: 0 });
 
-            const response = await fetchGroups(0, pageSize);
+            const response = await fetchGroups(0, pageSize, statusFilter, searchQuery, advisorFilter);
             const mappedGroups = response.content.map(mapApiGroupToUiGroup);
             setGroups(mappedGroups);
             setTotalPages(Math.max(response.totalPages, 1));
+            setOwnGroupId(createdGroup.id);
         } catch (err) {
             const message =
                 err instanceof Error ? err.message : "Failed to create group.";
@@ -155,190 +202,193 @@ export default function GroupsPage() {
     }
 
     return (
-        <main className="min-h-screen bg-gray-950 px-6 py-10">
-            <div className="mx-auto max-w-6xl">
-                <AppTopbar title="Groups" notificationCount={unreadOrPendingCount} />
+        <div className="min-h-screen bg-gray-950 flex">
+            <Sidebar activePage="groups" />
+            <main className="flex-1 min-w-0 px-6 py-10">
+                <div className="mx-auto max-w-6xl">
 
-                <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold text-white">Project Groups</h1>
-                        <p className="mt-2 text-gray-400">
-                            Browse all groups and view their current project status.
-                        </p>
-                    </div>
 
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <div className="rounded-2xl border border-white/10 bg-gray-900 px-4 py-3 text-sm text-gray-400 shadow-lg shadow-black/20">
-                            <span className="font-semibold text-white">{sortedGroups.length}</span>{" "}
-                            groups listed
-                        </div>
-
-                        <button
-                            onClick={() => {
-                                setShowCreateForm((prev) => !prev);
-                                setCreateError("");
-                                setCreateSuccess("");
-                            }}
-                            className="rounded-2xl bg-green-600 px-5 py-3 text-sm font-semibold text-white hover:bg-green-500 transition-colors"
-                        >
-                            {showCreateForm ? "Close" : "+ Create Group"}
-                        </button>
-                    </div>
-                </div>
-
-                <div className="mb-6 flex flex-col md:flex-row gap-4">
-                    <input
-                        type="text"
-                        placeholder="Search groups..."
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                        className="flex-1 bg-gray-900 border border-white/10 text-sm text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none shadow-lg shadow-black/20"
-                    />
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => updateParams({ status: e.target.value, page: 0 })}
-                        className="bg-gray-900 border border-white/10 text-sm text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none shadow-lg shadow-black/20"
-                    >
-                        <option value="all">All Statuses</option>
-                        <option value="forming">Forming</option>
-                        <option value="formed">Formed</option>
-                        <option value="advised">Advised</option>
-                        <option value="disbanded">Disbanded</option>
-                    </select>
-                    <select
-                        value={advisorFilter}
-                        onChange={(e) => updateParams({ advisorAssigned: e.target.value, page: 0 })}
-                        className="bg-gray-900 border border-white/10 text-sm text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none shadow-lg shadow-black/20"
-                    >
-                        <option value="all">All Advisor Status</option>
-                        <option value="has_advisor">Has Advisor</option>
-                        <option value="no_advisor">No Advisor</option>
-                    </select>
-                </div>
-
-                {showCreateForm && (
-                    <div className="mb-8 rounded-2xl border border-green-500/20 bg-green-500/5 p-6 shadow-lg shadow-black/20">
-                        <h2 className="text-xl font-semibold text-white mb-2">
-                            Create New Group
-                        </h2>
-                        <p className="text-sm text-gray-400 mb-4">
-                            Enter a group name to create a new project group.
-                        </p>
-
-                        <form
-                            onSubmit={handleCreateGroup}
-                            className="flex flex-col gap-4 sm:flex-row sm:items-end"
-                        >
-                            <div className="flex-1">
-                                <input
-                                    type="text"
-                                    placeholder="Group name"
-                                    value={groupName}
-                                    onChange={(e) => setGroupName(e.target.value)}
-                                    className="w-full rounded-xl border border-white/10 bg-gray-900 px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 transition"
-                                    maxLength={100}
-                                />
-                            </div>
-
-                            <div className="flex gap-3">
-                                <button
-                                    type="submit"
-                                    disabled={creating}
-                                    className="rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-500 disabled:opacity-50"
-                                >
-                                    {creating ? "Creating..." : "Create"}
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowCreateForm(false);
-                                        setCreateError("");
-                                        setCreateSuccess("");
-                                        setGroupName("");
-                                    }}
-                                    className="rounded-xl border border-white/10 bg-gray-900 px-6 py-3 text-sm font-semibold text-gray-300 hover:bg-white/5"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
-
-                        {createSuccess && (
-                            <p className="mt-3 text-green-400 text-sm">
-                                ✓ {createSuccess}
-                            </p>
-                        )}
-
-                        {createError && (
-                            <p className="mt-3 text-red-400 text-sm">
-                                ✗ {createError}
-                            </p>
-                        )}
-                    </div>
-                )}
-
-                {loading ? (
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                        {Array.from({ length: 4 }).map((_, i) => (
-                            <GroupCardSkeleton key={i} />
-                        ))}
-                    </div>
-                ) : error ? (
-                    <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-16 text-center shadow-lg shadow-black/20">
-                        <div className="mx-auto max-w-md">
-                            <h2 className="text-xl font-semibold text-red-300">
-                                Could not load groups
-                            </h2>
-                            <p className="mt-2 text-red-200/80">{error}</p>
-                        </div>
-                    </div>
-                ) : sortedGroups.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-gray-900 px-6 py-16 text-center shadow-lg shadow-black/20">
-                        <div className="mx-auto max-w-md">
-                            <h2 className="text-xl font-semibold text-white">No groups found</h2>
+                    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <h1 className="text-3xl font-bold text-white">Project Groups</h1>
                             <p className="mt-2 text-gray-400">
-                                There are currently no project groups to display.
+                                Browse all groups and view their current project status.
                             </p>
                         </div>
+
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <div className="rounded-2xl border border-white/10 bg-gray-900 px-4 py-3 text-sm text-gray-400 shadow-lg shadow-black/20">
+                                <span className="font-semibold text-white">{displayGroups.length}</span>
+                                groups listed
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    setShowCreateForm((prev) => !prev);
+                                    setCreateError("");
+                                    setCreateSuccess("");
+                                }}
+                                className="rounded-2xl bg-green-600 px-5 py-3 text-sm font-semibold text-white hover:bg-green-500 transition-colors"
+                            >
+                                {showCreateForm ? "Close" : "+ Create Group"}
+                            </button>
+                        </div>
                     </div>
-                ) : (
-                    <>
+
+                    <div className="mb-6 flex flex-col md:flex-row gap-4">
+                        <input
+                            type="text"
+                            placeholder="Search groups..."
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
+                            className="flex-1 bg-gray-900 border border-white/10 text-sm text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none shadow-lg shadow-black/20"
+                        />
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => updateParams({ status: e.target.value, page: 0 })}
+                            className="bg-gray-900 border border-white/10 text-sm text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none shadow-lg shadow-black/20"
+                        >
+                            <option value="all">All Statuses</option>
+                            <option value="forming">Forming</option>
+                            <option value="formed">Formed</option>
+                            <option value="advised">Advised</option>
+                            <option value="disbanded">Disbanded</option>
+                        </select>
+                        <select
+                            value={advisorFilter}
+                            onChange={(e) => updateParams({ advisorAssigned: e.target.value, page: 0 })}
+                            className="bg-gray-900 border border-white/10 text-sm text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none shadow-lg shadow-black/20"
+                        >
+                            <option value="all">All Advisor Status</option>
+                            <option value="has_advisor">Has Advisor</option>
+                            <option value="no_advisor">No Advisor</option>
+                        </select>
+                    </div>
+
+                    {showCreateForm && (
+                        <div className="mb-8 rounded-2xl border border-green-500/20 bg-green-500/5 p-6 shadow-lg shadow-black/20">
+                            <h2 className="text-xl font-semibold text-white mb-2">
+                                Create New Group
+                            </h2>
+                            <p className="text-sm text-gray-400 mb-4">
+                                Enter a group name to create a new project group.
+                            </p>
+
+                            <form
+                                onSubmit={handleCreateGroup}
+                                className="flex flex-col gap-4 sm:flex-row sm:items-end"
+                            >
+                                <div className="flex-1">
+                                    <input
+                                        type="text"
+                                        placeholder="Group name"
+                                        value={groupName}
+                                        onChange={(e) => setGroupName(e.target.value)}
+                                        className="w-full rounded-xl border border-white/10 bg-gray-900 px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 transition"
+                                        maxLength={100}
+                                    />
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button
+                                        type="submit"
+                                        disabled={creating}
+                                        className="rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-500 disabled:opacity-50"
+                                    >
+                                        {creating ? "Creating..." : "Create"}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowCreateForm(false);
+                                            setCreateError("");
+                                            setCreateSuccess("");
+                                            setGroupName("");
+                                        }}
+                                        className="rounded-xl border border-white/10 bg-gray-900 px-6 py-3 text-sm font-semibold text-gray-300 hover:bg-white/5"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+
+                            {createSuccess && (
+                                <p className="mt-3 text-green-400 text-sm">
+                                    ✓ {createSuccess}
+                                </p>
+                            )}
+
+                            {createError && (
+                                <p className="mt-3 text-red-400 text-sm">
+                                    ✗ {createError}
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {loading ? (
                         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                            {sortedGroups.map((group) => (
-                                <GroupCard
-                                    key={group.groupId}
-                                    group={group}
-                                    isOwnGroup={currentUser?.userId === group.leaderId}
-                                />
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <GroupCardSkeleton key={i} />
                             ))}
                         </div>
-
-                        <div className="mt-8 flex items-center justify-center gap-3">
-                            <button
-                                onClick={() => updateParams({ page: Math.max(page - 1, 0) })}
-                                disabled={page === 0}
-                                className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
-                            >
-                                Previous
-                            </button>
-
-                            <span className="text-sm text-gray-400">
-                                Page <span className="text-white">{page + 1}</span> /{" "}
-                                <span className="text-white">{Math.max(totalPages, 1)}</span>
-                            </span>
-
-                            <button
-                                onClick={() => updateParams({ page: Math.min(page + 1, totalPages - 1) })}
-                                disabled={page >= totalPages - 1}
-                                className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
-                            >
-                                Next
-                            </button>
+                    ) : error ? (
+                        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-16 text-center shadow-lg shadow-black/20">
+                            <div className="mx-auto max-w-md">
+                                <h2 className="text-xl font-semibold text-red-300">
+                                    Could not load groups
+                                </h2>
+                                <p className="mt-2 text-red-200/80">{error}</p>
+                            </div>
                         </div>
-                    </>
-                )}
-            </div>
-        </main>
+                    ) : displayGroups.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 bg-gray-900 px-6 py-16 text-center shadow-lg shadow-black/20">
+                            <div className="mx-auto max-w-md">
+                                <h2 className="text-xl font-semibold text-white">No groups found</h2>
+                                <p className="mt-2 text-gray-400">
+                                    There are currently no project groups to display.
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                                {displayGroups.map((group) => (
+                                    <GroupCard
+                                        key={group.groupId}
+                                        group={group}
+                                        isOwnGroup={group.groupId === ownGroupId}
+                                    />
+                                ))}
+                            </div>
+
+                            <div className="mt-8 flex items-center justify-center gap-3">
+                                <button
+                                    onClick={() => updateParams({ page: Math.max(page - 1, 0) })}
+                                    disabled={page === 0}
+                                    className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
+                                >
+                                    Previous
+                                </button>
+
+                                <span className="text-sm text-gray-400">
+                                    Page <span className="text-white">{page + 1}</span> /{" "}
+                                    <span className="text-white">{Math.max(totalPages, 1)}</span>
+                                </span>
+
+                                <button
+                                    onClick={() => updateParams({ page: Math.min(page + 1, totalPages - 1) })}
+                                    disabled={page >= totalPages - 1}
+                                    className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </main>
+        </div>
     );
 }

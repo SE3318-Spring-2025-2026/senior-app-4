@@ -1,8 +1,10 @@
 package com.spms.api;
 
+import com.spms.backend.SpmsBackendApplication;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
@@ -17,18 +19,17 @@ import org.springframework.boot.test.web.server.LocalServerPort;
  *
  * Usage: {@code class MyApiTest extends BaseApiTest { ... }}
  */
-import com.spms.backend.SpmsBackendApplication;
-
 @SpringBootTest(
     classes = SpmsBackendApplication.class,
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
 )
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class BaseApiTest {
 
     @LocalServerPort
     protected int port;
 
-    @BeforeEach
+    @BeforeAll
     void setUpRestAssured() {
         RestAssured.baseURI = "http://localhost";
         RestAssured.port = port;

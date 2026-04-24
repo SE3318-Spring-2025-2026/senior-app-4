@@ -18,6 +18,7 @@ import com.spms.backend.dto.response.AdvisorRequestResponseDto;
 import com.spms.backend.dto.request.AdvisorRequestDecisionDto;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import java.util.List;
 
@@ -60,4 +61,5 @@ public class ProfessorController {
         groupService.handleAdvisorRequestDecision(professorId, request.groupId(), request.status());
         return ResponseEntity.ok().build();
     }
+
 }

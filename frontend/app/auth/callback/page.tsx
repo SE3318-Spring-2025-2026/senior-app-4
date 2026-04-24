@@ -39,9 +39,11 @@ function CallbackContent() {
 
         const data = await res.json();
         const claims = decodeToken(data.token) ?? {};
+
         setAuth(data.token, {
-          studentId: data.studentId,
-          githubUsername: data.githubUsername,
+          userId: Number(claims.userId),
+          studentId: claims.studentId as string | undefined,
+          githubUsername: claims.githubUsername as string | undefined,
           role: (claims.role as string) ?? "student",
           requiresPasswordChange: (claims.requiresPasswordChange as boolean) ?? false,
         });

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setAuth } from "@/lib/auth";
+import { setAuth, decodeToken } from "@/lib/auth";
 
 export default function ProfessorLoginPage() {
   const router = useRouter();
@@ -30,9 +30,15 @@ export default function ProfessorLoginPage() {
         return;
       }
 
+
+      const claims = decodeToken(data.token) ?? {};
+
       setAuth(data.token, {
-        role: data.role,
-        requiresPasswordChange: data.requiresPasswordChange,
+        userId: Number(claims.userId),
+        studentId: claims.studentId as string | undefined,
+        githubUsername: claims.githubUsername as string | undefined,
+        role: data.role ?? (claims.role as string),
+        requiresPasswordChange: data.requiresPasswordChange ?? (claims.requiresPasswordChange as boolean),
       });
 
       if (data.requiresPasswordChange) {

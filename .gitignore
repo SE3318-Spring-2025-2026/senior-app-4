@@ -1,5 +1,7 @@
 backend/target/
 .DS_Store
+CLAUDE.md
+
 
 # Environment files
 .env
@@ -20,3 +22,6 @@ application-local.properties
 # Log files
 *.log
 boot_error.log
+
+# Local notes
+PENDING_FIXES.md

@@ -1,9 +1,14 @@
 package com.spms.backend.controller;
 
+import com.spms.backend.dto.request.AdvisorRequestCreateDto;
 import com.spms.backend.dto.request.AdvisorRequestDto;
 import com.spms.backend.dto.request.NotificationRespondRequestDto;
+import com.spms.backend.dto.response.AdvisorRequestCreateResponseDto;
 import com.spms.backend.dto.response.AdvisorRequestStatusDto;
 import com.spms.backend.dto.response.NotificationDto;
+import com.spms.backend.dto.response.SuccessResponse;
+import com.spms.backend.exception.BadRequestException;
+import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.service.NotificationService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -22,15 +27,36 @@ public class NotificationController {
     }
 
 
-    @PostMapping("/api/v1/groups/{groupId}/advisor-request")
-    public ResponseEntity<Void> requestAdvisor(
-            @PathVariable Long groupId,
-            @Valid @RequestBody AdvisorRequestDto request,
-            @RequestAttribute("jwt_userId") Object userId) {
+    /**
+     * P4.1 — Submit Advisor Request
+     * Canonical endpoint defined in Process 4 API specs.
+     */
+    @PostMapping("/api/v1/advisor-requests")
+    public ResponseEntity<AdvisorRequestCreateResponseDto> createAdvisorRequest(
+            @Valid @RequestBody AdvisorRequestCreateDto request,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+
+        String requesterRole = role.toString();
+        if (!"student".equalsIgnoreCase(requesterRole)) {
+            throw new ForbiddenException("Only students can send advisor requests.");
+        }
 
         Long leaderId = Long.valueOf(userId.toString());
-        notificationService.requestAdvisor(groupId, request, leaderId);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        Long teamId;
+        try {
+            teamId = Long.valueOf(request.teamId());
+        } catch (NumberFormatException ex) {
+            throw new BadRequestException("teamId must be a numeric string.");
+        }
+        Long requestId = notificationService.requestAdvisor(
+                teamId,
+                new AdvisorRequestDto(request.professorId()),
+                leaderId
+        );
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(new AdvisorRequestCreateResponseDto(requestId, "PENDING"));
     }
 
 
@@ -54,14 +80,49 @@ public class NotificationController {
     }
 
 
+    /**
+     * withdrawRequest / revokeNotification  (Related: Issue #80)
+     * DELETE /api/v1/advisor-requests/{id}
+     *
+     * Allows a student (group leader) to withdraw a PENDING advisor request
+     * by notification ID. Soft-deletes the notification in D8 (status → REVOKED).
+     *
+     * Returns 204 No Content on success.
+     * Returns 404 if the notification does not exist.
+     * Returns 400 if the request is not PENDING.
+     * Returns 403 if the caller is not the original sender.
+     */
+    @DeleteMapping("/api/v1/advisor-requests/{id}")
+    public ResponseEntity<Void> withdrawAdvisorRequest(
+            @PathVariable Long id,
+            @RequestAttribute("jwt_userId") Object userId) {
+
+        Long requesterId = Long.valueOf(userId.toString());
+        notificationService.withdrawAdvisorRequest(id, requesterId);
+        return ResponseEntity.noContent().build();
+    }
+
+
+
     @GetMapping("/api/v1/notifications")
     public ResponseEntity<Page<NotificationDto>> getUserNotifications(
             Pageable pageable,
+            @RequestParam(required = false, defaultValue = "ALL") String readStatus,
             @RequestAttribute("jwt_userId") Object userId) {
 
         Long currentUserId = Long.valueOf(userId.toString());
-        Page<NotificationDto> notifications = notificationService.getUserNotifications(currentUserId, pageable);
+        Page<NotificationDto> notifications = notificationService.getNotifications(currentUserId, readStatus, pageable);
         return ResponseEntity.ok(notifications);
+    }
+
+    @PatchMapping("/api/v1/notifications/{notificationId}/read")
+    public ResponseEntity<SuccessResponse> markAsRead(
+            @PathVariable Long notificationId,
+            @RequestAttribute("jwt_userId") Object userId) {
+
+        Long currentUserId = Long.valueOf(userId.toString());
+        notificationService.markAsRead(notificationId, currentUserId);
+        return ResponseEntity.ok(new SuccessResponse("success", "Notification marked as read."));
     }
 
 

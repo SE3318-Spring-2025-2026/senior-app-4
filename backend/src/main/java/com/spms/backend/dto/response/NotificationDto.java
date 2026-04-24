@@ -6,6 +6,7 @@ public record NotificationDto(
         String type,
         String message,
         String status,
+        boolean readStatus,
         Long fromUserId,
         String fromUserName,
         Long toUserId,
