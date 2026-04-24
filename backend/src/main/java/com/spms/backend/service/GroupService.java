@@ -11,6 +11,7 @@ import com.spms.backend.dto.response.JiraIntegrationResponse;
 import com.spms.backend.dto.response.GithubIntegrationResponse;
 import com.spms.backend.dto.request.OverrideAssignmentRequest;
 import com.spms.backend.dto.response.OverrideAssignmentResponse;
+import com.spms.backend.dto.response.AdvisorDecisionResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -35,7 +36,7 @@ public interface GroupService {
     GithubIntegrationResponse getGithubIntegration(Long groupId);
     void unbindJiraIntegration(Long groupId, Long requesterId);
 
-    //rol bazlı detaylıs sorgu
+    //rol bazlı detaylıs sorgu -
     GroupDetailDto getGroupDetails(Long groupId, Long requesterId, String requesterRole);
 
     //üye yöneyimi
@@ -50,6 +51,7 @@ public interface GroupService {
     // Advisor Requests & Group Formation
     List<com.spms.backend.dto.response.AdvisorRequestResponseDto> getPendingAdvisorRequests(Long professorId);
     void handleAdvisorRequestDecision(Long professorId, Long groupId, String status);
+    AdvisorDecisionResponseDto processAdvisorRequestDecision(Long professorId, Long requestId, String status, String reason);
     void transferAdvisor(Long groupId, Long professorId, String requesterRole);
     OverrideAssignmentResponse overrideAdvisorAssignment(OverrideAssignmentRequest request, Long requesterId, String requesterRole);
     com.spms.backend.dto.response.GroupFormationReportDto getGroupFormationReport(String role);

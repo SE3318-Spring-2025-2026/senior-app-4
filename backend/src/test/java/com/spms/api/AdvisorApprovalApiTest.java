@@ -269,7 +269,7 @@ public class AdvisorApprovalApiTest extends BaseApiTest {
         // Let's attempt to send a brand new request to Prof C just in case.
         Response newReqRes = sendAdvisorRequest(profCUserId);
         if (newReqRes.statusCode() == 200) {
-            newReqIdToC = newReqRes.jsonPath().getInt("data.requestId");
+            newReqIdToC = newReqRes.jsonPath().getInt("id");
         }
 
         given()
@@ -308,9 +308,9 @@ public class AdvisorApprovalApiTest extends BaseApiTest {
     private Response sendAdvisorRequest(Long targetProfId) {
         return given()
             .header("Authorization", "Bearer " + leaderToken)
-            .body(Map.of("professorId", targetProfId))
+            .body(Map.of("teamId", String.valueOf(createdGroupId), "professorId", targetProfId))
         .when()
-            .post("/api/v1/groups/" + createdGroupId + "/advisor-request")
+            .post("/api/v1/advisor-requests")
         .then()
             .extract().response();
     }
@@ -320,7 +320,7 @@ public class AdvisorApprovalApiTest extends BaseApiTest {
      */
     private int extractRequestId(Response response, int fallback) {
         if (response.statusCode() == 200 || response.statusCode() == 201) {
-            return response.jsonPath().getInt("data.requestId");
+            return response.jsonPath().getInt("id");
         }
         return fallback;
     }

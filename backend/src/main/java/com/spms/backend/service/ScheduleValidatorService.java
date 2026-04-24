@@ -1,6 +1,8 @@
 package com.spms.backend.service;
 
 import com.spms.backend.model.Group;
+import com.spms.backend.model.GroupMember;
+import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.Schedule;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
@@ -11,8 +13,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -79,7 +83,8 @@ public class ScheduleValidatorService {
 
     // ── Grup Oluşturma Deadline Geçince ──────────────────────────────────
 
-    private void handleGroupFormationDeadline() {
+    @Transactional
+    void handleGroupFormationDeadline() {
         Long coordinatorId = findCoordinatorId();
         if (coordinatorId == null) {
             log.warn("[ScheduleValidator] No coordinator found in database.");
@@ -92,30 +97,31 @@ public class ScheduleValidatorService {
             return;
         }
 
-        // Yetersiz üyeli aktif grupları bul ve 'incomplete' yap
-        List<Group> activeGroups = groupRepository.findByStatus(com.spms.backend.model.GroupStatus.FORMED);
-        long incompleteCount = 0;
+        // Yetersiz üyeli FORMING/FORMED grupları bul — deadline geçti, disband et
+        List<Group> activeGroups = new ArrayList<>(groupRepository.findByStatus(GroupStatus.FORMING));
+        activeGroups.addAll(groupRepository.findByStatus(GroupStatus.FORMED));
+        long disbandedCount = 0;
+
         for (Group g : activeGroups) {
-            long memberCount = g.getMembers().size();
-            if (memberCount < MIN_GROUP_MEMBERS) {
-                g.setStatus(com.spms.backend.model.GroupStatus.FORMING);
-                groupRepository.save(g);
-                incompleteCount++;
+            if (g.getMembers().size() < MIN_GROUP_MEMBERS) {
+                // disb_f1 + disb_f3: üyeleri sil, roller sıfırla
+                disbandGroupAutomatically(g, coordinatorId);
+                disbandedCount++;
             }
         }
 
         String msg = "Group formation deadline has passed. "
-                + incompleteCount + " incomplete group(s) detected.";
+                + disbandedCount + " incomplete group(s) automatically disbanded.";
         notificationService.createSystemAlert(coordinatorId, msg,
                 "formation_deadline_missed", null);
 
-        log.info("[ScheduleValidator] Formation deadline alert created. Incomplete groups: {}",
-                incompleteCount);
+        log.info("[AUDIT] formation deadline: {} group(s) disbanded automatically.", disbandedCount);
     }
 
     // ── Danışman Atama Deadline Geçince ──────────────────────────────────
 
-    private void handleAdvisorAssignmentDeadline() {
+    @Transactional
+    void handleAdvisorAssignmentDeadline() {
         Long coordinatorId = findCoordinatorId();
         if (coordinatorId == null) {
             log.warn("[ScheduleValidator] No coordinator found in database.");
@@ -127,23 +133,57 @@ public class ScheduleValidatorService {
             return;
         }
 
-        // Danışman atanmamış, disbanded olmayan grupları bul
+        // Danışman atanmamış, disbanded olmayan grupları bul — disb_f1 + disb_f3 uygula
         List<Group> unadvisedGroups = groupRepository
-                .findByAdvisorIsNullAndStatusNot(com.spms.backend.model.GroupStatus.DISBANDED);
+                .findByAdvisorIsNullAndStatusNot(GroupStatus.DISBANDED);
 
-        // Bu grupları 'advisor_needed' statüsüne al
         for (Group g : unadvisedGroups) {
-            g.setStatus(com.spms.backend.model.GroupStatus.FORMING);
-            groupRepository.save(g);
+            disbandGroupAutomatically(g, coordinatorId);
         }
 
         String msg = "Advisor assignment deadline has passed. "
-                + unadvisedGroups.size() + " group(s) without an advisor.";
+                + unadvisedGroups.size() + " group(s) without an advisor automatically disbanded.";
         notificationService.createSystemAlert(coordinatorId, msg,
                 "advisor_deadline_missed", null);
 
-        log.info("[ScheduleValidator] Advisor deadline alert created. Unadvised groups: {}",
-                unadvisedGroups.size());
+        log.info("[AUDIT] advisor deadline: {} group(s) disbanded automatically.", unadvisedGroups.size());
+    }
+
+    /**
+     * disb_f1: üye kayıtlarını sil, grubu DISBANDED yap
+     * disb_f3: her üyenin rolünü 'student' olarak sıfırla
+     * Manuel disbandGroup() ile aynı akışı izler.
+     */
+    @Transactional
+    void disbandGroupAutomatically(Group group, Long actorId) {
+        List<GroupMember> members = new ArrayList<>(group.getMembers());
+        List<Long> memberIds = members.stream()
+                .map(m -> m.getUser().getUserId())
+                .toList();
+
+        // disb_f3 — öğrenci rollerini sıfırla
+        for (GroupMember member : members) {
+            member.getUser().setRole("student");
+            userRepository.save(member.getUser());
+        }
+
+        // disb_f1 — üye kayıtlarını sil, grubu disbanded yap
+        groupMemberRepository.deleteAll(members);
+        group.setStatus(GroupStatus.DISBANDED);
+        group.setUpdatedAt(Instant.now());
+        groupRepository.save(group);
+
+        // Üyelere bildirim gönder
+        try {
+            notificationService.sendGroupDisbandedNotification(
+                    group.getId(), actorId, group.getGroupName(), memberIds);
+        } catch (Exception ex) {
+            log.warn("[ScheduleValidator] Failed to send disband notification for group {}: {}",
+                    group.getId(), ex.getMessage());
+        }
+
+        log.info("[AUDIT] disbandGroupAutomatically: groupId={} groupName='{}' memberCount={}",
+                group.getId(), group.getGroupName(), memberIds.size());
     }
 
     // ── Koordinatörün ID'sini bul ─────────────────────────────────────────

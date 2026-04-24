@@ -4,6 +4,7 @@ package com.spms.backend.repository;
 import com.spms.backend.model.GroupMember;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import java.util.Optional;
 
 @Repository
 public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> {
@@ -11,4 +12,8 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
     boolean existsByUser_UserId(Long userId);
 
     boolean existsByGroup_IdAndUser_UserId(Long groupId, Long userId);
+
+    Optional<GroupMember> findTopByUser_UserId(Long userId);
+
+    Optional<GroupMember> findByUser_UserId(Long userId);
 }

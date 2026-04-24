@@ -1,0 +1,807 @@
+openapi: 3.0.3
+info:
+  title: "Process 7: AI Validation & Repo Analysis API"
+  version: 2.0.0
+  description: |
+    Senior Project Management System — Level-2 DFD Process 7
+
+    ## Sub-Processes
+    | ID  | Name                          |
+    |-----|-------------------------------|
+    | 7.1 | Load Sprint Context           |
+    | 7.2 | Fetch PR Details              |
+    | 7.3 | Fetch File Diffs              |
+    | 7.4 | AI Review Verification        |
+    | 7.5 | AI Implementation Validation  |
+    | 7.6 | Store Validation Results       |
+
+    ## Data Stores
+    D6 Sprint & Repo Data · D7 Grades · D9 System Logs
+
+    ## External Entities
+    GitHub API · AI Service (OpenAI GPT)
+
+    ## Sequential Pipeline (P6 → P7)
+    ```
+    P6 completes sprint sync → triggers P7 (async)
+    7.1 Load Sprint Context (D6)
+      ├→ 7.2 Fetch PR Details (GitHub API)
+      │    ├→ prComments → 7.4 AI Review Verification (OpenAI)
+      │    └→ prID + commitHashes → 7.3 Fetch File Diffs (GitHub API)
+      │                                └→ fileDiffs → 7.5 AI Implementation Validation (OpenAI)
+      │                                     ↑ issueDescription (from 7.1)
+      └→ 7.4 reviewScore ──┐
+         7.5 implementationScore ──┤
+                                   ↓
+                              7.6 Store Validation Results
+                                ├→ validationLog → D6
+                                ├→ sprintGrade → D7
+                                └→ validationLog → D9
+    ```
+
+    ## Business Rules
+    - P7 can ONLY run after P6 has completed for the given sprint (sequential dependency).
+    - AI validation is **asynchronous** — the trigger returns immediately with a Job ID.
+    - OpenAI is the AI provider. The system uses structured JSON outputs to ensure deterministic parsing.
+    - Large diffs are pre-filtered (exclude lock files, binaries) and truncated to fit token limits.
+    - Results feed into the **Advisor Dashboard** and into **P8 Grading & Evaluation**.
+    - Each sprint+team combination can only have one active validation job at a time.
+
+servers:
+  - url: /api/v1
+    description: Development server
+
+tags:
+  - name: "7.1 Trigger & Jobs"
+    description: "Trigger AI validation pipeline and track async job status (DFD: 7.1 Load Sprint Context)"
+  - name: "7.6 Validation Results"
+    description: "Read aggregated and detailed validation results for dashboard display (DFD: 7.6 Store Validation Results → D6, D7)"
+  - name: "7.0 Configuration"
+    description: "Configure AI validation weights, thresholds, and OpenAI model parameters"
+
+# ─────────────────────────────────────────────
+#  PATHS
+# ─────────────────────────────────────────────
+paths:
+
+  # ═══════════════════════════════════════════
+  #  7.1  —  Trigger Validation Pipeline
+  # ═══════════════════════════════════════════
+  /ai-validation/sprints/{sprintId}/trigger:
+    parameters:
+      - $ref: '#/components/parameters/sprintIdParam'
+
+    post:
+      tags:
+        - "7.1 Trigger & Jobs"
+      summary: "Trigger AI validation for a completed sprint"
+      description: |
+        **DFD:** 7.1 Load Sprint Context → 7.2 → 7.3 → 7.4 → 7.5 → 7.6
+        **DFD flows:** f1 (sprintContext: issueKeys, descriptions, prRefs ← D6)
+
+        Initiates the full AI validation pipeline for a given sprint.
+        This is an **asynchronous** operation — it returns `202 Accepted` with a
+        `jobId` that can be polled via `GET /ai-validation/jobs/{jobId}`.
+
+        ## Why Asynchronous?
+        The pipeline involves multiple external API calls (GitHub + OpenAI) per issue.
+        A sprint with 10 issues could take 2-5 minutes. Synchronous processing would
+        cause HTTP timeouts and block the client.
+
+        ## Sequential Dependency on P6
+        The backend verifies that P6 has completed for this sprint before allowing
+        P7 to start. If P6 has not run yet, returns `400 SPRINT_NOT_READY`.
+
+        ## Deduplication
+        Only one active validation job per sprint+team is allowed. If a job is already
+        `QUEUED` or `IN_PROGRESS`, returns `409 VALIDATION_ALREADY_RUNNING`.
+
+        ## Authorization
+        - **Coordinator**: Can trigger for any sprint/team.
+        - **System/Cron**: P6 completion handler calls this internally.
+
+        ## Internal Side-Effects
+        - 7.1: Reads sprint context from D6.
+        - 7.2–7.5: External calls to GitHub and OpenAI (all background).
+        - 7.6: Writes validationLog → D6, sprintGrade → D7, validationLog → D9.
+      operationId: triggerValidation
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerValidationRequest'
+      responses:
+        '202':
+          description: |
+            Validation job accepted and queued for background processing.
+            Use the returned `jobId` to poll for status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerValidationResponse'
+        '400':
+          description: |
+            Sprint is not ready for validation. Possible causes:
+            - P6 has not completed for this sprint
+            - Sprint does not exist
+            - No issues found in sprint context (D6 empty for this sprint)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Coordinator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            A validation job is already running for this sprint.
+            Wait for the existing job to complete, or cancel it first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  7.1  —  Job Status Polling
+  # ═══════════════════════════════════════════
+  /ai-validation/jobs/{jobId}:
+    parameters:
+      - $ref: '#/components/parameters/jobIdParam'
+
+    get:
+      tags:
+        - "7.1 Trigger & Jobs"
+      summary: "Check validation job status"
+      description: |
+        **DFD:** Spans 7.1 through 7.6 (progress tracking across all sub-processes)
+
+        Poll this endpoint to track the progress of a background validation job.
+        The `currentStep` field indicates which DFD sub-process is currently executing.
+
+        ## Dashboard Integration
+        The frontend can poll this endpoint every 5 seconds to show:
+        - A progress bar (`progressPercentage`)
+        - Current activity description (`message`)
+        - Which step is running (`currentStep`: e.g., "FETCHING_PR_DETAILS")
+
+        ## Terminal States
+        - `COMPLETED`: All validation finished. Results available via GET .../results.
+        - `FAILED`: Pipeline failed. `failureReason` explains what went wrong.
+        - `PARTIALLY_COMPLETED`: Some issues validated, others failed (e.g., GitHub rate limit).
+      operationId: getJobStatus
+      responses:
+        '200':
+          description: Job status retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+        '404':
+          description: Job not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  7.1  —  Retry Failed Job
+  # ═══════════════════════════════════════════
+  /ai-validation/jobs/{jobId}/retry:
+    parameters:
+      - $ref: '#/components/parameters/jobIdParam'
+
+    post:
+      tags:
+        - "7.1 Trigger & Jobs"
+      summary: "Retry a failed or partially completed validation job"
+      description: |
+        Re-runs validation for issues that failed in a previous job attempt.
+        Only jobs with status `FAILED` or `PARTIALLY_COMPLETED` can be retried.
+
+        ## Common Failure Scenarios
+        - **GitHub API rate limit** (429): Retry after the rate limit window resets.
+        - **OpenAI timeout**: Transient failure; usually succeeds on retry.
+        - **Diff too large**: Will be truncated on retry with a size-limit flag.
+
+        ## Authorization
+        - Coordinator only.
+      operationId: retryJob
+      responses:
+        '202':
+          description: Retry job accepted. Returns new job with only failed issues.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerValidationResponse'
+        '400':
+          description: |
+            Job cannot be retried. Possible causes:
+            - Job is still running (QUEUED / IN_PROGRESS)
+            - Job already COMPLETED (nothing to retry)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  7.6  —  Sprint-Level Results (Dashboard)
+  # ═══════════════════════════════════════════
+  /ai-validation/sprints/{sprintId}/results:
+    parameters:
+      - $ref: '#/components/parameters/sprintIdParam'
+
+    get:
+      tags:
+        - "7.6 Validation Results"
+      summary: "Get AI validation results for a sprint"
+      description: |
+        **DFD:** 7.6 Store Validation Results
+        **DFD flows:** f17 (validationLog → D6), f18 (sprintGrade → D7)
+
+        Retrieves the aggregated AI validation results for display on the
+        **Advisor Dashboard**. Returns scores grouped by team, with per-issue
+        breakdowns including review verification and implementation validation scores.
+
+        ## Authorization
+        - **Advisor**: Sees only their own advisee teams.
+        - **Coordinator**: Sees all teams in the sprint.
+
+        ## Dashboard Display
+        Each team card on the dashboard shows:
+        - `overallSprintScore`: Weighted average of all issue composite scores.
+        - Per-issue: `reviewVerificationScore` + `implementationMatchScore` → `compositeScore`.
+        - Evaluation timestamp to know when the analysis was performed.
+      operationId: getSprintResults
+      parameters:
+        - name: teamId
+          in: query
+          required: false
+          description: Filter results by a specific team (Advisor sees only own teams by default)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Validation results retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintValidationResultsResponse'
+        '404':
+          description: Sprint not found or no validation results exist yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  7.6  —  Issue-Level Detail (Dashboard Drill-Down)
+  # ═══════════════════════════════════════════
+  /ai-validation/issues/{issueKey}/details:
+    parameters:
+      - name: issueKey
+        in: path
+        required: true
+        description: "JIRA Issue Key (e.g., PROJ-123)"
+        schema:
+          type: string
+
+    get:
+      tags:
+        - "7.6 Validation Results"
+      summary: "Get detailed AI feedback for a specific issue"
+      description: |
+        **DFD:** 7.4 AI Review Verification + 7.5 AI Implementation Validation
+        **DFD flows:** f11 (verifyReviewPrompt → AI), f12 (reviewVerificationResult),
+        f13 (validateImplementationPrompt → AI), f14 (implementationValidationResult)
+
+        Retrieves the full AI analysis for a specific JIRA issue, including:
+        - **Review Verification** (7.4): Did a genuine code review happen?
+          Checks for substantive comments, change requests, and multi-reviewer engagement.
+        - **Implementation Validation** (7.5): Does the code match the issue description?
+          Lists covered and missing requirements, with AI reasoning.
+
+        ## Dashboard Drill-Down
+        When an advisor clicks on an issue in the sprint results table,
+        this endpoint provides the detailed breakdown.
+
+        ## Authorization
+        - **Advisor**: Can view details for issues belonging to their advisee teams.
+        - **Coordinator**: Can view all issues.
+      operationId: getIssueDetails
+      responses:
+        '200':
+          description: Detailed AI feedback retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueValidationDetailResponse'
+        '404':
+          description: Issue not found or not yet validated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  7.0  —  Configuration
+  # ═══════════════════════════════════════════
+  /ai-validation/config:
+    get:
+      tags:
+        - "7.0 Configuration"
+      summary: "Get AI validation configuration"
+      description: |
+        Returns the current AI validation configuration, including
+        score weights, OpenAI model settings, and filter rules.
+
+        ## Authorization
+        - Coordinator only.
+      operationId: getConfig
+      responses:
+        '200':
+          description: Configuration retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationConfigResponse'
+
+    put:
+      tags:
+        - "7.0 Configuration"
+      summary: "Update AI validation configuration"
+      description: |
+        Update scoring weights, OpenAI model, and diff filter rules.
+
+        ## Business Rules
+        - `reviewWeight` + `implementationWeight` must equal 100.
+        - Changes apply to future validation runs only. Existing results are not recalculated.
+
+        ## Authorization
+        - Coordinator only.
+      operationId: updateConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidationConfigRequest'
+      responses:
+        '200':
+          description: Configuration updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: |
+            Validation error. Possible causes:
+            - Weights do not sum to 100
+            - Invalid OpenAI model name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Coordinator role required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+# ─────────────────────────────────────────────
+#  COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    sprintIdParam:
+      name: sprintId
+      in: path
+      required: true
+      description: Sprint identifier (UUID or sprint key)
+      schema:
+        type: string
+        format: uuid
+
+    jobIdParam:
+      name: jobId
+      in: path
+      required: true
+      description: Validation job ID returned by the trigger endpoint
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    # ── Request Schemas ──────────────────────
+
+    TriggerValidationRequest:
+      type: object
+      properties:
+        teamId:
+          type: string
+          format: uuid
+          description: |
+            Optional. Validate only a specific team in this sprint.
+            If omitted, validates ALL teams in the sprint.
+        issueKeys:
+          type: array
+          items:
+            type: string
+          description: |
+            Optional. Validate only specific issues.
+            If omitted, validates all issues in the sprint (or team).
+          example: ["PROJ-123", "PROJ-124"]
+
+    ValidationConfigRequest:
+      type: object
+      required: [reviewWeight, implementationWeight]
+      properties:
+        reviewWeight:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 40
+          description: "Weight of review verification score in composite (%). Must sum to 100 with implementationWeight."
+        implementationWeight:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 60
+          description: "Weight of implementation validation score in composite (%)."
+        openaiModel:
+          type: string
+          example: "gpt-4o"
+          description: "OpenAI model to use for validation prompts."
+        maxDiffLines:
+          type: integer
+          example: 500
+          description: "Maximum number of diff lines to send to OpenAI per PR. Excess is truncated."
+        excludedFilePatterns:
+          type: array
+          items:
+            type: string
+          example: ["package-lock.json", "*.min.js", "*.svg"]
+          description: "File patterns to exclude from diff analysis."
+
+    # ── Response Schemas ─────────────────────
+
+    SuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Operation completed successfully.
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Validation failed.
+        errorCode:
+          type: string
+          example: SPRINT_NOT_READY
+          description: |
+            Machine-readable error codes:
+            - SPRINT_NOT_READY: P6 has not completed for this sprint
+            - SPRINT_NOT_FOUND: Sprint does not exist
+            - VALIDATION_ALREADY_RUNNING: Active job exists for this sprint
+            - GITHUB_RATE_LIMITED: GitHub API rate limit exceeded
+            - OPENAI_ERROR: OpenAI API returned an error
+            - JOB_NOT_RETRYABLE: Job status does not allow retry
+
+    TriggerValidationResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: "AI validation job queued. Poll GET /ai-validation/jobs/{jobId} for status."
+        data:
+          type: object
+          properties:
+            jobId:
+              type: string
+              format: uuid
+            sprintId:
+              type: string
+              format: uuid
+            teamId:
+              type: string
+              format: uuid
+              nullable: true
+              description: "Null if validating all teams"
+            issueCount:
+              type: integer
+              example: 8
+              description: "Number of issues to be validated"
+            status:
+              type: string
+              example: QUEUED
+            createdAt:
+              type: string
+              format: date-time
+
+    JobStatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            jobId:
+              type: string
+              format: uuid
+            sprintId:
+              type: string
+              format: uuid
+            jobStatus:
+              type: string
+              enum: [QUEUED, IN_PROGRESS, COMPLETED, PARTIALLY_COMPLETED, FAILED]
+            currentStep:
+              type: string
+              enum: [LOADING_CONTEXT, FETCHING_PR_DETAILS, FETCHING_DIFFS, AI_REVIEW_VERIFICATION, AI_IMPLEMENTATION_VALIDATION, STORING_RESULTS]
+              nullable: true
+              description: |
+                Maps to DFD sub-processes:
+                - LOADING_CONTEXT → 7.1
+                - FETCHING_PR_DETAILS → 7.2
+                - FETCHING_DIFFS → 7.3
+                - AI_REVIEW_VERIFICATION → 7.4
+                - AI_IMPLEMENTATION_VALIDATION → 7.5
+                - STORING_RESULTS → 7.6
+            progressPercentage:
+              type: integer
+              minimum: 0
+              maximum: 100
+              example: 45
+            message:
+              type: string
+              example: "Analyzing PR diffs for issue PROJ-123..."
+            issuesTotal:
+              type: integer
+              example: 8
+            issuesCompleted:
+              type: integer
+              example: 3
+            issuesFailed:
+              type: integer
+              example: 0
+            failureReason:
+              type: string
+              nullable: true
+              description: "Set only when jobStatus is FAILED or PARTIALLY_COMPLETED"
+              example: "GitHub API rate limit exceeded after processing 5/8 issues."
+            startedAt:
+              type: string
+              format: date-time
+            completedAt:
+              type: string
+              format: date-time
+              nullable: true
+
+    SprintValidationResultsResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            sprintId:
+              type: string
+              format: uuid
+            evaluatedAt:
+              type: string
+              format: date-time
+              description: "When the validation pipeline last completed"
+            teams:
+              type: array
+              items:
+                $ref: '#/components/schemas/TeamValidationResult'
+
+    TeamValidationResult:
+      type: object
+      properties:
+        teamId:
+          type: string
+          format: uuid
+        teamName:
+          type: string
+          example: "Alpha Team"
+        overallSprintScore:
+          type: number
+          format: float
+          example: 82.5
+          description: "Weighted average of all issue composite scores"
+        issueCount:
+          type: integer
+          example: 5
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/IssueValidationSummary'
+
+    IssueValidationSummary:
+      type: object
+      properties:
+        issueKey:
+          type: string
+          example: "PROJ-123"
+        issueTitle:
+          type: string
+          example: "Implement user login flow"
+        assignee:
+          type: string
+          example: "student@example.com"
+        prNumber:
+          type: integer
+          example: 42
+        prMerged:
+          type: boolean
+          example: true
+        reviewVerificationScore:
+          type: number
+          format: float
+          example: 90.0
+          description: "Score from 7.4 AI Review Verification (0-100)"
+        reviewQuality:
+          type: string
+          enum: [INSUFFICIENT, MINIMAL, SUFFICIENT, THOROUGH]
+        implementationMatchScore:
+          type: number
+          format: float
+          example: 80.0
+          description: "Score from 7.5 AI Implementation Validation (0-100)"
+        compositeScore:
+          type: number
+          format: float
+          example: 84.0
+          description: "Weighted composite: (reviewScore * reviewWeight + implScore * implWeight) / 100"
+        status:
+          type: string
+          enum: [VALIDATED, FAILED, SKIPPED]
+          description: |
+            - VALIDATED: AI analysis completed successfully.
+            - FAILED: Could not analyze (e.g., GitHub error).
+            - SKIPPED: No PR found for this issue.
+
+    IssueValidationDetailResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            issueKey:
+              type: string
+              example: "PROJ-123"
+            issueDescription:
+              type: string
+              example: "Implement user login flow with email/password authentication."
+            prNumber:
+              type: integer
+              example: 42
+            prUrl:
+              type: string
+              example: "https://github.com/org/repo/pull/42"
+            evaluatedAt:
+              type: string
+              format: date-time
+            reviewVerification:
+              type: object
+              description: "Results from 7.4 AI Review Verification"
+              properties:
+                score:
+                  type: number
+                  format: float
+                  example: 90.0
+                hasReview:
+                  type: boolean
+                  example: true
+                reviewQuality:
+                  type: string
+                  enum: [INSUFFICIENT, MINIMAL, SUFFICIENT, THOROUGH]
+                reviewerCount:
+                  type: integer
+                  example: 2
+                hasChangeRequests:
+                  type: boolean
+                  example: true
+                  description: "Did reviewers request code changes?"
+                hasSubstantiveComments:
+                  type: boolean
+                  example: true
+                  description: "Were there comments beyond 'LGTM'?"
+                aiFeedback:
+                  type: string
+                  example: "The review process appears genuine. Two reviewers provided detailed feedback requesting error handling improvements, which were then addressed."
+            implementationValidation:
+              type: object
+              description: "Results from 7.5 AI Implementation Validation"
+              properties:
+                score:
+                  type: number
+                  format: float
+                  example: 80.0
+                isValid:
+                  type: boolean
+                  example: true
+                coverageAreas:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      requirement:
+                        type: string
+                        example: "Login endpoint"
+                      covered:
+                        type: boolean
+                        example: true
+                missingRequirements:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Session management was not implemented as requested."]
+                aiFeedback:
+                  type: string
+                  example: "The core login logic is present, but session invalidation on logout is missing from the diff."
+                filesAnalyzed:
+                  type: integer
+                  example: 4
+                  description: "Number of changed files analyzed (after filter exclusions)"
+                diffTruncated:
+                  type: boolean
+                  example: false
+                  description: "Whether the diff was truncated due to size limits"
+
+    ValidationConfigResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            reviewWeight:
+              type: integer
+              example: 40
+            implementationWeight:
+              type: integer
+              example: 60
+            openaiModel:
+              type: string
+              example: "gpt-4o"
+            maxDiffLines:
+              type: integer
+              example: 500
+            excludedFilePatterns:
+              type: array
+              items:
+                type: string
+              example: ["package-lock.json", "*.min.js", "*.svg"]

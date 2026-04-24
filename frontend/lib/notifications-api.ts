@@ -106,6 +106,23 @@ export async function clearNotificationApi(notificationId: number): Promise<void
 }
 
 /**
+ * Mark a single notification as read (issue #92).
+ */
+export async function markNotificationRead(notificationId: number): Promise<void> {
+    const res = await fetch(
+        `${API_BASE}/notifications/${notificationId}/read`,
+        {
+            method: "PATCH",
+            headers: authHeaders(),
+        }
+    );
+
+    if (!res.ok && res.status !== 204) {
+        throw new Error(await parseError(res));
+    }
+}
+
+/**
  * P2-API-05: Leader invites a student to the group (ns_f1).
  */
 export async function inviteMemberApi(
