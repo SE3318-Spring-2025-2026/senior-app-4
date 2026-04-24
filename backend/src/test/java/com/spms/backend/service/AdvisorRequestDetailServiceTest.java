@@ -254,5 +254,12 @@ class AdvisorRequestDetailServiceTest {
         @Override public Page<Group> findByAdvisorId(Long advisorId, Pageable pageable) { return Page.empty(); }
         @Override public List<Object[]> countGroupsByStatus() { return List.of(); }
         @Override public Page<Group> findAllWithStudentGroupFirst(Long studentId, Pageable pageable) { return Page.empty(); }
+
+        @Override
+        public List<Group> findAllNonDisbandedWithAdvisorAndLeaderFetched(GroupStatus disbanded) {
+            return findAll().stream()
+                    .filter(g -> g.getStatus() != disbanded)
+                    .toList();
+        }
     }
 }
