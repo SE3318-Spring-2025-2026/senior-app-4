@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { getToken } from "@/lib/auth";
+import { createRevisionSubmission, type SubmissionReview } from "@/lib/submissions-api";
 
 type DeliverableType = "PROPOSAL" | "STATEMENT_OF_WORK";
 type UploadStatus = "idle" | "dragging" | "uploading" | "success" | "error";
@@ -36,6 +37,11 @@ interface StudentSubmissionFormProps {
   groupName: string;
   disabled?: boolean;
   disabledReason?: string;
+  mode?: "new" | "revision";
+  parentSubmissionId?: string;
+  reviewerComments?: SubmissionReview[];
+  commentsLoading?: boolean;
+  commentsError?: string;
 }
 
 export default function StudentSubmissionForm({
@@ -43,12 +49,19 @@ export default function StudentSubmissionForm({
   groupName,
   disabled = false,
   disabledReason,
+  mode = "new",
+  parentSubmissionId,
+  reviewerComments = [],
+  commentsLoading = false,
+  commentsError,
 }: StudentSubmissionFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [deliverableType, setDeliverableType] = useState<DeliverableType | "">("");
+  const [revisionDescription, setRevisionDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [lastSubmission, setLastSubmission] = useState<SubmissionResponse["data"] | null>(null);
+  const isRevisionMode = mode === "revision";
 
   const validateAndSetFile = (selectedFile: File) => {
     const lowerName = selectedFile.name.toLowerCase();
@@ -102,6 +115,7 @@ export default function StudentSubmissionForm({
   const handleReset = () => {
     setFile(null);
     setDeliverableType("");
+    setRevisionDescription("");
     setStatus("idle");
     setLastSubmission(null);
 
@@ -116,7 +130,12 @@ export default function StudentSubmissionForm({
       return;
     }
 
-    if (!deliverableType) {
+    if (isRevisionMode && !parentSubmissionId) {
+      toast.error("Revision context is missing. Open the form from a revision request.");
+      return;
+    }
+
+    if (!isRevisionMode && !deliverableType) {
       toast.error("Select a deliverable type before submitting.");
       return;
     }
@@ -126,7 +145,7 @@ export default function StudentSubmissionForm({
       return;
     }
 
-    if (!process.env.NEXT_PUBLIC_API_URL) {
+    if (!isRevisionMode && !process.env.NEXT_PUBLIC_API_URL) {
       toast.error("NEXT_PUBLIC_API_URL is not configured.");
       return;
     }
@@ -137,15 +156,34 @@ export default function StudentSubmissionForm({
       return;
     }
 
-    const formData = new FormData();
-    formData.append("teamId", groupId);
-    formData.append("deliverableType", deliverableType);
-    formData.append("file", file);
-
     setStatus("uploading");
     setLastSubmission(null);
 
     try {
+      if (isRevisionMode) {
+        const payload = await createRevisionSubmission(parentSubmissionId!, {
+          file,
+          description: revisionDescription,
+        });
+
+        setStatus("success");
+        setLastSubmission(payload?.data ?? null);
+        toast.success(payload?.message || "Revision submitted successfully.");
+
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+
+        setFile(null);
+        setRevisionDescription("");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("teamId", groupId);
+      formData.append("deliverableType", deliverableType);
+      formData.append("file", file);
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/submissions`, {
         method: "POST",
         headers: {
@@ -191,8 +229,12 @@ export default function StudentSubmissionForm({
             </svg>
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">Deliverable Submission</p>
-            <p className="text-xs text-gray-500">Select a deliverable type and upload your file</p>
+            <p className="text-sm font-semibold text-white">
+              {isRevisionMode ? "Revision Submission" : "Deliverable Submission"}
+            </p>
+            <p className="text-xs text-gray-500">
+              {isRevisionMode ? "Review comments first, then upload the revised document" : "Select a deliverable type and upload your file"}
+            </p>
           </div>
         </div>
 
@@ -203,6 +245,16 @@ export default function StudentSubmissionForm({
               <p className="mt-1 text-sm font-medium text-white">{groupName}</p>
             </div>
 
+            {isRevisionMode && (
+              <ReviewerCommentsPanel
+                parentSubmissionId={parentSubmissionId}
+                comments={reviewerComments}
+                loading={commentsLoading}
+                error={commentsError}
+              />
+            )}
+
+            {!isRevisionMode && (
             <div className="space-y-2">
               <label htmlFor="deliverableType" className="text-sm font-medium text-gray-300">
                 Deliverable type
@@ -231,6 +283,24 @@ export default function StudentSubmissionForm({
                   : "Choose the document type that matches the current milestone."}
               </p>
             </div>
+            )}
+
+            {isRevisionMode && (
+              <div className="space-y-2">
+                <label htmlFor="revisionDescription" className="text-sm font-medium text-gray-300">
+                  Revision notes
+                </label>
+                <textarea
+                  id="revisionDescription"
+                  value={revisionDescription}
+                  onChange={(event) => setRevisionDescription(event.target.value)}
+                  rows={4}
+                  disabled={disabled || status === "uploading"}
+                  placeholder="Summarize the changes made in this revised document..."
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-600 outline-none transition focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -344,12 +414,12 @@ export default function StudentSubmissionForm({
                         d="M12 16.5V7.5m0 0-3 3m3-3 3 3M21 16.5v1.125A2.625 2.625 0 0118.375 20.25H5.625A2.625 2.625 0 013 17.625V16.5"
                       />
                     </svg>
-                    Submit deliverable
+                    {isRevisionMode ? "Submit revision" : "Submit deliverable"}
                   </>
                 )}
               </button>
 
-              {(file || deliverableType) && status !== "uploading" && (
+              {(file || deliverableType || revisionDescription) && status !== "uploading" && (
                 <button
                   type="button"
                   onClick={handleReset}
@@ -365,22 +435,38 @@ export default function StudentSubmissionForm({
             <div className="bg-gray-950/40 border border-white/8 rounded-2xl overflow-hidden">
               <div className="px-5 py-4 border-b border-white/5">
                 <p className="text-sm font-semibold text-white">Submission Rules</p>
-                <p className="text-xs text-gray-500 mt-1">This page only covers the student-side upload flow.</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {isRevisionMode ? "This flow links the new upload to the requested revision." : "This page only covers the student-side upload flow."}
+                </p>
               </div>
               <div className="p-5 space-y-4 text-sm text-gray-300">
                 <div className="rounded-xl border border-white/8 bg-white/4 px-4 py-3">
                   <p className="text-xs text-gray-500">Deliverable types</p>
-                  <p className="mt-1 text-white">Proposal, Statement of Work</p>
+                  <p className="mt-1 text-white">
+                    {isRevisionMode ? "Revision of requested deliverable" : "Proposal, Statement of Work"}
+                  </p>
                 </div>
 
                 <div className="rounded-xl border border-white/8 bg-white/4 px-4 py-3">
                   <p className="text-xs text-gray-500">Submission target</p>
-                  <p className="mt-1 font-mono text-blue-200">POST /submissions</p>
+                  <p className="mt-1 font-mono text-blue-200">
+                    {isRevisionMode ? "POST /submissions/{parentSubmissionId}/revisions" : "POST /submissions"}
+                  </p>
                 </div>
 
                 <div className="rounded-xl border border-white/8 bg-white/4 px-4 py-3">
                   <p className="text-xs text-gray-500">Request payload</p>
-                  <p className="mt-1">Multipart form with <span className="font-mono text-white">teamId</span>, <span className="font-mono text-white">deliverableType</span>, and file.</p>
+                  <p className="mt-1">
+                    {isRevisionMode ? (
+                      <>
+                        Multipart form with file and optional <span className="font-mono text-white">description</span>, linked to parent <span className="font-mono text-white">{parentSubmissionId ?? "unknown"}</span>.
+                      </>
+                    ) : (
+                      <>
+                        Multipart form with <span className="font-mono text-white">teamId</span>, <span className="font-mono text-white">deliverableType</span>, and file.
+                      </>
+                    )}
+                  </p>
                 </div>
               </div>
             </div>
@@ -392,8 +478,8 @@ export default function StudentSubmissionForm({
 
               <div className="p-5 space-y-3 text-sm text-gray-300">
                 <div className="flex items-start gap-3">
-                  <span className={`mt-1 h-2.5 w-2.5 rounded-full ${deliverableType ? "bg-green-400" : "bg-gray-600"}`} />
-                  <span>Deliverable type is selected.</span>
+                  <span className={`mt-1 h-2.5 w-2.5 rounded-full ${isRevisionMode ? (parentSubmissionId ? "bg-green-400" : "bg-gray-600") : (deliverableType ? "bg-green-400" : "bg-gray-600")}`} />
+                  <span>{isRevisionMode ? "Parent submission is linked." : "Deliverable type is selected."}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className={`mt-1 h-2.5 w-2.5 rounded-full ${file ? "bg-green-400" : "bg-gray-600"}`} />
@@ -424,4 +510,75 @@ export default function StudentSubmissionForm({
       </div>
     </div>
   );
+}
+
+function ReviewerCommentsPanel({
+  parentSubmissionId,
+  comments,
+  loading,
+  error,
+}: {
+  parentSubmissionId?: string;
+  comments: SubmissionReview[];
+  loading: boolean;
+  error?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-orange-500/20 bg-orange-500/8 overflow-hidden">
+      <div className="border-b border-orange-500/10 px-5 py-4">
+        <p className="text-sm font-semibold text-white">Reviewer Comments</p>
+        <p className="mt-1 text-xs text-orange-100/70">
+          Parent submission: <span className="font-mono text-orange-50">{parentSubmissionId ?? "not linked"}</span>
+        </p>
+      </div>
+
+      <div className="space-y-3 p-5">
+        {loading && (
+          <div className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-gray-300">
+            <svg className="h-4 w-4 animate-spin text-orange-300" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Loading reviewer comments...
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && comments.length === 0 && (
+          <div className="rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-gray-300">
+            No reviewer comments are available yet.
+          </div>
+        )}
+
+        {!loading && comments.map((comment) => (
+          <article key={comment.id} className="rounded-xl border border-white/8 bg-gray-950/40 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-white">{comment.reviewerName || "Committee reviewer"}</p>
+              <span className="rounded-full border border-orange-400/20 bg-orange-400/10 px-2.5 py-1 text-xs font-medium text-orange-200">
+                {comment.status === "REVISION_REQUESTED" ? "Revision requested" : "Approved"}
+              </span>
+            </div>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-300">{comment.comments}</p>
+            <p className="mt-3 text-xs text-gray-500">{formatCommentDate(comment.reviewedAt)}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatCommentDate(value: string) {
+  if (!value) return "Date unavailable";
+  return new Date(value).toLocaleString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

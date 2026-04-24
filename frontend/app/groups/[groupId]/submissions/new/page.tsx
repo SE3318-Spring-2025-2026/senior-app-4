@@ -1,19 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import StudentSubmissionForm from "@/components/StudentSubmissionForm";
 import { getToken, getUser } from "@/lib/auth";
 import { mockGroups } from "@/lib/mock-groups";
+import { fetchSubmissionReviews, type SubmissionReview } from "@/lib/submissions-api";
 
 type AuthState = "loading" | "ready" | "unauthorized";
 
 export default function NewSubmissionPage() {
+  return (
+    <Suspense fallback={<SubmissionPageSpinner />}>
+      <NewSubmissionPageContent />
+    </Suspense>
+  );
+}
+
+function NewSubmissionPageContent() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [studentId, setStudentId] = useState<string | null>(null);
+  const [reviewerComments, setReviewerComments] = useState<SubmissionReview[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | undefined>();
+  const parentSubmissionId = searchParams.get("parentSubmissionId")?.trim() || undefined;
+  const isRevisionFlow = Boolean(parentSubmissionId);
 
   useEffect(() => {
     const token = getToken();
@@ -37,6 +52,45 @@ export default function NewSubmissionPage() {
     setStudentId(user.studentId ?? null);
     setAuthState("ready");
   }, [router]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadReviewerComments() {
+      if (!parentSubmissionId) {
+        setReviewerComments([]);
+        setCommentsError(undefined);
+        return;
+      }
+
+      setCommentsLoading(true);
+      setCommentsError(undefined);
+
+      try {
+        const response = await fetchSubmissionReviews(parentSubmissionId);
+        if (!cancelled) {
+          setReviewerComments(response.data ?? []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          // TODO(#156): replace this fallback once the backend review-history
+          // endpoint is available in all environments.
+          setReviewerComments([]);
+          setCommentsError(error instanceof Error ? error.message : "Reviewer comments could not be loaded.");
+        }
+      } finally {
+        if (!cancelled) {
+          setCommentsLoading(false);
+        }
+      }
+    }
+
+    loadReviewerComments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [parentSubmissionId]);
 
   const rawGroupId = params.groupId;
   const groupId = Array.isArray(rawGroupId) ? rawGroupId[0] : rawGroupId;
@@ -91,9 +145,13 @@ export default function NewSubmissionPage() {
             <Link href={`/groups/${group.groupId}`} className="text-sm text-blue-300 transition-colors hover:text-blue-200">
               {"<- Back to group"}
             </Link>
-            <h1 className="mt-6 text-3xl font-bold">Student Submission Form</h1>
+            <h1 className="mt-6 text-3xl font-bold">
+              {isRevisionFlow ? "Student Revision Form" : "Student Submission Form"}
+            </h1>
             <p className="mt-2 text-gray-400">
-              Select the deliverable type, attach your file, and submit it for your group.
+              {isRevisionFlow
+                ? "Review the committee comments, attach the revised file, and submit it for your group."
+                : "Select the deliverable type, attach your file, and submit it for your group."}
             </p>
           </div>
 
@@ -113,8 +171,24 @@ export default function NewSubmissionPage() {
           groupName={group.groupName}
           disabled={disabled}
           disabledReason={disabled ? disabledReason : undefined}
+          mode={isRevisionFlow ? "revision" : "new"}
+          parentSubmissionId={parentSubmissionId}
+          reviewerComments={reviewerComments}
+          commentsLoading={commentsLoading}
+          commentsError={commentsError}
         />
       </div>
     </main>
+  );
+}
+
+function SubmissionPageSpinner() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-950">
+      <svg className="h-6 w-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+    </div>
   );
 }

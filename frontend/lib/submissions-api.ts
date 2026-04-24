@@ -19,6 +19,32 @@ export interface SubmissionSummary {
   isOverdue: boolean;
 }
 
+export interface SubmissionReview {
+  id: string;
+  reviewerId: string;
+  reviewerName: string;
+  comments: string;
+  status: "APPROVED" | "REVISION_REQUESTED";
+  reviewedAt: string;
+}
+
+export interface ReviewListResponse {
+  status: string;
+  data: SubmissionReview[];
+}
+
+export interface RevisionCreateResponse {
+  status: string;
+  message?: string;
+  data?: {
+    id?: string;
+    parentSubmissionId?: string;
+    revisionNumber?: number;
+    status?: SubmissionStatus;
+    submittedAt?: string;
+  };
+}
+
 export interface PaginationMeta {
   page: number;
   size: number;
@@ -70,6 +96,57 @@ export async function fetchSubmissions(filters: SubmissionFilters = {}): Promise
 
   const res = await fetch(`${API_BASE}/submissions?${params.toString()}`, {
     headers: buildHeaders(),
+  });
+
+  if (!res.ok) {
+    const msg = await parseError(res);
+    throw new Error(msg);
+  }
+
+  return res.json();
+}
+
+export async function fetchSubmissionReviews(submissionId: string): Promise<ReviewListResponse> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 4000);
+
+  try {
+    const res = await fetch(`${API_BASE}/submissions/${submissionId}/reviews`, {
+      headers: buildHeaders(),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const msg = await parseError(res);
+      throw new Error(msg);
+    }
+
+    return res.json();
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+export async function createRevisionSubmission(
+  parentSubmissionId: string,
+  payload: { file: File; description?: string },
+): Promise<RevisionCreateResponse> {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append("file", payload.file);
+  if (payload.description?.trim()) {
+    formData.append("description", payload.description.trim());
+  }
+
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  // TODO(#156): keep this endpoint aligned with the backend once Process 3
+  // revision upload support is implemented end-to-end.
+  const res = await fetch(`${API_BASE}/submissions/${parentSubmissionId}/revisions`, {
+    method: "POST",
+    headers,
+    body: formData,
   });
 
   if (!res.ok) {
