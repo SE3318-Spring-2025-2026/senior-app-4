@@ -8,7 +8,9 @@ import com.spms.backend.model.User;
 import com.spms.backend.model.notification.Notification;
 import com.spms.backend.model.notification.NotificationStatus;
 import com.spms.backend.model.notification.NotificationType;
+import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.NotificationRepository;
+import com.spms.backend.repository.ScheduleRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.impl.NotificationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +40,10 @@ class NotificationServiceIssue91Test {
     @Mock
     private UserRepository userRepository;
     @Mock
+    private GroupRepository groupRepository;
+    @Mock
+    private ScheduleRepository scheduleRepository;
+    @Mock
     private MemberService memberService;
 
     private NotificationServiceImpl notificationService;
@@ -45,7 +51,7 @@ class NotificationServiceIssue91Test {
 
     @BeforeEach
     void setUp() {
-        notificationService = new NotificationServiceImpl(notificationRepository, userRepository, memberService);
+        notificationService = new NotificationServiceImpl(notificationRepository, userRepository, groupRepository, scheduleRepository, memberService);
         pageable = PageRequest.of(0, 10);
     }
 

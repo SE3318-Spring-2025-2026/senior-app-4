@@ -43,7 +43,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .orElseThrow(() -> new ForbiddenException("You are not part of any group. Access denied."));
 
         // Verify if the submission belongs to the student's group
-        if (!submission.getGroup().getId().equals(member.getGroup().getId())) {
+        if (!submission.getGroupId().equals(member.getGroup().getId())) {
             throw new ForbiddenException("You are not authorized to view reviews for this submission as it belongs to another group.");
         }
 
