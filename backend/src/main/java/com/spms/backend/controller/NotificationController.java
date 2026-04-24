@@ -6,6 +6,7 @@ import com.spms.backend.dto.request.NotificationRespondRequestDto;
 import com.spms.backend.dto.response.AdvisorRequestCreateResponseDto;
 import com.spms.backend.dto.response.AdvisorRequestStatusDto;
 import com.spms.backend.dto.response.NotificationDto;
+import com.spms.backend.dto.response.SuccessResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.service.NotificationService;
@@ -106,11 +107,22 @@ public class NotificationController {
     @GetMapping("/api/v1/notifications")
     public ResponseEntity<Page<NotificationDto>> getUserNotifications(
             Pageable pageable,
+            @RequestParam(required = false, defaultValue = "ALL") String readStatus,
             @RequestAttribute("jwt_userId") Object userId) {
 
         Long currentUserId = Long.valueOf(userId.toString());
-        Page<NotificationDto> notifications = notificationService.getUserNotifications(currentUserId, pageable);
+        Page<NotificationDto> notifications = notificationService.getNotifications(currentUserId, readStatus, pageable);
         return ResponseEntity.ok(notifications);
+    }
+
+    @PatchMapping("/api/v1/notifications/{notificationId}/read")
+    public ResponseEntity<SuccessResponse> markAsRead(
+            @PathVariable Long notificationId,
+            @RequestAttribute("jwt_userId") Object userId) {
+
+        Long currentUserId = Long.valueOf(userId.toString());
+        notificationService.markAsRead(notificationId, currentUserId);
+        return ResponseEntity.ok(new SuccessResponse("success", "Notification marked as read."));
     }
 
 
