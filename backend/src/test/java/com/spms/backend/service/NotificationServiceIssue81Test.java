@@ -1,7 +1,8 @@
 package com.spms.backend.service;
 
 import com.spms.backend.exception.BadRequestException;
-import com.spms.backend.exception.UnauthorizedException;
+import com.spms.backend.exception.ForbiddenException;
+import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.User;
 import com.spms.backend.model.notification.Notification;
 import com.spms.backend.model.notification.NotificationStatus;
@@ -58,7 +59,7 @@ class NotificationServiceIssue81Test {
         when(notificationRepository.findById(18L)).thenReturn(Optional.of(notification));
 
         assertThrows(
-                UnauthorizedException.class,
+                ForbiddenException.class,
                 () -> notificationService.withdrawAdvisorRequest(18L, 77L)
         );
     }
@@ -71,6 +72,16 @@ class NotificationServiceIssue81Test {
         assertThrows(
                 BadRequestException.class,
                 () -> notificationService.withdrawAdvisorRequest(18L, 55L)
+        );
+    }
+
+    @Test
+    void withdrawAdvisorRequestThrowsNotFoundWhenMissing() {
+        when(notificationRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(
+                NotFoundException.class,
+                () -> notificationService.withdrawAdvisorRequest(99L, 55L)
         );
     }
 

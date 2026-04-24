@@ -3,10 +3,13 @@ package com.spms.backend.service.impl;
 import com.spms.backend.dto.request.AdvisorRequestDto;
 import com.spms.backend.dto.response.AdvisorRequestStatusDto;
 import com.spms.backend.dto.response.NotificationDto;
+import com.spms.backend.annotation.AuditableOperation;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ConflictException;
 import com.spms.backend.exception.ForbiddenException;
+import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.exception.UnauthorizedException;
+import com.spms.backend.model.ActionType;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.Schedule;
 import com.spms.backend.model.notification.Notification;
@@ -145,9 +148,11 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.ADVISOR_REQUEST_WITHDRAWN)
     public void withdrawAdvisorRequest(Long notificationId, Long requesterId) {
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new BadRequestException("Advisor request notification not found."));
+                .orElseThrow(() -> new NotFoundException(
+                        "Advisor request not found with id: " + notificationId));
 
         if (notification.getType() != NotificationType.ADVISOR_REQUEST) {
             throw new BadRequestException("Notification is not an advisor request.");
@@ -161,7 +166,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         if (notification.getFromUser() == null
                 || !notification.getFromUser().getUserId().equals(requesterId)) {
-            throw new UnauthorizedException(
+            throw new ForbiddenException(
                     "You are not authorized to withdraw this advisor request.");
         }
 
