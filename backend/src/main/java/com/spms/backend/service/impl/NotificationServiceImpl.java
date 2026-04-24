@@ -4,12 +4,18 @@ import com.spms.backend.dto.request.AdvisorRequestDto;
 import com.spms.backend.dto.response.AdvisorRequestStatusDto;
 import com.spms.backend.dto.response.NotificationDto;
 import com.spms.backend.exception.BadRequestException;
+import com.spms.backend.exception.ConflictException;
+import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.UnauthorizedException;
+import com.spms.backend.model.Group;
+import com.spms.backend.model.Schedule;
 import com.spms.backend.model.notification.Notification;
 import com.spms.backend.model.notification.NotificationStatus;
 import com.spms.backend.model.notification.NotificationType;
 import com.spms.backend.model.User;
+import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.NotificationRepository;
+import com.spms.backend.repository.ScheduleRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.MemberService;
 import com.spms.backend.service.NotificationService;
@@ -23,6 +29,7 @@ import com.spms.backend.model.ActionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.List;
 
@@ -31,35 +38,72 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final GroupRepository groupRepository;
+    private final ScheduleRepository scheduleRepository;
     private final MemberService memberService;
     private static final Logger log = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
     public NotificationServiceImpl(NotificationRepository notificationRepository,
                                    UserRepository userRepository,
+                                   GroupRepository groupRepository,
+                                   ScheduleRepository scheduleRepository,
                                    @Lazy MemberService memberService) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.groupRepository = groupRepository;
+        this.scheduleRepository = scheduleRepository;
         this.memberService = memberService;
     }
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.ADVISOR_REQUESTED)
     public Long requestAdvisor(Long groupId, AdvisorRequestDto request, Long leaderId) {
 
+        // ── P4.2: Validate group exists ───────────────────────────────────────
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new BadRequestException("Group not found."));
+
+        // ── P4.2: Validate requester is the group leader ───────────────────────
+        if (!group.getLeader().getUserId().equals(leaderId)) {
+            throw new ForbiddenException("Only the group leader can send advisor requests.");
+        }
+
+        // ── P4.2: Check if group already has an active advisor [P4-CONFLICT-1] ─
+        if (group.getAdvisor() != null) {
+            throw new ConflictException("This group already has an active advisor.");
+        }
+
+        // ── P4.2: Check advisor assignment deadline (D10) ─────────────────────
+        Optional<Schedule> scheduleOpt = scheduleRepository.findTopByOrderByIdDesc();
+        if (scheduleOpt.isPresent()) {
+            Schedule schedule = scheduleOpt.get();
+            if (schedule.getAdvisorAssignmentDeadline() != null
+                    && Instant.now().isAfter(schedule.getAdvisorAssignmentDeadline())) {
+                throw new BadRequestException(
+                        "Advisor assignment deadline has passed. Requests are no longer accepted.");
+            }
+        }
+
+        // ── P4.2: only 1 pending advisor request may exist at a time ───────────
         Optional<Notification> existingPendingRequest = notificationRepository
                 .findByGroupIdAndTypeAndStatus(groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
-
         if (existingPendingRequest.isPresent()) {
             throw new BadRequestException("This group already has a pending advisor request.");
         }
 
+        // ── P4.1: Resolve users ────────────────────────────────────────────────
         User leader = userRepository.findById(leaderId)
                 .orElseThrow(() -> new BadRequestException("Leader user not found."));
 
         User professor = userRepository.findById(request.professorId())
                 .orElseThrow(() -> new BadRequestException("Professor not found."));
 
+        // TODO: Validate that the target user actually has the 'professor' role.
+        //       Role/permission management is handled by another team member.
+        //       This check should be enabled once the professor role assignment flow is confirmed.
 
+        // ── D8: Create ADVISOR_REQUEST notification for the professor ──────────
         Notification notification = new Notification();
         notification.setType(NotificationType.ADVISOR_REQUEST);
         notification.setStatus(NotificationStatus.PENDING);
@@ -87,6 +131,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
+    @AuditableOperation(actionType = ActionType.ADVISOR_REQUEST_CANCELLED)
     public void cancelAdvisorRequest(Long groupId) {
         Notification request = notificationRepository
                 .findByGroupIdAndTypeAndStatus(groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING)
