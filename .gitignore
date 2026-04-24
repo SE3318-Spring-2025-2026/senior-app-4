@@ -18,7 +18,10 @@ backend/application.properties
 Thumbs.db
 
 application-local.properties
-CLAUDE.md
+
+# Log files
+*.log
+boot_error.log
 
 # Local notes
 PENDING_FIXES.md
