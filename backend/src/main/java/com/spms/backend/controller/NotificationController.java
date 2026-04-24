@@ -1,9 +1,13 @@
 package com.spms.backend.controller;
 
+import com.spms.backend.dto.request.AdvisorRequestCreateDto;
 import com.spms.backend.dto.request.AdvisorRequestDto;
 import com.spms.backend.dto.request.NotificationRespondRequestDto;
+import com.spms.backend.dto.response.AdvisorRequestCreateResponseDto;
 import com.spms.backend.dto.response.AdvisorRequestStatusDto;
 import com.spms.backend.dto.response.NotificationDto;
+import com.spms.backend.exception.BadRequestException;
+import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.service.NotificationService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -22,20 +26,36 @@ public class NotificationController {
     }
 
 
-    @PostMapping("/api/v1/groups/{groupId}/advisor-request")
-    public ResponseEntity<?> requestAdvisor(
-            @PathVariable Long groupId,
-            @Valid @RequestBody AdvisorRequestDto request,
-            @RequestAttribute("jwt_userId") Object userId) {
+    /**
+     * P4.1 — Submit Advisor Request
+     * Canonical endpoint defined in Process 4 API specs.
+     */
+    @PostMapping("/api/v1/advisor-requests")
+    public ResponseEntity<AdvisorRequestCreateResponseDto> createAdvisorRequest(
+            @Valid @RequestBody AdvisorRequestCreateDto request,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+
+        String requesterRole = role.toString();
+        if (!"student".equalsIgnoreCase(requesterRole)) {
+            throw new ForbiddenException("Only students can send advisor requests.");
+        }
 
         Long leaderId = Long.valueOf(userId.toString());
-        Long requestId = notificationService.requestAdvisor(groupId, request, leaderId);
-        
-        return ResponseEntity.status(HttpStatus.CREATED).body(java.util.Map.of(
-                "success", true,
-                "message", "Advisor request sent successfully",
-                "data", java.util.Map.of("requestId", requestId)
-        ));
+        Long teamId;
+        try {
+            teamId = Long.valueOf(request.teamId());
+        } catch (NumberFormatException ex) {
+            throw new BadRequestException("teamId must be a numeric string.");
+        }
+        Long requestId = notificationService.requestAdvisor(
+                teamId,
+                new AdvisorRequestDto(request.professorId()),
+                leaderId
+        );
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(new AdvisorRequestCreateResponseDto(requestId, "PENDING"));
     }
 
 
