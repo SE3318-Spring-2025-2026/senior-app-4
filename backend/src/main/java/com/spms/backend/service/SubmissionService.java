@@ -1,22 +1,30 @@
 package com.spms.backend.service;
 
 import com.spms.backend.dto.SubmissionResponse;
+import com.spms.backend.dto.response.SubmissionListResponse;
+import com.spms.backend.dto.response.SubmissionListResponse.PaginationMeta;
+import com.spms.backend.dto.response.SubmissionListResponse.SubmissionSummary;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.Committee;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupCommitteeAssignment;
+import com.spms.backend.model.GroupMember;
 import com.spms.backend.model.Submission;
 import com.spms.backend.model.enums.DeliverableType;
 import com.spms.backend.model.enums.SubmissionStatus;
 import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
+import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import com.spms.backend.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -27,17 +35,20 @@ public class SubmissionService {
     private final GroupCommitteeAssignmentRepository assignmentRepository;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
+    private final GroupMemberRepository groupMemberRepository;
 
     public SubmissionService(SubmissionRepository submissionRepository, 
                              GroupRepository groupRepository,
                              GroupCommitteeAssignmentRepository assignmentRepository,
                              NotificationService notificationService,
-                             UserRepository userRepository) {
+                             UserRepository userRepository,
+                             GroupMemberRepository groupMemberRepository) {
         this.submissionRepository = submissionRepository;
         this.groupRepository = groupRepository;
         this.assignmentRepository = assignmentRepository;
         this.notificationService = notificationService;
         this.userRepository = userRepository;
+        this.groupMemberRepository = groupMemberRepository;
     }
 
     @Transactional
@@ -111,5 +122,39 @@ public class SubmissionService {
 
         return new SubmissionResponse("success", "Submission successfully created.", data);
 
+    }
+
+    @Transactional(readOnly = true)
+    public SubmissionListResponse listSubmissions(Long userId, String role, Pageable pageable) {
+        Page<Submission> page;
+
+        if ("COORDINATOR".equalsIgnoreCase(role)) {
+            page = submissionRepository.findAll(pageable);
+        } else if ("STUDENT".equalsIgnoreCase(role)) {
+            GroupMember member = groupMemberRepository.findTopByUser_UserId(userId)
+                    .orElseThrow(() -> new ForbiddenException(
+                            "Student is not assigned to any group."));
+            page = submissionRepository.findByGroupId(member.getGroup().getId(), pageable);
+        } else {
+            throw new ForbiddenException("Role '" + role + "' is not authorized to list submissions.");
+        }
+
+        List<SubmissionSummary> items = page.getContent().stream()
+                .map(s -> new SubmissionSummary(
+                        s.getId(),
+                        s.getGroupId(),
+                        s.getDeliverableType() != null ? s.getDeliverableType().name() : null,
+                        s.getStatus() != null ? s.getStatus().name() : null,
+                        s.getCommitteeId(),
+                        s.getCreatedAt()))
+                .toList();
+
+        PaginationMeta meta = new PaginationMeta(
+                (int) page.getTotalElements(),
+                page.getTotalPages(),
+                page.getNumber(),
+                page.getSize());
+
+        return new SubmissionListResponse("success", items, meta);
     }
 }
