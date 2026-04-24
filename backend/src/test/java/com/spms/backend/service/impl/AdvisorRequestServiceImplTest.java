@@ -85,8 +85,8 @@ class AdvisorRequestServiceImplTest {
         assertEquals("PENDING", results.get(0).status());
         assertNull(results.get(0).decidedAt());
 
-        // n2 (ACCEPTED) -> APPROVED, decidedAt not null
+        // n2 (ACCEPTED) -> APPROVED, decidedAt always null (no decision timestamp in entity)
         assertEquals("APPROVED", results.get(1).status());
-        assertEquals(n2.getCreatedAt(), results.get(1).decidedAt());
+        assertNull(results.get(1).decidedAt());
     }
 }

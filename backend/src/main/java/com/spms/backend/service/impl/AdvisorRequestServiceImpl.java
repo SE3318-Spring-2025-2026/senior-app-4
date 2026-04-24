@@ -41,11 +41,11 @@ public class AdvisorRequestServiceImpl implements AdvisorRequestService {
                 notifications = notificationRepository.findByToUser_UserIdAndTypeOrderByCreatedAtDesc(userId, NotificationType.ADVISOR_REQUEST);
                 break;
             case "student":
-                var memberships = groupMemberRepository.findByUser_UserId(userId);
-                if (memberships.isEmpty()) {
+                var membership = groupMemberRepository.findFirstByUser_UserIdOrderByJoinedAtDesc(userId);
+                if (membership.isEmpty()) {
                     return Collections.emptyList();
                 }
-                Long groupId = memberships.get(0).getGroup().getId();
+                Long groupId = membership.get().getGroup().getId();
                 notifications = notificationRepository.findByGroupIdAndTypeOrderByCreatedAtDesc(groupId, NotificationType.ADVISOR_REQUEST);
                 break;
             case "coordinator":
@@ -84,7 +84,7 @@ public class AdvisorRequestServiceImpl implements AdvisorRequestService {
                             pName,
                             mappedStatus,
                             n.getCreatedAt(),
-                            "PENDING".equals(mappedStatus) ? null : n.getCreatedAt()
+                            null
                     );
                 })
                 .filter(dto -> status == null || dto.status().equalsIgnoreCase(status))

@@ -18,6 +18,7 @@ public class AdvisorRequestController {
         this.advisorRequestService = advisorRequestService;
     }
 
+    // [P4-LIST-1] GET /api/v1/advisor-requests
     @GetMapping
     public ResponseEntity<AdvisorRequestListResponseDto> listAdvisorRequests(
             @RequestAttribute("jwt_userId") Object userIdObj,
@@ -33,4 +34,8 @@ public class AdvisorRequestController {
 
         return ResponseEntity.ok(new AdvisorRequestListResponseDto("success", requests));
     }
+
+    // NOTE: GET /{requestId} and POST /{requestId}/decision endpoints
+    // are implemented in the main branch by AdvisorRequestDetailService.
+    // This file will be merged with those endpoints during PR integration.
 }

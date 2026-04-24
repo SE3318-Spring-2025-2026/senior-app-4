@@ -16,3 +16,7 @@ backend/application.properties
 Thumbs.db
 
 application-local.properties
+
+# Log files
+*.log
+boot_error.log
