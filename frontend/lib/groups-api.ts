@@ -12,9 +12,10 @@ export type ApiGroupListItem = {
 
 export type ApiGroupMember = {
     userId: number;
+    studentId: string;
     fullName: string;
     role: string;
-    joinedAt: string;
+    joinedAt?: string;
 };
 
 export type ApiGroupMemberListItem = {

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import GroupCard from "@/components/GroupCard";
 import GroupCardSkeleton from "@/components/GroupCardSkeleton";
-import AppTopbar from "@/components/AppTopbar";
 import { useNotifications } from "@/components/NotificationProvider";
 import {
     fetchGroups,
@@ -207,7 +206,7 @@ export default function GroupsPage() {
             <Sidebar activePage="groups" />
             <main className="flex-1 min-w-0 px-6 py-10">
                 <div className="mx-auto max-w-6xl">
-                    <AppTopbar title="Groups" />
+
 
                     <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                         <div>
