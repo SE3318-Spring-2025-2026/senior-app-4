@@ -50,14 +50,15 @@ export async function fetchGithubIntegration(
     );
 
     if (!res.ok) {
-        console.error(await parseError(res));
+        const errorMessage = await parseError(res);
+
         return {
             success: false,
             data: {
                 status: "inactive",
                 organizationName: null,
                 connectedAt: null,
-                message: "Not connected",
+                message: errorMessage || "Not connected",
             },
         };
     }
@@ -82,7 +83,8 @@ export async function fetchJiraIntegration(
     );
 
     if (!res.ok) {
-        console.error(await parseError(res));
+        const errorMessage = await parseError(res);
+
         return {
             success: false,
             data: {
@@ -90,7 +92,7 @@ export async function fetchJiraIntegration(
                 jiraSpaceUrl: null,
                 projectKey: null,
                 connectedAt: null,
-                message: "Not connected",
+                message: errorMessage || "Not connected",
             },
         };
     }
