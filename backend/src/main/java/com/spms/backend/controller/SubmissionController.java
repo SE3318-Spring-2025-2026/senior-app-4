@@ -3,10 +3,12 @@ package com.spms.backend.controller;
 import com.spms.backend.dto.SubmissionResponse;
 import com.spms.backend.dto.response.ErrorResponse;
 import com.spms.backend.dto.response.GradeListResponse;
+import com.spms.backend.dto.response.ReviewDto;
 import com.spms.backend.dto.response.SubmissionListResponse;
 import com.spms.backend.dto.request.GradeSubmissionRequest;
 import com.spms.backend.dto.response.GradeSubmissionResponse;
 import com.spms.backend.model.enums.DeliverableType;
+import com.spms.backend.service.ReviewService;
 import com.spms.backend.service.SubmissionService;
 import com.spms.backend.service.SubmissionGradeService;
 import jakarta.validation.Valid;
@@ -16,16 +18,22 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/submissions")
 public class SubmissionController {
 
     private final SubmissionService submissionService;
     private final SubmissionGradeService gradeService;
+    private final ReviewService reviewService;
 
-    public SubmissionController(SubmissionService submissionService, SubmissionGradeService gradeService) {
+    public SubmissionController(SubmissionService submissionService,
+                                SubmissionGradeService gradeService,
+                                ReviewService reviewService) {
         this.submissionService = submissionService;
         this.gradeService = gradeService;
+        this.reviewService = reviewService;
     }
 
     @GetMapping
@@ -52,7 +60,7 @@ public class SubmissionController {
             @RequestPart("file") MultipartFile file,
             @RequestPart(value = "description", required = false) String description,
             @RequestAttribute("jwt_userId") Object userId) {
-        
+
         try {
             Long groupId = Long.valueOf(teamId);
             DeliverableType type = DeliverableType.valueOf(deliverableType);
@@ -80,7 +88,7 @@ public class SubmissionController {
     public ResponseEntity<?> getSubmissionGrades(
             @PathVariable Long submissionId,
             @RequestAttribute(value = "jwt_role", required = false) Object role) {
-        
+
         try {
             String userRole = (role != null) ? role.toString() : "STUDENT";
             GradeListResponse response = gradeService.getSubmissionGrades(submissionId, userRole);
@@ -108,5 +116,15 @@ public class SubmissionController {
         } catch (Exception e) {
             return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @GetMapping("/{submissionId}/reviews")
+    public ResponseEntity<List<ReviewDto>> getReviews(
+            @PathVariable Long submissionId,
+            @RequestAttribute("jwt_userId") Object userId) {
+
+        Long currentUserId = Long.valueOf(userId.toString());
+        List<ReviewDto> reviews = reviewService.getReviewsForSubmission(submissionId, currentUserId);
+        return ResponseEntity.ok(reviews);
     }
 }
