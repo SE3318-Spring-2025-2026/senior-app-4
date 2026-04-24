@@ -769,6 +769,20 @@ public class GroupServiceImpl implements GroupService {
             notificationRepository.save(req);
         }
 
+        // Send SYSTEM_ALERT to the previous advisor (displaced advisor)
+        if (previousAdvisorId != null) {
+            User previousAdvisor = userRepository.findById(previousAdvisorId).orElse(null);
+            if (previousAdvisor != null) {
+                Notification oldAdvisorNotif = new Notification();
+                oldAdvisorNotif.setType(NotificationType.SYSTEM_ALERT);
+                oldAdvisorNotif.setStatus(NotificationStatus.PENDING);
+                oldAdvisorNotif.setMessage("You have been released as advisor from group: " + group.getGroupName() + " due to a coordinator override.");
+                oldAdvisorNotif.setGroupId(group.getId());
+                oldAdvisorNotif.setToUser(previousAdvisor);
+                notificationRepository.save(oldAdvisorNotif);
+            }
+        }
+
         // Write to D9 (System Logs) manually to include reason and ensure correct groupId mapping
         AuditLog log = new AuditLog();
         log.setActionType(ActionType.ADVISOR_OVERRIDDEN);
