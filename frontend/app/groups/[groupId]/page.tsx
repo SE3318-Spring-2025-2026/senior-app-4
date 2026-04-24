@@ -17,8 +17,9 @@ import {
     updateGroupNameApi,
     removeMemberApi,
     leaveGroupApi,
+    addMemberApi
 } from "@/lib/groups-api";
-import { inviteMemberApi } from "@/lib/notifications-api";
+//import { inviteMemberApi } from "@/lib/notifications-api";
 import { getUser, getToken, decodeToken } from "@/lib/auth";
 import {
     fetchGithubIntegration,
@@ -72,10 +73,10 @@ export default function GroupDetailPage() {
 
     const currentUserId = Number(
         decoded?.userId ??
-            decoded?.jwt_userId ??
-            decoded?.user_id ??
-            decoded?.id ??
-            decoded?.sub
+        decoded?.jwt_userId ??
+        decoded?.user_id ??
+        decoded?.id ??
+        decoded?.sub
     );
 
     const isLeader =
@@ -83,6 +84,14 @@ export default function GroupDetailPage() {
         Number(group?.leaderId) === currentUserId;
 
     const isStudent = currentUser?.role?.toLowerCase() === "student";
+
+    const isGroupMember =
+        isStudent &&
+        group?.members?.some(
+            (member) =>
+                Number(member.userId) === currentUserId ||
+                member.studentId === currentUser?.studentId
+        );
 
     useEffect(() => {
         let cancelled = false;
@@ -170,7 +179,7 @@ export default function GroupDetailPage() {
 
         setInviting(true);
         try {
-            await inviteMemberApi(groupId, studentId);
+            await addMemberApi(groupId, studentId);
             setInviteSuccess("Invitation sent successfully!");
             showToast("Invitation sent successfully!", "success");
             setInviteStudentId("");
@@ -272,7 +281,9 @@ export default function GroupDetailPage() {
                                 Advisor: {group.advisorId ? `Advisor #${group.advisorId}` : "Not Assigned"}
                             </p>
                         </div>
-                        <StatusBadge status={group.status.toLowerCase()} />
+                        <StatusBadge
+                            status={group.status.toLowerCase() as "forming" | "formed" | "advised" | "disbanded"}
+                        />
                     </div>
 
                     {isLeader && (
@@ -497,7 +508,7 @@ export default function GroupDetailPage() {
                         </div>
                     )}
 
-                    {isStudent && !isLeader && (
+                    {isStudent && isGroupMember && !isLeader && (
                         <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-7 shadow-lg shadow-black/20 backdrop-blur">
                             <h2 className="text-xl font-semibold mb-1">Leave Group</h2>
                             <p className="text-sm text-gray-400 mb-5">

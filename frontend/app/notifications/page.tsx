@@ -3,7 +3,6 @@ import Sidebar from "@/components/Sidebar";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationList from "@/components/NotificationList";
-import AppTopbar from "@/components/AppTopbar";
 import { useNotifications } from "@/components/NotificationProvider";
 
 export default function NotificationsPage() {
@@ -45,7 +44,7 @@ export default function NotificationsPage() {
             <Sidebar activePage="notifications" />
             <main className="flex-1 min-w-0 px-6 py-10">
                 <div className="mx-auto max-w-6xl">
-                    <AppTopbar title="Notifications" />
+
 
                     <div>
                         <button
@@ -55,7 +54,7 @@ export default function NotificationsPage() {
                             ← Back
                         </button>
 
-                        <h1 className="mt-4 text-3xl font-bold">Notifications</h1>
+                        <h1 className="mt-4 text-3xl font-bold text-white">Notifications</h1>
                         <p className="mt-2 text-gray-400">
                             View your notifications and respond to pending invitations.
                         </p>
