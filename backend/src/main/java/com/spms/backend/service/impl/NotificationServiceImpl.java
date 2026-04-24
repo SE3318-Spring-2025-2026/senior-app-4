@@ -3,10 +3,13 @@ package com.spms.backend.service.impl;
 import com.spms.backend.dto.request.AdvisorRequestDto;
 import com.spms.backend.dto.response.AdvisorRequestStatusDto;
 import com.spms.backend.dto.response.NotificationDto;
+import com.spms.backend.annotation.AuditableOperation;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ConflictException;
 import com.spms.backend.exception.ForbiddenException;
+import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.exception.UnauthorizedException;
+import com.spms.backend.model.ActionType;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.Schedule;
 import com.spms.backend.model.notification.Notification;
@@ -24,8 +27,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.spms.backend.annotation.AuditableOperation;
-import com.spms.backend.model.ActionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -147,27 +148,25 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
-    @AuditableOperation(actionType = ActionType.ADVISOR_REJECTED)
+    @AuditableOperation(actionType = ActionType.ADVISOR_REQUEST_WITHDRAWN)
     public void withdrawAdvisorRequest(Long notificationId, Long requesterId) {
-
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new com.spms.backend.exception.NotFoundException(
+                .orElseThrow(() -> new NotFoundException(
                         "Advisor request not found with id: " + notificationId));
 
         if (notification.getType() != NotificationType.ADVISOR_REQUEST) {
-            throw new com.spms.backend.exception.BadRequestException(
-                    "Notification is not an advisor request.");
+            throw new BadRequestException("Notification is not an advisor request.");
         }
 
         if (notification.getStatus() != NotificationStatus.PENDING) {
-            throw new com.spms.backend.exception.BadRequestException(
+            throw new BadRequestException(
                     "Only pending advisor requests can be withdrawn. Current status: "
                             + notification.getStatus().name());
         }
 
         if (notification.getFromUser() == null
                 || !notification.getFromUser().getUserId().equals(requesterId)) {
-            throw new com.spms.backend.exception.ForbiddenException(
+            throw new ForbiddenException(
                     "You are not authorized to withdraw this advisor request.");
         }
 
