@@ -51,6 +51,8 @@ import com.spms.backend.repository.NotificationRepository;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.dto.response.GroupFormationReportDto;
 import com.spms.backend.dto.response.AdvisorRequestResponseDto;
+import com.spms.backend.dto.request.OverrideAssignmentRequest;
+import com.spms.backend.dto.response.OverrideAssignmentResponse;
 import com.spms.backend.dto.response.AdvisorDecisionResponseDto;
 
 import java.time.Instant;
@@ -835,5 +837,93 @@ public class GroupServiceImpl implements GroupService {
                     return new AdvisorRequestResponseDto(req.getId(), req.getGroupId(), groupName, req.getCreatedAt());
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public OverrideAssignmentResponse overrideAdvisorAssignment(OverrideAssignmentRequest request, Long requesterId, String requesterRole) {
+        if (!"coordinator".equalsIgnoreCase(requesterRole)) {
+            throw new ForbiddenException("Only coordinators can override advisor assignments.");
+        }
+
+        Group group = groupRepository.findById(request.teamId())
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+
+        User professor = userRepository.findById(request.advisorId())
+                .orElseThrow(() -> new NotFoundException("Professor not found."));
+
+        if (!"professor".equalsIgnoreCase(professor.getRole())) {
+            throw new BadRequestException("The assigned user is not a professor.");
+        }
+
+        Long previousAdvisorId = group.getAdvisor() != null ? group.getAdvisor().getUserId() : null;
+
+        group.setAdvisor(professor);
+        group.setStatus(GroupStatus.ADVISED);
+        group.setUpdatedAt(Instant.now());
+        groupRepository.save(group);
+
+        // Send SYSTEM_ALERT to the new advisor
+        Notification advisorNotif = new Notification();
+        advisorNotif.setType(NotificationType.SYSTEM_ALERT);
+        advisorNotif.setStatus(NotificationStatus.PENDING);
+        advisorNotif.setMessage("You have been forcefully assigned as advisor to group: " + group.getGroupName() + " by the coordinator.");
+        advisorNotif.setGroupId(group.getId());
+        advisorNotif.setToUser(professor);
+        notificationRepository.save(advisorNotif);
+
+        // Send SYSTEM_ALERT to the group leader
+        Notification leaderNotif = new Notification();
+        leaderNotif.setType(NotificationType.SYSTEM_ALERT);
+        leaderNotif.setStatus(NotificationStatus.PENDING);
+        leaderNotif.setMessage("Your group's advisor has been forcefully changed to " + professor.getFullName() + " by the coordinator.");
+        leaderNotif.setGroupId(group.getId());
+        leaderNotif.setToUser(group.getLeader());
+        notificationRepository.save(leaderNotif);
+
+        // Cancel any pending advisor requests for this group
+        List<Notification> pendingRequests = notificationRepository.findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(
+                group.getId(), NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, -1L);
+        for (Notification req : pendingRequests) {
+            req.setStatus(NotificationStatus.REJECTED);
+            notificationRepository.save(req);
+        }
+
+        // Send SYSTEM_ALERT to the previous advisor (displaced advisor)
+        if (previousAdvisorId != null) {
+            User previousAdvisor = userRepository.findById(previousAdvisorId).orElse(null);
+            if (previousAdvisor != null) {
+                Notification oldAdvisorNotif = new Notification();
+                oldAdvisorNotif.setType(NotificationType.SYSTEM_ALERT);
+                oldAdvisorNotif.setStatus(NotificationStatus.PENDING);
+                oldAdvisorNotif.setMessage("You have been released as advisor from group: " + group.getGroupName() + " due to a coordinator override.");
+                oldAdvisorNotif.setGroupId(group.getId());
+                oldAdvisorNotif.setToUser(previousAdvisor);
+                notificationRepository.save(oldAdvisorNotif);
+            }
+        }
+
+        // Write to D9 (System Logs) manually to include reason and ensure correct groupId mapping
+        AuditLog log = new AuditLog();
+        log.setActionType(ActionType.ADVISOR_OVERRIDDEN);
+        log.setUserId(requesterId);
+        log.setGroupId(group.getId());
+        
+        String logReason = (request.reason() != null && !request.reason().isBlank()) 
+                ? " Reason: " + request.reason() 
+                : "";
+        log.setEventDetails("Coordinator forcefully assigned professor " + professor.getUserId() + 
+                " (" + professor.getFullName() + ") as advisor to group " + group.getId() + "." + logReason);
+        auditLogRepository.save(log);
+
+        return new OverrideAssignmentResponse(
+                "success",
+                "Advisor assignment overridden. Both parties notified.",
+                new OverrideAssignmentResponse.OverrideAssignmentData(
+                        group.getId(),
+                        previousAdvisorId,
+                        professor.getUserId()
+                )
+        );
     }
 }
