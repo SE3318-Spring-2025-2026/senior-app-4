@@ -67,9 +67,10 @@ public class MemberServiceImpl implements MemberService {
             throw new BadRequestException("Group is full (max " + MAX_GROUP_SIZE + " members).");
         }
 
-        // 5. Target student must exist
-        User targetStudent = userRepository.findById(targetStudentId)
-                .orElseThrow(() -> new NotFoundException("Student not found."));
+
+        User targetStudent = userRepository.findByStudentId(String.valueOf(targetStudentId))
+        .orElseThrow(() -> new NotFoundException("Student not found."));
+        Long targetUserId = targetStudent.getUserId();
 
         // 6. Target student must not already belong to a group
         if (groupMemberRepository.existsByUser_UserId(targetStudentId)) {
