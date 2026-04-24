@@ -59,7 +59,6 @@ export default function GroupsPage() {
     const [showCreateForm, setShowCreateForm] = useState(false);
 
     const pageSize = 6;
-    const { unreadOrPendingCount } = useNotifications();
     const currentUser = getUser();
 
     const token = getToken();

@@ -1,13 +1,17 @@
 "use client";
+
 import Sidebar from "@/components/Sidebar";
 import { showToast } from "@/components/toast/ToastContext";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import AdvisorRequestPanel from "@/components/AdvisorRequestPanel";
 import StatusBadge from "@/components/StatusBadge";
 import GithubStatusCard from "@/components/GithubStatusCard";
 import JiraStatusCard from "@/components/JiraStatusCard";
 import {
+    ApiGroupDetail,
+    ApiGroupMember,
     fetchGroupDetail,
     fetchGroupMembers,
     updateGroupNameApi,
@@ -37,7 +41,7 @@ export default function GroupDetailPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
 
-    const [group, setGroup] = useState<any>(null);
+    const [group, setGroup] = useState<ApiGroupDetail | null>(null);
     const [githubIntegration, setGithubIntegration] =
         useState<GithubIntegrationApiResponse | null>(null);
     const [jiraIntegration, setJiraIntegration] =
@@ -45,24 +49,20 @@ export default function GroupDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
-    // Update group name state
     const [newGroupName, setNewGroupName] = useState("");
     const [updatingName, setUpdatingName] = useState(false);
     const [updateSuccess, setUpdateSuccess] = useState("");
     const [updateError, setUpdateError] = useState("");
 
-    // Invite state
     const [inviteStudentId, setInviteStudentId] = useState("");
     const [inviting, setInviting] = useState(false);
     const [inviteSuccess, setInviteSuccess] = useState("");
     const [inviteError, setInviteError] = useState("");
 
-    // Remove member state
     const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
     const [removeError, setRemoveError] = useState("");
     const [removeSuccess, setRemoveSuccess] = useState("");
 
-    // Leave group state
     const [leaving, setLeaving] = useState(false);
     const [leaveError, setLeaveError] = useState("");
 
@@ -72,17 +72,17 @@ export default function GroupDetailPage() {
 
     const currentUserId = Number(
         decoded?.userId ??
-        decoded?.jwt_userId ??
-        decoded?.user_id ??
-        decoded?.id ??
-        decoded?.sub
+            decoded?.jwt_userId ??
+            decoded?.user_id ??
+            decoded?.id ??
+            decoded?.sub
     );
 
     const isLeader =
         Number.isFinite(currentUserId) &&
         Number(group?.leaderId) === currentUserId;
 
-
+    const isStudent = currentUser?.role?.toLowerCase() === "student";
 
     useEffect(() => {
         let cancelled = false;
@@ -105,7 +105,6 @@ export default function GroupDetailPage() {
                     ...groupData,
                     members: membersData,
                 });
-
                 setNewGroupName(groupData.groupName);
                 setGithubIntegration(githubData);
                 setJiraIntegration(jiraData);
@@ -119,9 +118,7 @@ export default function GroupDetailPage() {
             }
         }
 
-        if (!Number.isNaN(groupId)) {
-            loadGroup();
-        }
+        if (!Number.isNaN(groupId)) loadGroup();
 
         return () => {
             cancelled = true;
@@ -145,9 +142,7 @@ export default function GroupDetailPage() {
         setUpdatingName(true);
         try {
             await updateGroupNameApi(groupId, trimmedName);
-            setGroup((prev: any) =>
-                prev ? { ...prev, groupName: trimmedName } : prev
-            );
+            setGroup((prev) => (prev ? { ...prev, groupName: trimmedName } : prev));
             setUpdateSuccess("Group name updated successfully!");
             showToast("Group name updated successfully!", "success");
         } catch (err) {
@@ -202,11 +197,13 @@ export default function GroupDetailPage() {
         try {
             await removeMemberApi(groupId, studentId);
 
-            setGroup((prev: any) => {
+            setGroup((prev) => {
                 if (!prev) return prev;
                 return {
                     ...prev,
-                    members: prev.members.filter((m: any) => m.studentId !== studentId),
+                    members: prev.members.filter(
+                        (member: ApiGroupMember) => member.studentId !== studentId
+                    ),
                 };
             });
 
@@ -225,9 +222,7 @@ export default function GroupDetailPage() {
     async function handleLeaveGroup() {
         setLeaveError("");
 
-        const confirmed = window.confirm(
-            "Are you sure you want to leave this group?"
-        );
+        const confirmed = window.confirm("Are you sure you want to leave this group?");
         if (!confirmed) return;
 
         setLeaving(true);
@@ -261,11 +256,10 @@ export default function GroupDetailPage() {
         );
     }
 
-
     return (
         <div className="min-h-screen bg-gray-950 flex">
             <Sidebar activePage="groups" />
-            <main className="flex-1 min-w-0 text-white">
+            <main className="flex-1 min-w-0 px-6 py-10 text-white">
                 <div className="mx-auto max-w-6xl">
                     <Link href="/groups" className="text-sm text-blue-400 hover:underline">
                         ← Back to groups
@@ -333,6 +327,26 @@ export default function GroupDetailPage() {
                     )}
 
                     <div className="grid gap-6 md:grid-cols-2 mb-8">
+                        <Link href={`/groups/${group.id}/committee-grading`}>
+                            <div className="cursor-pointer rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">
+                                <p className="mb-2 text-sm text-blue-200">Committee Grading</p>
+                                <p className="font-medium text-white">Open grading drawer</p>
+                                <p className="mt-2 text-sm text-blue-100/70">
+                                    Review submission details, add comments, and submit the final score.
+                                </p>
+                            </div>
+                        </Link>
+
+                        <Link href={`/groups/${group.id}/submissions/new`}>
+                            <div className="cursor-pointer rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">
+                                <p className="mb-2 text-sm text-blue-200">Deliverables</p>
+                                <p className="font-medium text-white">Submit Proposal / SoW</p>
+                                <p className="mt-2 text-sm text-blue-100/70">
+                                    Open the student submission form for Process 3 deliverables.
+                                </p>
+                            </div>
+                        </Link>
+
                         <GithubStatusCard
                             integration={
                                 githubIntegration?.data?.status === "inactive"
@@ -360,6 +374,12 @@ export default function GroupDetailPage() {
                         </div>
                     </div>
 
+                    <AdvisorRequestPanel
+                        groupId={group.id}
+                        leaderId={group.leaderId}
+                        advisorId={group.advisorId ?? null}
+                    />
+
                     <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-7 shadow-lg shadow-black/20 backdrop-blur mb-6">
                         <div className="flex items-center justify-between mb-5">
                             <h2 className="text-2xl font-semibold">Members</h2>
@@ -369,14 +389,16 @@ export default function GroupDetailPage() {
                         </div>
 
                         <div className="space-y-4">
-                            {group.members?.map((member: any) => (
+                            {group.members?.map((member: ApiGroupMember) => (
                                 <div
                                     key={member.userId}
                                     className="flex items-center justify-between rounded-xl bg-white/5 px-5 py-4"
                                 >
                                     <div>
                                         <p className="text-lg font-medium">{member.fullName}</p>
-                                        <p className="text-sm text-gray-400 mt-1">Student ID: {member.studentId}</p>
+                                        <p className="text-sm text-gray-400 mt-1">
+                                            Student ID: {member.studentId}
+                                        </p>
                                     </div>
 
                                     <div className="flex items-center gap-3">
@@ -397,7 +419,9 @@ export default function GroupDetailPage() {
                                                 disabled={removingMemberId === member.studentId}
                                                 className="rounded-lg bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                             >
-                                                {removingMemberId === member.userId ? "Removing..." : "Remove"}
+                                                {removingMemberId === member.studentId
+                                                    ? "Removing..."
+                                                    : "Remove"}
                                             </button>
                                         )}
                                     </div>
@@ -425,7 +449,7 @@ export default function GroupDetailPage() {
                         <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-7 shadow-lg shadow-black/20 backdrop-blur mb-6">
                             <h2 className="text-xl font-semibold mb-1">Invite a Member</h2>
                             <p className="text-sm text-gray-400 mb-5">
-                                Enter the student's ID to send them a group membership invite.
+                                Enter the student&apos;s ID to send them a group membership invite.
                             </p>
 
                             <form
@@ -450,6 +474,7 @@ export default function GroupDetailPage() {
                                         required
                                     />
                                 </div>
+
                                 <button
                                     type="submit"
                                     disabled={inviting || !inviteStudentId.trim()}
@@ -472,7 +497,7 @@ export default function GroupDetailPage() {
                         </div>
                     )}
 
-                    {!isLeader && (
+                    {isStudent && !isLeader && (
                         <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-7 shadow-lg shadow-black/20 backdrop-blur">
                             <h2 className="text-xl font-semibold mb-1">Leave Group</h2>
                             <p className="text-sm text-gray-400 mb-5">
