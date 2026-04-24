@@ -14,11 +14,16 @@ public interface NotificationService {
     void cancelAdvisorRequest(Long groupId);
     /** withdrawRequest / revokeNotification — sets notification status to REVOKED (soft-delete). */
     void withdrawAdvisorRequest(Long notificationId, Long requesterId);
-    Page<NotificationDto> getUserNotifications(Long userId, Pageable pageable);
+
+    /** Enhanced notification fetching with UNREAD/ALL filters. */
+    Page<NotificationDto> getNotifications(Long userId, String readStatus, Pageable pageable);
+
+    /** Sets readStatus = true. [PATCH /notifications/{id}/read] */
+    void markAsRead(Long notificationId, Long userId);
+
     void clearNotification(Long notificationId, Long userId);
     void clearAllNotifications(Long userId);
     void respondToNotification(Long notificationId, String decision, Long userId);
-    Page<NotificationDto> getSystemAlerts(Pageable pageable, String role);
     void sendGroupDisbandedNotification(Long groupId, Long actorUserId, String groupName, List<Long> memberIds);
     com.spms.backend.model.notification.Notification createSystemAlert(Long toUserId, String message, String alertType, String metadata);
     List<com.spms.backend.model.notification.Notification> getSystemAlertsByUserId(Long userId);

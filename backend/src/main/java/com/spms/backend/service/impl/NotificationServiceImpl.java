@@ -141,7 +141,6 @@ public class NotificationServiceImpl implements NotificationService {
         request.setStatus(NotificationStatus.CLEARED);
         notificationRepository.save(request);
 
-        // log_f2 – P2.9 audit: advisor request cancelled
         log.info("[AUDIT] cancelAdvisorRequest: groupId={} notificationId={} newStatus=CLEARED",
                 groupId, request.getId());
     }
@@ -173,13 +172,39 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setStatus(NotificationStatus.REVOKED);
         notificationRepository.save(notification);
     }
-
-
+    /**
+     * getNotifications (Enhanced Version)
+     * Supports filtering by UNREAD (readStatus=false) or ALL.
+     */
     @Override
     @Transactional(readOnly = true)
-    public Page<NotificationDto> getUserNotifications(Long userId, Pageable pageable) {
-        return notificationRepository.findByToUser_UserId(userId, pageable)
-                .map(this::mapToDto);
+    public Page<NotificationDto> getNotifications(Long userId, String readStatus, Pageable pageable) {
+        if ("UNREAD".equalsIgnoreCase(readStatus)) {
+            return notificationRepository.findByToUser_UserIdAndReadStatus(userId, false, pageable)
+                    .map(this::mapToDto);
+        }
+        if ("ALL".equalsIgnoreCase(readStatus)) {
+            return notificationRepository.findByToUser_UserId(userId, pageable)
+                    .map(this::mapToDto);
+        }
+        throw new BadRequestException("Invalid readStatus. Supported values: UNREAD or ALL.");
+    }
+
+    /**
+     * markAsRead (PATCH /notifications/{id}/read)
+     */
+    @Override
+    @Transactional
+    public void markAsRead(Long notificationId, Long userId) {
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new NotFoundException("Notification not found."));
+
+        if (!notification.getToUser().getUserId().equals(userId)) {
+            throw new UnauthorizedException("You are not authorized to access this notification.");
+        }
+
+        notification.setReadStatus(true);
+        notificationRepository.save(notification);
     }
 
     @Override
@@ -231,15 +256,6 @@ public class NotificationServiceImpl implements NotificationService {
         }
 
         notificationRepository.save(notification);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Page<NotificationDto> getSystemAlerts(Pageable pageable, String role) {
-        if (!"COORDINATOR".equalsIgnoreCase(role)) {
-            throw new UnauthorizedException("You are not authorized to view system alerts! Required role: COORDINATOR.");
-        }
-        return Page.empty(pageable);
     }
 
     @Override
@@ -298,6 +314,7 @@ public class NotificationServiceImpl implements NotificationService {
                 notif.getType().name().toLowerCase(),
                 notif.getMessage(),
                 notif.getStatus().name().toLowerCase(),
+                notif.isReadStatus(),
                 notif.getFromUser() != null ? notif.getFromUser().getUserId() : null,
                 notif.getFromUser() != null ? notif.getFromUser().getFullName() : null,
                 notif.getToUser() != null ? notif.getToUser().getUserId() : null,

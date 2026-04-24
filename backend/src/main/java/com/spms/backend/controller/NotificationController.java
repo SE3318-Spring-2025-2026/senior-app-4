@@ -106,11 +106,22 @@ public class NotificationController {
     @GetMapping("/api/v1/notifications")
     public ResponseEntity<Page<NotificationDto>> getUserNotifications(
             Pageable pageable,
+            @RequestParam(required = false, defaultValue = "ALL") String readStatus,
             @RequestAttribute("jwt_userId") Object userId) {
 
         Long currentUserId = Long.valueOf(userId.toString());
-        Page<NotificationDto> notifications = notificationService.getUserNotifications(currentUserId, pageable);
+        Page<NotificationDto> notifications = notificationService.getNotifications(currentUserId, readStatus, pageable);
         return ResponseEntity.ok(notifications);
+    }
+
+    @PatchMapping("/api/v1/notifications/{notificationId}/read")
+    public ResponseEntity<Void> markAsRead(
+            @PathVariable Long notificationId,
+            @RequestAttribute("jwt_userId") Object userId) {
+
+        Long currentUserId = Long.valueOf(userId.toString());
+        notificationService.markAsRead(notificationId, currentUserId);
+        return ResponseEntity.ok().build();
     }
 
 
