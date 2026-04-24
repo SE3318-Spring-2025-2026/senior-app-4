@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getToken, getUser } from "@/lib/auth";
@@ -70,14 +70,37 @@ function AccessDenied() {
 
 function DashboardLayout() {
     const [search, setSearch] = useState("");
-    const [students, setStudents] = useState<Student[]>([]);
+    const [allStudents, setAllStudents] = useState<Student[]>([]);
     const [groups, setGroups] = useState<Group[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<number | null>(null);
 
     const [selectedGroups, setSelectedGroups] = useState<Record<number, string>>({});
 
+    const loadStudents = async () => {
+        setLoading(true);
+        try {
+            const res = await apiClient.get(`/users?role=STUDENT`);
+            const data = Array.isArray(res.data) ? res.data : res.data.content || [];
+            
+            if (data.length === 0) {
+                const altRes = await apiClient.get(`/students`).catch(() => null);
+                if (altRes && Array.isArray(altRes.data)) {
+                    setAllStudents(altRes.data);
+                    return;
+                }
+            }
+            setAllStudents(data);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
+        loadStudents();
+        
         // Fetch all groups for the assignment dropdown
         apiClient.get('/groups?size=1000')
             .then(res => {
@@ -88,34 +111,15 @@ function DashboardLayout() {
             .catch(() => console.error("Failed to load groups"));
     }, []);
 
-    const handleSearch = async () => {
-        if (!search.trim()) {
-            setStudents([]);
-            return;
-        }
-
-        setLoading(true);
-        try {
-            // Using /users endpoint since it's commonly available, filtering for students
-            const res = await apiClient.get(`/users?role=STUDENT&search=${encodeURIComponent(search)}`);
-            // Adapt to the actual response structure. Assume it's an array or has a content array.
-            const data = Array.isArray(res.data) ? res.data : res.data.content || [];
-            
-            // For robust UI, let's also fetch students directly if /users fails or returns empty
-            if (data.length === 0) {
-                const altRes = await apiClient.get(`/students?search=${encodeURIComponent(search)}`).catch(() => null);
-                if (altRes && Array.isArray(altRes.data)) {
-                    setStudents(altRes.data);
-                    return;
-                }
-            }
-            setStudents(data);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const students = useMemo(() => {
+        if (!search.trim()) return allStudents;
+        const q = search.toLowerCase();
+        return allStudents.filter(s => 
+            (s.fullName && s.fullName.toLowerCase().includes(q)) ||
+            (s.email && s.email.toLowerCase().includes(q)) ||
+            (s.id && String(s.id).includes(q))
+        );
+    }, [allStudents, search]);
 
     const handleAssign = async (studentId: number) => {
         const groupId = selectedGroups[studentId];
@@ -128,7 +132,7 @@ function DashboardLayout() {
         try {
             await apiClient.post(`/groups/${groupId}/members`, { studentId });
             toast.success("Student successfully assigned to group.");
-            handleSearch(); // Refresh list
+            loadStudents(); // Refresh list
         } catch (error) {
             console.error(error);
         } finally {
@@ -143,7 +147,7 @@ function DashboardLayout() {
         try {
             await apiClient.delete(`/groups/${groupId}/members/${studentId}`);
             toast.success("Student successfully removed from group.");
-            handleSearch(); // Refresh list
+            loadStudents(); // Refresh list
         } catch (error) {
             console.error(error);
         } finally {
@@ -174,14 +178,13 @@ function DashboardLayout() {
                                     placeholder="Search by name, email, or ID..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                                     className="flex-1 bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none"
                                 />
                                 <button
-                                    onClick={handleSearch}
-                                    className="bg-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-blue-500 transition-colors"
+                                    onClick={() => setSearch("")}
+                                    className="bg-white/10 text-white px-6 py-3 rounded-xl font-medium hover:bg-white/20 transition-colors"
                                 >
-                                    Search
+                                    Clear
                                 </button>
                             </div>
                         </div>
