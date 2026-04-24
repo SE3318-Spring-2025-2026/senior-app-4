@@ -12,17 +12,14 @@ import org.springframework.boot.test.web.server.LocalServerPort;
  * Base class for all API integration tests.
  *
  * <ul>
- *   <li>Starts the Spring Boot application on a random port.</li>
- *   <li>Automatically configures RestAssured (baseURI, port, contentType).</li>
- *   <li>Enables request/response logging on validation failures.</li>
+ * <li>Starts the Spring Boot application on a random port.</li>
+ * <li>Automatically configures RestAssured (baseURI, port, contentType).</li>
+ * <li>Enables request/response logging on validation failures.</li>
  * </ul>
  *
  * Usage: {@code class MyApiTest extends BaseApiTest { ... }}
  */
-@SpringBootTest(
-    classes = SpmsBackendApplication.class,
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
-)
+@SpringBootTest(classes = SpmsBackendApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class BaseApiTest {
 
