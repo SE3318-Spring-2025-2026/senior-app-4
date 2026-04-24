@@ -11,7 +11,7 @@ import GithubStatusCard from "@/components/GithubStatusCard";
 import JiraStatusCard from "@/components/JiraStatusCard";
 import {
     ApiGroupDetail,
-    ApiGroupMember,
+    ApiGroupMemberListItem,
     fetchGroupDetail,
     fetchGroupMembers,
     updateGroupNameApi,
@@ -202,7 +202,7 @@ export default function GroupDetailPage() {
                 return {
                     ...prev,
                     members: prev.members.filter(
-                        (member: ApiGroupMember) => member.studentId !== studentId
+                        (member: ApiGroupMemberListItem) => member.studentId !== studentId
                     ),
                 };
             });
@@ -272,7 +272,7 @@ export default function GroupDetailPage() {
                                 Advisor: {group.advisorId ? `Advisor #${group.advisorId}` : "Not Assigned"}
                             </p>
                         </div>
-                        <StatusBadge status={group.status.toLowerCase()} />
+                        <StatusBadge status={group.status.toLowerCase() as "forming" | "formed" | "advised" | "disbanded"} />
                     </div>
 
                     {isLeader && (
@@ -389,7 +389,7 @@ export default function GroupDetailPage() {
                         </div>
 
                         <div className="space-y-4">
-                            {group.members?.map((member: ApiGroupMember) => (
+                            {group.members?.map((member: ApiGroupMemberListItem) => (
                                 <div
                                     key={member.userId}
                                     className="flex items-center justify-between rounded-xl bg-white/5 px-5 py-4"

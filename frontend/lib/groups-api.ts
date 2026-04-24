@@ -53,7 +53,7 @@ export type ApiGroupDetail = {
     status: string;
     createdAt: string;
     updatedAt: string;
-    members: ApiGroupMember[];
+    members: ApiGroupMemberListItem[];
 };
 
 export type ApiPage<T> = {
