@@ -72,8 +72,12 @@ export async function fetchPendingRequests(): Promise<AdvisorRequestSummary[]> {
 export type AdvisorAssignment = {
     teamId: number;
     teamName: string;
+    leaderName: string;
     advisorId: number | null;
     advisorName: string | null;
+    status: string;
+    // TODO(P4-ASSIGN-2 backend): assignedAt and assignmentType are currently
+    // returned as null until assignment metadata is persisted or derived.
     assignedAt: string | null;
     assignmentType: "REQUESTED" | "OVERRIDDEN" | null;
 };
@@ -89,8 +93,20 @@ export type OverrideAssignmentRequest = {
     reason?: string;
 };
 
-export async function fetchAdvisorAssignments(): Promise<AdvisorAssignment[]> {
-    const res = await fetch(`${API_BASE}/advisor-assignments`, {
+export type FetchAdvisorAssignmentsOptions = {
+    advisorId?: number;
+    hasAdvisor?: boolean;
+};
+
+export async function fetchAdvisorAssignments(
+    options: FetchAdvisorAssignmentsOptions = {}
+): Promise<AdvisorAssignment[]> {
+    const params = new URLSearchParams();
+    if (options.advisorId != null) params.set("advisorId", String(options.advisorId));
+    if (options.hasAdvisor != null) params.set("hasAdvisor", String(options.hasAdvisor));
+
+    const query = params.toString();
+    const res = await fetch(`${API_BASE}/advisor-assignments${query ? `?${query}` : ""}`, {
         method: "GET",
         headers: buildHeaders(),
         cache: "no-store",
