@@ -4,6 +4,8 @@ import com.spms.backend.dto.SubmissionResponse;
 import com.spms.backend.dto.response.ErrorResponse;
 import com.spms.backend.dto.response.GradeListResponse;
 import com.spms.backend.dto.response.ReviewDto;
+import com.spms.backend.dto.response.RevisionCreateResponseDto;
+import com.spms.backend.dto.response.RevisionHistoryResponseDto;
 import com.spms.backend.dto.response.SubmissionListResponse;
 import com.spms.backend.dto.request.GradeSubmissionRequest;
 import com.spms.backend.dto.response.GradeSubmissionResponse;
@@ -36,6 +38,10 @@ public class SubmissionController {
         this.reviewService = reviewService;
     }
 
+    // ─────────────────────────────────────────────
+    //  3.7  GET /submissions  — List submissions
+    // ─────────────────────────────────────────────
+
     @GetMapping
     public ResponseEntity<?> listSubmissions(
             Pageable pageable,
@@ -52,6 +58,10 @@ public class SubmissionController {
             return new ResponseEntity<>(new ErrorResponse("Internal Server Error", e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    // ─────────────────────────────────────────────
+    //  3.1  POST /submissions  — Submit deliverable
+    // ─────────────────────────────────────────────
 
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<?> createSubmission(
@@ -84,6 +94,59 @@ public class SubmissionController {
         }
     }
 
+    // ─────────────────────────────────────────────
+    //  3.2  POST /submissions/{submissionId}/revisions
+    //       [P3-REV-1] Submit a revised version
+    // ─────────────────────────────────────────────
+
+    @PostMapping(value = "/{submissionId}/revisions", consumes = "multipart/form-data")
+    public ResponseEntity<?> createRevision(
+            @PathVariable Long submissionId,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(value = "description", required = false) String description) {
+
+        try {
+            Long callerId = Long.valueOf(userId.toString());
+            RevisionCreateResponseDto response = submissionService.createRevision(submissionId, callerId, file, description);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+        } catch (com.spms.backend.exception.NotFoundException e) {
+            return new ResponseEntity<>(new ErrorResponse("Not Found", e.getMessage()), HttpStatus.NOT_FOUND);
+        } catch (com.spms.backend.exception.BadRequestException e) {
+            return new ResponseEntity<>(new ErrorResponse("Bad Request", e.getMessage()), HttpStatus.BAD_REQUEST);
+        } catch (com.spms.backend.exception.ForbiddenException e) {
+            return new ResponseEntity<>(new ErrorResponse("Forbidden", e.getMessage()), HttpStatus.FORBIDDEN);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    //  3.2  GET /submissions/{submissionId}/revisions
+    //       [P3-REV-2] Get full revision chain
+    // ─────────────────────────────────────────────
+
+    @GetMapping("/{submissionId}/revisions")
+    public ResponseEntity<?> getRevisionHistory(
+            @PathVariable Long submissionId,
+            @RequestAttribute("jwt_userId") Object userId) {
+
+        try {
+            RevisionHistoryResponseDto response = submissionService.getRevisionHistory(submissionId);
+            return ResponseEntity.ok(response);
+
+        } catch (com.spms.backend.exception.NotFoundException e) {
+            return new ResponseEntity<>(new ErrorResponse("Not Found", e.getMessage()), HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    //  3.5  GET /submissions/{submissionId}/grades
+    // ─────────────────────────────────────────────
+
     @GetMapping("/{submissionId}/grades")
     public ResponseEntity<?> getSubmissionGrades(
             @PathVariable Long submissionId,
@@ -99,6 +162,10 @@ public class SubmissionController {
             return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    // ─────────────────────────────────────────────
+    //  3.5  POST /submissions/{id}/grades
+    // ─────────────────────────────────────────────
 
     @PostMapping("/{id}/grades")
     public ResponseEntity<?> submitGrade(
@@ -117,6 +184,10 @@ public class SubmissionController {
             return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    // ─────────────────────────────────────────────
+    //  3.4  GET /submissions/{submissionId}/reviews
+    // ─────────────────────────────────────────────
 
     @GetMapping("/{submissionId}/reviews")
     public ResponseEntity<List<ReviewDto>> getReviews(
