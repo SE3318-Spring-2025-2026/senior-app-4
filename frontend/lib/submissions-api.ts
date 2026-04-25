@@ -5,6 +5,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v
 export type DeliverableType = "PROPOSAL" | "REVISED_PROPOSAL" | "STATEMENT_OF_WORK";
 export type SubmissionStatus = "PENDING_REVIEW" | "UNDER_REVIEW" | "REVISION_REQUESTED" | "APPROVED" | "GRADED";
 export type DeadlineStatus = "APPROACHING" | "OVERDUE";
+export type ReviewDecision = "APPROVED" | "REVISION_REQUESTED";
+export type SubmissionId = string | number;
 
 export interface SubmissionSummary {
   id: number;
@@ -17,6 +19,74 @@ export interface SubmissionSummary {
   submittedAt: string;
   deadline?: string | null;
   isOverdue?: boolean;
+}
+
+export interface SubmissionReviewSummary {
+  totalReviews: number;
+  latestStatus?: ReviewDecision | null;
+}
+
+export interface GradeCriterionScore {
+  criteriaId: SubmissionId;
+  criteriaName: string;
+  score: number;
+}
+
+export interface GradeItem {
+  id: SubmissionId;
+  professorId: SubmissionId;
+  professorName: string;
+  grade: number;
+  feedback?: string | null;
+  criteriaScores?: GradeCriterionScore[] | null;
+  gradedAt: string;
+}
+
+export interface SubmissionGradeSummary {
+  averageGrade?: number | null;
+  gradeCount: number;
+  totalCommitteeMembers: number;
+  isGradingComplete: boolean;
+  grades?: GradeItem[];
+}
+
+export interface SubmissionRevision {
+  id: SubmissionId;
+  parentSubmissionId?: SubmissionId | null;
+  revisionNumber: number;
+  status: SubmissionStatus;
+  submittedAt: string;
+  description?: string | null;
+  deliverableType?: DeliverableType;
+  fileUrl?: string | null;
+}
+
+export interface SubmissionRevisionNode extends SubmissionRevision {
+  children?: SubmissionRevisionNode[];
+}
+
+export interface SubmissionDetail {
+  id: SubmissionId;
+  teamId: SubmissionId;
+  teamName?: string;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  deliverableType: DeliverableType;
+  status: SubmissionStatus;
+  assignedCommitteeId?: SubmissionId | null;
+  assignedCommitteeName?: string | null;
+  revisionNumber?: number;
+  parentSubmissionId?: SubmissionId | null;
+  submittedAt: string;
+  deadline?: string | null;
+  reviewSummary?: SubmissionReviewSummary | null;
+  gradeSummary?: SubmissionGradeSummary | null;
+  revisionHistory?: SubmissionRevision[] | SubmissionRevisionNode[];
+}
+
+export interface SubmissionDetailResponse {
+  status: string;
+  data: SubmissionDetail;
 }
 
 export interface SubmissionReview {
@@ -43,6 +113,16 @@ export interface RevisionCreateResponse {
     status?: SubmissionStatus;
     submittedAt?: string;
   };
+}
+
+export interface RevisionHistoryResponse {
+  status: string;
+  data: SubmissionRevision[] | SubmissionRevisionNode[];
+}
+
+export interface GradeListResponse {
+  status: string;
+  data: SubmissionGradeSummary;
 }
 
 export interface PaginationMeta {
@@ -106,7 +186,48 @@ export async function fetchSubmissions(filters: SubmissionFilters = {}): Promise
   return res.json();
 }
 
-export async function fetchSubmissionReviews(submissionId: string): Promise<ReviewListResponse> {
+export async function fetchSubmissionDetail(submissionId: SubmissionId): Promise<SubmissionDetailResponse> {
+  const res = await fetch(`${API_BASE}/submissions/${submissionId}`, {
+    headers: buildHeaders(),
+  });
+
+  if (!res.ok) {
+    const msg = await parseError(res);
+    throw new Error(msg);
+  }
+
+  return res.json();
+}
+
+export async function fetchSubmissionRevisionHistory(submissionId: SubmissionId): Promise<RevisionHistoryResponse> {
+  // TODO(#157): keep this aligned with the backend when the documented
+  // GET /submissions/{submissionId}/revisions endpoint is implemented.
+  const res = await fetch(`${API_BASE}/submissions/${submissionId}/revisions`, {
+    headers: buildHeaders(),
+  });
+
+  if (!res.ok) {
+    const msg = await parseError(res);
+    throw new Error(msg);
+  }
+
+  return res.json();
+}
+
+export async function fetchSubmissionGrades(submissionId: SubmissionId): Promise<GradeListResponse> {
+  const res = await fetch(`${API_BASE}/submissions/${submissionId}/grades`, {
+    headers: buildHeaders(),
+  });
+
+  if (!res.ok) {
+    const msg = await parseError(res);
+    throw new Error(msg);
+  }
+
+  return res.json();
+}
+
+export async function fetchSubmissionReviews(submissionId: SubmissionId): Promise<ReviewListResponse> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 4000);
 

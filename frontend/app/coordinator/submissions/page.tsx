@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, startTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { getToken, getUser } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
@@ -186,6 +187,7 @@ function SubmissionsDashboard() {
                     <th className="px-5 py-3.5 text-xs font-medium text-gray-500 uppercase tracking-wider">Rev.</th>
                     <th className="px-5 py-3.5 text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
                     <th className="px-5 py-3.5 text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline</th>
+                    <th className="px-5 py-3.5 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -271,6 +273,14 @@ function SubmissionRow({ submission: s }: { submission: SubmissionSummary }) {
         ) : (
           <span className="text-gray-600">—</span>
         )}
+      </td>
+      <td className="px-5 py-4 text-right">
+        <Link
+          href={`/coordinator/submissions/${s.id}`}
+          className="inline-flex items-center rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-gray-300 transition hover:bg-white/5 hover:text-white"
+        >
+          View detail
+        </Link>
       </td>
     </tr>
   );
