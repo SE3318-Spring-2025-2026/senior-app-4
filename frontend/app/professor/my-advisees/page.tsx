@@ -82,8 +82,8 @@ function MyAdviseesLayout() {
 function AdviseesTable() {
     const [advisees, setAdvisees] = useState<AdvisorAssignment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [releasingId, setReleasingId] = useState<string | null>(null);
-    const [confirmGroupId, setConfirmGroupId] = useState<string | null>(null);
+    const [releasingId, setReleasingId] = useState<number | null>(null);
+    const [confirmGroupId, setConfirmGroupId] = useState<number | null>(null);
 
     useEffect(() => {
         fetchAdvisorAssignments()
@@ -92,7 +92,7 @@ function AdviseesTable() {
             .finally(() => setLoading(false));
     }, []);
 
-    const handleRelease = async (groupId: string) => {
+    const handleRelease = async (groupId: number) => {
         setReleasingId(groupId);
         try {
             await releaseAdviseeGroup(groupId);

@@ -19,33 +19,6 @@ type Props = {
     advisorId: number | null;
 };
 
-const mockProfessors: ProfessorDirectoryItem[] = [
-    {
-        userId: 11,
-        fullName: "Dr. Ayse Yilmaz",
-        email: "ayse.yilmaz@yasar.edu.tr",
-        githubUsername: "drayseyilmaz",
-        role: "professor",
-        createdAt: null,
-    },
-    {
-        userId: 12,
-        fullName: "Dr. Mehmet Kaya",
-        email: "mehmet.kaya@yasar.edu.tr",
-        githubUsername: "drmehmetkaya",
-        role: "professor",
-        createdAt: null,
-    },
-    {
-        userId: 17,
-        fullName: "Dr. Selin Aydin",
-        email: "selin.aydin@yasar.edu.tr",
-        githubUsername: "drselinaydin",
-        role: "professor",
-        createdAt: null,
-    },
-];
-
 function getCurrentUserId() {
     const token = getToken();
     const storedUser = getUser();
@@ -82,7 +55,6 @@ export default function AdvisorRequestPanel({
     const [requestingProfessorId, setRequestingProfessorId] = useState<number | null>(null);
     const [withdrawing, setWithdrawing] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
-    const [usingMockData, setUsingMockData] = useState(false);
 
     const user = getUser();
     const currentUserId = getCurrentUserId();
@@ -108,14 +80,16 @@ export default function AdvisorRequestPanel({
 
                 setProfessors(professorData);
                 setActiveRequest(requestStatus);
-                setUsingMockData(false);
-            } catch {
+            } catch (err) {
                 if (cancelled) return;
 
-                setProfessors(mockProfessors);
+                setProfessors([]);
                 setActiveRequest(null);
-                setUsingMockData(true);
-                setError("");
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to load professors and advisor request status."
+                );
             } finally {
                 if (!cancelled) {
                     setLoading(false);
@@ -139,25 +113,11 @@ export default function AdvisorRequestPanel({
     const requestButtonsDisabled = Boolean(activeRequest) || Boolean(advisorId) || !isLeader;
 
     async function refreshRequestStatus() {
-        if (usingMockData) {
-            return;
-        }
-
         const requestStatus = await fetchAdvisorRequestStatus(groupId);
         setActiveRequest(requestStatus);
     }
 
     async function handleRequestAdvisor(professor: ProfessorDirectoryItem) {
-        if (usingMockData) {
-            setActiveRequest({
-                requestId: Date.now(),
-                professorName: professor.fullName,
-                status: "PENDING",
-            });
-            toast.success(`Mock preview: advisor request sent to ${professor.fullName}.`);
-            return;
-        }
-
         try {
             setRequestingProfessorId(professor.userId);
             await createAdvisorRequest(groupId, professor.userId);
@@ -173,15 +133,6 @@ export default function AdvisorRequestPanel({
     }
 
     async function handleWithdrawRequest() {
-        if (usingMockData) {
-            setWithdrawing(true);
-            setActiveRequest(null);
-            setConfirmOpen(false);
-            setWithdrawing(false);
-            toast.success("Mock preview: advisor request withdrawn successfully.");
-            return;
-        }
-
         try {
             setWithdrawing(true);
             await withdrawAdvisorRequest(groupId);
@@ -225,13 +176,6 @@ export default function AdvisorRequestPanel({
                         )}
                     </div>
                 </div>
-
-                {usingMockData && (
-                    <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
-                        Preview mode is active because advisor APIs are unavailable from the browser.
-                        Request and withdraw actions are currently simulated with mock data.
-                    </div>
-                )}
 
                 {advisorId ? (
                     <div className="mt-6 rounded-2xl border border-green-500/20 bg-green-500/10 p-5 text-sm text-green-100">

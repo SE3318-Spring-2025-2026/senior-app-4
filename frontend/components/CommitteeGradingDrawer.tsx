@@ -137,8 +137,8 @@ export default function CommitteeGradingDrawer({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          score: Number(gradeInput),
-          comments: comments.trim() || undefined,
+          grade: Number(gradeInput),
+          feedback: comments.trim() || undefined,
         }),
       });
 
@@ -149,7 +149,8 @@ export default function CommitteeGradingDrawer({
           throw new Error(payload);
         }
 
-        throw new Error(payload?.message || payload?.error || `Grade submission failed (${response.status}).`);
+        const errorPayload = payload as { message?: string; error?: string } | null;
+        throw new Error(errorPayload?.message || errorPayload?.error || `Grade submission failed (${response.status}).`);
       }
 
       const successMessage =
