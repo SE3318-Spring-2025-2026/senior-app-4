@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import StudentSubmissionForm from "@/components/StudentSubmissionForm";
 import { getToken, getUser } from "@/lib/auth";
-import { mockGroups } from "@/lib/mock-groups";
+import { fetchGroupDetail, type ApiGroupDetail } from "@/lib/groups-api";
 import { fetchSubmissionReviews, type SubmissionReview } from "@/lib/submissions-api";
 
 type AuthState = "loading" | "ready" | "unauthorized";
@@ -24,11 +24,17 @@ function NewSubmissionPageContent() {
   const searchParams = useSearchParams();
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [studentId, setStudentId] = useState<string | null>(null);
+  const [group, setGroup] = useState<ApiGroupDetail | null>(null);
+  const [groupError, setGroupError] = useState<string | null>(null);
   const [reviewerComments, setReviewerComments] = useState<SubmissionReview[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | undefined>();
   const parentSubmissionId = searchParams.get("parentSubmissionId")?.trim() || undefined;
   const isRevisionFlow = Boolean(parentSubmissionId);
+
+  const rawGroupId = params.groupId;
+  const groupIdStr = Array.isArray(rawGroupId) ? rawGroupId[0] : rawGroupId;
+  const groupIdNum = groupIdStr ? Number(groupIdStr) : null;
 
   useEffect(() => {
     const token = getToken();
@@ -54,6 +60,17 @@ function NewSubmissionPageContent() {
   }, [router]);
 
   useEffect(() => {
+    if (!groupIdNum) return;
+    let cancelled = false;
+
+    fetchGroupDetail(groupIdNum)
+      .then((data) => { if (!cancelled) setGroup(data); })
+      .catch((err) => { if (!cancelled) setGroupError(err instanceof Error ? err.message : "Failed to load group."); });
+
+    return () => { cancelled = true; };
+  }, [groupIdNum]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadReviewerComments() {
@@ -73,8 +90,6 @@ function NewSubmissionPageContent() {
         }
       } catch (error) {
         if (!cancelled) {
-          // TODO(#156): replace this fallback once the backend review-history
-          // endpoint is available in all environments.
           setReviewerComments([]);
           setCommentsError(error instanceof Error ? error.message : "Reviewer comments could not be loaded.");
         }
@@ -91,10 +106,6 @@ function NewSubmissionPageContent() {
       cancelled = true;
     };
   }, [parentSubmissionId]);
-
-  const rawGroupId = params.groupId;
-  const groupId = Array.isArray(rawGroupId) ? rawGroupId[0] : rawGroupId;
-  const group = mockGroups.find((entry) => String(entry.groupId) === String(groupId));
 
   if (authState === "loading") {
     return (
@@ -118,19 +129,23 @@ function NewSubmissionPageContent() {
     );
   }
 
-  if (!group) {
+  if (groupError) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-950 px-6 text-white">
         <div className="max-w-md rounded-3xl border border-white/10 bg-gray-900/80 p-8 text-center">
           <h1 className="text-xl font-semibold">Group not found</h1>
-          <p className="mt-3 text-sm text-gray-400">We could not find a submission context for this group.</p>
+          <p className="mt-3 text-sm text-gray-400">{groupError}</p>
         </div>
       </main>
     );
   }
 
-  const member = group.members.find((entry) => entry.studentId === studentId);
-  const isLeader = member?.role === "leader";
+  if (!group) {
+    return <SubmissionPageSpinner />;
+  }
+
+  const member = group.members.find((m) => m.studentId === studentId);
+  const isLeader = member?.role === "LEADER";
   const isMemberOfGroup = Boolean(member);
   const disabled = !isLeader;
   const disabledReason = !isMemberOfGroup
@@ -142,7 +157,7 @@ function NewSubmissionPageContent() {
       <div className="mx-auto max-w-4xl space-y-8">
         <div className="space-y-4">
           <div>
-            <Link href={`/groups/${group.groupId}`} className="text-sm text-blue-300 transition-colors hover:text-blue-200">
+            <Link href={`/groups/${group.id}`} className="text-sm text-blue-300 transition-colors hover:text-blue-200">
               {"<- Back to group"}
             </Link>
             <h1 className="mt-6 text-3xl font-bold">
@@ -167,7 +182,7 @@ function NewSubmissionPageContent() {
         </div>
 
         <StudentSubmissionForm
-          groupId={String(group.groupId)}
+          groupId={String(group.id)}
           groupName={group.groupName}
           disabled={disabled}
           disabledReason={disabled ? disabledReason : undefined}
