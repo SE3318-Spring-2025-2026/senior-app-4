@@ -28,5 +28,5 @@ public interface SubmissionService {
      * GET /submissions/{submissionId}/revisions  [P3-REV-2]
      * Returns the full revision chain including the root submission.
      */
-    RevisionHistoryResponseDto getRevisionHistory(Long submissionId);
+    RevisionHistoryResponseDto getRevisionHistory(Long submissionId, Long userId, String role);
 }

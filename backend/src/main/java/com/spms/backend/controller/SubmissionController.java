@@ -129,13 +129,19 @@ public class SubmissionController {
      */
     @GetMapping("/{submissionId}/revisions")
     public ResponseEntity<?> getRevisionHistory(
-            @PathVariable Long submissionId) {
+            @PathVariable Long submissionId,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
         try {
-            RevisionHistoryResponseDto response = submissionService.getRevisionHistory(submissionId);
+            Long currentUserId = Long.valueOf(userId.toString());
+            String userRole = role.toString();
+            RevisionHistoryResponseDto response = submissionService.getRevisionHistory(submissionId, currentUserId, userRole);
             return ResponseEntity.ok(response);
 
         } catch (com.spms.backend.exception.NotFoundException e) {
             return new ResponseEntity<>(new ErrorResponse("Not Found", e.getMessage()), HttpStatus.NOT_FOUND);
+        } catch (com.spms.backend.exception.ForbiddenException e) {
+            return new ResponseEntity<>(new ErrorResponse("Forbidden", e.getMessage()), HttpStatus.FORBIDDEN);
         } catch (Exception e) {
             return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }

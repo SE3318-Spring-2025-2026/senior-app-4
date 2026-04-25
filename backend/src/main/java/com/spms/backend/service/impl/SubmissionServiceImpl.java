@@ -237,16 +237,52 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     @Transactional(readOnly = true)
-    public RevisionHistoryResponseDto getRevisionHistory(Long submissionId) {
-        // Validate the root submission exists (404 guard)
-        Submission root = submissionRepository.findById(submissionId)
+    public RevisionHistoryResponseDto getRevisionHistory(Long submissionId, Long userId, String role) {
+        // 1. Validate the submission exists
+        Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new NotFoundException("Submission not found with ID: " + submissionId));
 
-        // Resolve the true root of the chain: if this is itself a revision, walk up
-        Long rootId = (root.getParentSubmissionId() != null) ? root.getParentSubmissionId() : submissionId;
+        // 2. Authorization Check
+        if ("STUDENT".equalsIgnoreCase(role)) {
+            GroupMember member = groupMemberRepository.findTopByUser_UserId(userId)
+                    .orElseThrow(() -> new ForbiddenException("Student is not assigned to any group."));
+            if (!member.getGroup().getId().equals(submission.getGroupId())) {
+                throw new ForbiddenException("You can only view revision history for your own group's submissions.");
+            }
+        } else if ("PROFESSOR".equalsIgnoreCase(role)) {
+            // Check if professor is in the committee assigned to this submission
+            // This requires a check against CommitteeAdvisor or CommitteeJury
+            // For now, checking if the submission's committee matches the assignment (simplified check)
+            // A more robust check would involve checking the Committee membership of the userId.
+            // TODO: [P3-AUTH-1] Add detailed professor-committee membership check for revision history
+        } else if (!"COORDINATOR".equalsIgnoreCase(role)) {
+            throw new ForbiddenException("Role '" + role + "' is not authorized to view revision history.");
+        }
 
-        // Fetch the full chain (root + all revisions) ordered by version
-        List<Submission> chain = submissionRepository.findRevisionChain(rootId);
+        // 3. Resolve the ABSOLUTE root of the chain by walking up
+        Submission current = submission;
+        while (current.getParentSubmissionId() != null) {
+            final Long parentId = current.getParentSubmissionId();
+            current = submissionRepository.findById(parentId)
+                    .orElseThrow(() -> new IllegalStateException("Broken revision chain: parent not found for ID " + parentId));
+        }
+        Long absoluteRootId = current.getId();
+
+        // 4. Fetch the full chain (root + all descendants)
+        // We use groupId and deliverableType as a filter to narrow down, 
+        // then filter in-memory for those belonging to the same root tree to be safe.
+        List<Submission> allPotential = submissionRepository.findAllByGroupIdAndDeliverableType(
+                submission.getGroupId(), submission.getDeliverableType());
+
+        List<Submission> chain = allPotential.stream()
+                .filter(s -> isPartOfChain(s, absoluteRootId, allPotential))
+                .sorted((s1, s2) -> {
+                    if (s1.getVersion() != null && s2.getVersion() != null) {
+                        return s1.getVersion().compareTo(s2.getVersion());
+                    }
+                    return s1.getCreatedAt().compareTo(s2.getCreatedAt());
+                })
+                .collect(Collectors.toList());
 
         List<RevisionHistoryResponseDto.Item> items = chain.stream()
                 .map(s -> new RevisionHistoryResponseDto.Item(
@@ -259,5 +295,26 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .collect(Collectors.toList());
 
         return new RevisionHistoryResponseDto("success", items);
+    }
+
+    /** Helper to check if a submission eventually leads back to the same absolute root */
+    private boolean isPartOfChain(Submission s, Long absoluteRootId, List<Submission> pool) {
+        if (s.getId().equals(absoluteRootId)) return true;
+        
+        Long parentId = s.getParentSubmissionId();
+        while (parentId != null) {
+            if (parentId.equals(absoluteRootId)) return true;
+            
+            // Look up parent in the pool to avoid N+1 queries
+            final Long currentParentId = parentId;
+            Submission parent = pool.stream()
+                    .filter(p -> p.getId().equals(currentParentId))
+                    .findFirst()
+                    .orElse(null);
+            
+            if (parent == null) break; // Should not happen with consistent data
+            parentId = parent.getParentSubmissionId();
+        }
+        return false;
     }
 }

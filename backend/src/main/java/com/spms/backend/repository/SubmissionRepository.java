@@ -19,6 +19,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
 
     Page<Submission> findByGroupId(Long groupId, Pageable pageable);
 
+    List<Submission> findAllByGroupIdAndDeliverableType(Long groupId, DeliverableType deliverableType);
+
     /** Returns the full revision chain: the root + all its direct/indirect revisions ordered by version */
     @Query("SELECT s FROM Submission s WHERE s.id = :rootId OR s.parentSubmissionId = :rootId ORDER BY s.version ASC")
     List<Submission> findRevisionChain(@Param("rootId") Long rootId);

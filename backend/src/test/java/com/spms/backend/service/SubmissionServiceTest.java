@@ -278,7 +278,22 @@ class SubmissionServiceTest {
         when(submissionRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () ->
-                submissionService.getRevisionHistory(999L));
+                submissionService.getRevisionHistory(999L, 1L, "COORDINATOR"));
+    }
+
+    @Test
+    void testGetRevisions_Returns403_WhenStudentAccessesOtherGroup() {
+        Submission otherGroupSubmission = buildSubmission(200L, 99L); // Group 99
+        when(submissionRepository.findById(200L)).thenReturn(Optional.of(otherGroupSubmission));
+        
+        Group group = new Group();
+        group.setId(10L); // Student's group is 10
+        GroupMember member = new GroupMember();
+        member.setGroup(group);
+        when(groupMemberRepository.findTopByUser_UserId(5L)).thenReturn(Optional.of(member));
+
+        assertThrows(ForbiddenException.class, () ->
+                submissionService.getRevisionHistory(200L, 5L, "STUDENT"));
     }
 
     @Test
@@ -292,14 +307,46 @@ class SubmissionServiceTest {
         rev1.setParentSubmissionId(200L);
 
         when(submissionRepository.findById(200L)).thenReturn(Optional.of(root));
-        when(submissionRepository.findRevisionChain(200L)).thenReturn(List.of(root, rev1));
+        when(submissionRepository.findAllByGroupIdAndDeliverableType(10L, DeliverableType.PROPOSAL))
+                .thenReturn(List.of(root, rev1));
 
-        RevisionHistoryResponseDto response = submissionService.getRevisionHistory(200L);
+        RevisionHistoryResponseDto response = submissionService.getRevisionHistory(200L, 1L, "COORDINATOR");
 
         assertEquals("success", response.getStatus());
         assertEquals(2, response.getData().size());
         assertEquals(1, response.getData().get(0).getRevisionNumber());
         assertEquals(2, response.getData().get(1).getRevisionNumber());
+    }
+
+    @Test
+    void getRevisionHistory_DeepChain_ReturnsAllLevels() {
+        // v1 -> v2 -> v3
+        Submission v1 = buildSubmission(100L, 10L);
+        v1.setVersion(1);
+        v1.setParentSubmissionId(null);
+
+        Submission v2 = buildSubmission(101L, 10L);
+        v2.setVersion(2);
+        v2.setParentSubmissionId(100L);
+
+        Submission v3 = buildSubmission(102L, 10L);
+        v3.setVersion(3);
+        v3.setParentSubmissionId(101L);
+
+        // Mocking: calling for v3
+        when(submissionRepository.findById(102L)).thenReturn(Optional.of(v3));
+        when(submissionRepository.findById(101L)).thenReturn(Optional.of(v2));
+        when(submissionRepository.findById(100L)).thenReturn(Optional.of(v1));
+        
+        when(submissionRepository.findAllByGroupIdAndDeliverableType(10L, DeliverableType.PROPOSAL))
+                .thenReturn(List.of(v1, v2, v3));
+
+        RevisionHistoryResponseDto response = submissionService.getRevisionHistory(102L, 1L, "COORDINATOR");
+
+        assertEquals(3, response.getData().size());
+        assertEquals(1, response.getData().get(0).getRevisionNumber());
+        assertEquals(2, response.getData().get(1).getRevisionNumber());
+        assertEquals(3, response.getData().get(2).getRevisionNumber());
     }
 
     // ──────────────────────────────────────────────────────────────────────────
