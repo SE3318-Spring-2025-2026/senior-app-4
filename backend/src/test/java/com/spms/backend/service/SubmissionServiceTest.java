@@ -1,9 +1,12 @@
 package com.spms.backend.service;
 
 import com.spms.backend.dto.SubmissionResponse;
+import com.spms.backend.dto.response.RevisionCreateResponseDto;
+import com.spms.backend.dto.response.RevisionHistoryResponseDto;
 import com.spms.backend.dto.response.SubmissionListResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
+import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.Committee;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupCommitteeAssignment;
@@ -17,6 +20,7 @@ import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.service.impl.SubmissionServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,9 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -59,7 +61,7 @@ class SubmissionServiceTest {
 
     @BeforeEach
     void setUp() {
-        submissionService = new SubmissionService(
+        submissionService = new SubmissionServiceImpl(
                 submissionRepository,
                 groupRepository,
                 assignmentRepository,
@@ -68,6 +70,10 @@ class SubmissionServiceTest {
                 groupMemberRepository);
         pageable = PageRequest.of(0, 10);
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  Existing tests (submit + listSubmissions)
+    // ──────────────────────────────────────────────────────────────────────────
 
     @Test
     void submitHappyPath() {
@@ -211,6 +217,95 @@ class SubmissionServiceTest {
                 () -> submissionService.listSubmissions(77L, "PROFESSOR", pageable));
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    //  Revision tests  [P3-REV-1 / P3-REV-2]
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void createRevision_HappyPath_Returns201WithCorrectData() {
+        User leader = new User();
+        leader.setUserId(1L);
+        Group group = new Group();
+        group.setId(10L);
+        group.setLeader(leader);
+
+        Submission parent = buildSubmission(200L, 10L);
+        parent.setStatus(SubmissionStatus.REVISION_REQUESTED);
+        parent.setVersion(1);
+        parent.setCommitteeId(100L);
+
+        when(submissionRepository.findById(200L)).thenReturn(Optional.of(parent));
+        when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
+        when(submissionRepository.save(any())).thenAnswer(i -> {
+            Submission s = i.getArgument(0);
+            if (s.getId() == null) s.setId(201L);
+            return s;
+        });
+        when(userRepository.findAllByRole("COORDINATOR")).thenReturn(Collections.emptyList());
+
+        RevisionCreateResponseDto response = submissionService.createRevision(200L, "revision.pdf", "Fixed issues", 1L);
+
+        assertEquals("success", response.getStatus());
+        assertNotNull(response.getData());
+        assertEquals(200L, response.getData().getParentSubmissionId());
+        assertEquals(2, response.getData().getRevisionNumber());
+        assertEquals("PENDING_REVIEW", response.getData().getStatus());
+        // Parent should have been saved with SUPERSEDED status
+        assertEquals(SubmissionStatus.SUPERSEDED, parent.getStatus());
+    }
+
+    @Test
+    void testCreateRevision_Returns400_WhenParentNotInRevisionRequestedStatus() {
+        Submission parent = buildSubmission(200L, 10L);
+        parent.setStatus(SubmissionStatus.PENDING_REVIEW); // Not REVISION_REQUESTED
+
+        when(submissionRepository.findById(200L)).thenReturn(Optional.of(parent));
+
+        assertThrows(BadRequestException.class, () ->
+                submissionService.createRevision(200L, "file.pdf", null, 1L));
+    }
+
+    @Test
+    void testCreateRevision_Returns404_WhenParentNotFound() {
+        when(submissionRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () ->
+                submissionService.createRevision(999L, "file.pdf", null, 1L));
+    }
+
+    @Test
+    void testGetRevisions_Returns404_WhenSubmissionNotFound() {
+        when(submissionRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () ->
+                submissionService.getRevisionHistory(999L));
+    }
+
+    @Test
+    void getRevisionHistory_HappyPath_ReturnsFullChain() {
+        Submission root = buildSubmission(200L, 10L);
+        root.setVersion(1);
+        root.setParentSubmissionId(null);
+
+        Submission rev1 = buildSubmission(201L, 10L);
+        rev1.setVersion(2);
+        rev1.setParentSubmissionId(200L);
+
+        when(submissionRepository.findById(200L)).thenReturn(Optional.of(root));
+        when(submissionRepository.findRevisionChain(200L)).thenReturn(List.of(root, rev1));
+
+        RevisionHistoryResponseDto response = submissionService.getRevisionHistory(200L);
+
+        assertEquals("success", response.getStatus());
+        assertEquals(2, response.getData().size());
+        assertEquals(1, response.getData().get(0).getRevisionNumber());
+        assertEquals(2, response.getData().get(1).getRevisionNumber());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  Helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
     private Submission buildSubmission(Long submissionId, Long groupId) {
         Submission submission = new Submission();
         submission.setId(submissionId);
@@ -218,6 +313,7 @@ class SubmissionServiceTest {
         submission.setDeliverableType(DeliverableType.PROPOSAL);
         submission.setStatus(SubmissionStatus.PENDING_REVIEW);
         submission.setCommitteeId(9L);
+        submission.setContent("content");
         submission.setCreatedAt(LocalDateTime.now());
         return submission;
     }

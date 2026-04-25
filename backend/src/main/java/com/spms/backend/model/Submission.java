@@ -36,6 +36,12 @@ public class Submission {
     @Column(name = "final_grade")
     private Double finalGrade;
 
+    @Column(name = "parent_submission_id")
+    private Long parentSubmissionId;
+
+    @Column(name = "version", nullable = false)
+    private Integer version = 1;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -69,7 +75,13 @@ public class Submission {
 
     public Double getFinalGrade() { return finalGrade; }
     public void setFinalGrade(Double finalGrade) { this.finalGrade = finalGrade; }
-    
+
+    public Long getParentSubmissionId() { return parentSubmissionId; }
+    public void setParentSubmissionId(Long parentSubmissionId) { this.parentSubmissionId = parentSubmissionId; }
+
+    public Integer getVersion() { return version; }
+    public void setVersion(Integer version) { this.version = version; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }
