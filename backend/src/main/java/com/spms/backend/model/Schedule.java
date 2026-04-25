@@ -18,6 +18,9 @@ public class Schedule {
     @Column(name = "advisor_assignment_deadline", nullable = false)
     private Instant advisorAssignmentDeadline;
 
+    @Column(name = "proposal_revision_deadline")
+    private Instant proposalRevisionDeadline;
+
     @Column(name = "updated_by")
     private Long updatedBy;
 
@@ -37,6 +40,11 @@ public class Schedule {
     public Instant getAdvisorAssignmentDeadline() { return advisorAssignmentDeadline; }
     public void setAdvisorAssignmentDeadline(Instant advisorAssignmentDeadline) {
         this.advisorAssignmentDeadline = advisorAssignmentDeadline;
+    }
+
+    public Instant getProposalRevisionDeadline() { return proposalRevisionDeadline; }
+    public void setProposalRevisionDeadline(Instant proposalRevisionDeadline) {
+        this.proposalRevisionDeadline = proposalRevisionDeadline;
     }
 
     public Long getUpdatedBy() { return updatedBy; }
