@@ -87,10 +87,10 @@ export async function fetchAdvisorRequestStatus(groupId: number): Promise<Adviso
 }
 
 export async function createAdvisorRequest(groupId: number, professorId: number): Promise<void> {
-    const res = await fetch(`${API_BASE}/groups/${groupId}/advisor-request`, {
+    const res = await fetch(`${API_BASE}/advisor-requests`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ professorId }),
+        body: JSON.stringify({ teamId: String(groupId), professorId }),
     });
 
     if (!res.ok) {
