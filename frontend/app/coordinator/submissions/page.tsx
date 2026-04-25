@@ -75,7 +75,7 @@ function SubmissionsDashboard() {
     setFilters({ status: "", deliverableType: "", deadlineStatus: "", page: 0, size: 20 });
   }
 
-  const overdueCount = submissions.filter((s) => s.isOverdue).length;
+  const overdueCount = submissions.filter((s) => s.isOverdue === true).length;
   const pendingCount = submissions.filter((s) => s.status === "PENDING_REVIEW").length;
   const gradedCount = submissions.filter((s) => s.status === "GRADED").length;
 
@@ -205,7 +205,7 @@ function SubmissionsDashboard() {
               </p>
               <div className="flex items-center gap-2">
                 <button
-                  disabled={pagination.page === 0}
+                  disabled={pagination.currentPage === 0}
                   onClick={() => setFilters((p) => ({ ...p, page: (p.page ?? 1) - 1 }))}
                   className="px-3 py-1.5 rounded-lg text-xs border border-white/10 text-gray-400
                              hover:text-white hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
@@ -213,10 +213,10 @@ function SubmissionsDashboard() {
                   Previous
                 </button>
                 <span className="text-xs text-gray-500">
-                  Page {pagination.page + 1} of {pagination.totalPages}
+                  Page {pagination.currentPage + 1} of {pagination.totalPages}
                 </span>
                 <button
-                  disabled={pagination.page >= pagination.totalPages - 1}
+                  disabled={pagination.currentPage >= pagination.totalPages - 1}
                   onClick={() => setFilters((p) => ({ ...p, page: (p.page ?? 0) + 1 }))}
                   className="px-3 py-1.5 rounded-lg text-xs border border-white/10 text-gray-400
                              hover:text-white hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
@@ -235,6 +235,7 @@ function SubmissionsDashboard() {
 // ─── Submission row ───────────────────────────────────────────────────────────
 
 function SubmissionRow({ submission: s }: { submission: SubmissionSummary }) {
+  const teamLabel = s.teamName ?? `Team #${s.teamId}`;
   return (
     <tr className={`transition-colors hover:bg-white/[0.02] ${s.isOverdue ? "bg-red-500/5" : ""}`}>
       <td className="px-5 py-4">
@@ -247,7 +248,7 @@ function SubmissionRow({ submission: s }: { submission: SubmissionSummary }) {
               </svg>
             </span>
           )}
-          <span className="font-medium text-white truncate max-w-[160px]">{s.teamName}</span>
+          <span className="font-medium text-white truncate max-w-[160px]">{teamLabel}</span>
         </div>
       </td>
       <td className="px-5 py-4">
@@ -257,7 +258,7 @@ function SubmissionRow({ submission: s }: { submission: SubmissionSummary }) {
         <SubmissionStatusBadge status={s.status} />
       </td>
       <td className="px-5 py-4 text-gray-400 text-center">
-        {s.revisionNumber}
+        {s.revisionNumber ?? "—"}
       </td>
       <td className="px-5 py-4 text-gray-400 whitespace-nowrap">
         {formatDate(s.submittedAt)}

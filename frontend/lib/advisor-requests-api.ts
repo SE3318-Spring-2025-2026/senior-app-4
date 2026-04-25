@@ -6,10 +6,10 @@ const API_BASE =
 export type AdvisorRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "WITHDRAWN";
 
 export type AdvisorRequestSummary = {
-    id: string;
-    teamId: string;
+    id: number;
+    teamId: number;
     teamName: string;
-    professorId: string;
+    professorId: number;
     professorName: string;
     status: AdvisorRequestStatus;
     message?: string | null;
@@ -31,10 +31,10 @@ export type AdvisorDecisionResponse = {
     status: string;
     message: string;
     data: {
-        requestId: string;
+        requestId: number;
         decision: "APPROVE" | "REJECT";
-        teamId: string;
-        advisorId: string | null;
+        teamId: number;
+        advisorId: number | null;
     };
 };
 
@@ -70,9 +70,9 @@ export async function fetchPendingRequests(): Promise<AdvisorRequestSummary[]> {
 }
 
 export type AdvisorAssignment = {
-    teamId: string;
+    teamId: number;
     teamName: string;
-    advisorId: string | null;
+    advisorId: number | null;
     advisorName: string | null;
     assignedAt: string | null;
     assignmentType: "REQUESTED" | "OVERRIDDEN" | null;
@@ -84,8 +84,8 @@ export type AdvisorAssignmentListResponse = {
 };
 
 export type OverrideAssignmentRequest = {
-    teamId: string;
-    advisorId: string;
+    teamId: number;
+    advisorId: number;
     reason?: string;
 };
 
@@ -118,7 +118,7 @@ export async function overrideAdvisorAssignment(
     }
 }
 
-export async function releaseAdviseeGroup(groupId: string): Promise<void> {
+export async function releaseAdviseeGroup(groupId: number): Promise<void> {
     const res = await fetch(`${API_BASE}/advisor-assignments/${groupId}/release`, {
         method: "POST",
         headers: buildHeaders(),
@@ -130,7 +130,7 @@ export async function releaseAdviseeGroup(groupId: string): Promise<void> {
 }
 
 export async function submitAdvisorDecision(
-    requestId: string,
+    requestId: number,
     payload: AdvisorDecisionRequest
 ): Promise<AdvisorDecisionResponse> {
     const res = await fetch(`${API_BASE}/advisor-requests/${requestId}/decision`, {

@@ -109,7 +109,7 @@ function OverridePanel() {
         }).finally(() => setLoading(false));
     }, []);
 
-    const selectedTeam = assignments.find((a) => a.teamId === selectedTeamId);
+    const selectedTeam = assignments.find((a) => String(a.teamId) === selectedTeamId);
     const hasExistingAdvisor = selectedTeam?.advisorId != null;
 
     const handleOverrideClick = () => {
@@ -124,8 +124,8 @@ function OverridePanel() {
         setProcessing(true);
         try {
             await overrideAdvisorAssignment({
-                teamId: selectedTeamId,
-                advisorId: selectedAdvisorId,
+                teamId: Number(selectedTeamId),
+                advisorId: Number(selectedAdvisorId),
                 reason: overrideReason.trim() || undefined,
             });
             toast.success("Advisor assignment overridden successfully.");

@@ -82,9 +82,9 @@ function PendingRequestsLayout() {
 function PendingRequestsTable() {
     const [requests, setRequests] = useState<AdvisorRequestSummary[]>([]);
     const [loading, setLoading] = useState(true);
-    const [rejectingId, setRejectingId] = useState<string | null>(null);
+    const [rejectingId, setRejectingId] = useState<number | null>(null);
     const [rejectReason, setRejectReason] = useState("");
-    const [processingId, setProcessingId] = useState<string | null>(null);
+    const [processingId, setProcessingId] = useState<number | null>(null);
 
     useEffect(() => {
         (async () => {
@@ -99,7 +99,7 @@ function PendingRequestsTable() {
         })();
     }, []);
 
-    const handleApprove = async (requestId: string) => {
+    const handleApprove = async (requestId: number) => {
         setProcessingId(requestId);
         try {
             await submitAdvisorDecision(requestId, { decision: "APPROVE" });
@@ -112,7 +112,7 @@ function PendingRequestsTable() {
         }
     };
 
-    const handleRejectConfirm = async (requestId: string) => {
+    const handleRejectConfirm = async (requestId: number) => {
         setProcessingId(requestId);
         try {
             await submitAdvisorDecision(requestId, {
@@ -130,7 +130,7 @@ function PendingRequestsTable() {
         }
     };
 
-    const openReject = (requestId: string) => {
+    const openReject = (requestId: number) => {
         setRejectingId(requestId);
         setRejectReason("");
     };
@@ -376,7 +376,7 @@ function RequestRow({
     );
 }
 
-function GroupMembers({ teamId }: { teamId: string }) {
+function GroupMembers({ teamId }: { teamId: number }) {
     const [members, setMembers] = useState<{ fullName: string; role: string }[] | null>(null);
 
     useEffect(() => {

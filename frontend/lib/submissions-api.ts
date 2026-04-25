@@ -7,16 +7,16 @@ export type SubmissionStatus = "PENDING_REVIEW" | "UNDER_REVIEW" | "REVISION_REQ
 export type DeadlineStatus = "APPROACHING" | "OVERDUE";
 
 export interface SubmissionSummary {
-  id: string;
-  teamId: string;
-  teamName: string;
+  id: number;
+  teamId: number;
+  teamName?: string;
   deliverableType: DeliverableType;
   status: SubmissionStatus;
-  assignedCommitteeId: string | null;
-  revisionNumber: number;
+  assignedCommitteeId: number | null;
+  revisionNumber?: number;
   submittedAt: string;
-  deadline: string | null;
-  isOverdue: boolean;
+  deadline?: string | null;
+  isOverdue?: boolean;
 }
 
 export interface SubmissionReview {
@@ -46,8 +46,8 @@ export interface RevisionCreateResponse {
 }
 
 export interface PaginationMeta {
-  page: number;
-  size: number;
+  currentPage: number;
+  pageSize: number;
   totalElements: number;
   totalPages: number;
 }
