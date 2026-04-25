@@ -18,6 +18,7 @@ import com.spms.backend.model.enums.SubmissionStatus;
 import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
+import com.spms.backend.repository.ScheduleRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.impl.SubmissionServiceImpl;
@@ -55,6 +56,8 @@ class SubmissionServiceTest {
     private UserRepository userRepository;
     @Mock
     private GroupMemberRepository groupMemberRepository;
+    @Mock
+    private ScheduleRepository scheduleRepository;
 
     private SubmissionService submissionService;
     private Pageable pageable;
@@ -67,7 +70,8 @@ class SubmissionServiceTest {
                 assignmentRepository,
                 notificationService,
                 userRepository,
-                groupMemberRepository);
+                groupMemberRepository,
+                scheduleRepository);
         pageable = PageRequest.of(0, 10);
     }
 
@@ -236,6 +240,15 @@ class SubmissionServiceTest {
 
         when(submissionRepository.findById(200L)).thenReturn(Optional.of(parent));
         when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
+        when(scheduleRepository.findTopByOrderByIdDesc()).thenReturn(Optional.empty()); // No deadline
+        GroupCommitteeAssignment assignment = new GroupCommitteeAssignment();
+        Committee committee = new Committee();
+        committee.setCommitteeId(100L);
+        assignment.setCommittee(committee);
+
+        when(assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(10L, "ASSIGNED"))
+                .thenReturn(Optional.of(assignment));
+        
         when(submissionRepository.save(any())).thenAnswer(i -> {
             Submission s = i.getArgument(0);
             if (s.getId() == null) s.setId(201L);
@@ -252,6 +265,28 @@ class SubmissionServiceTest {
         assertEquals("PENDING_REVIEW", response.getData().getStatus());
         // Parent should have been saved with SUPERSEDED status
         assertEquals(SubmissionStatus.SUPERSEDED, parent.getStatus());
+    }
+
+    @Test
+    void createRevision_DeadlinePassed_ThrowsForbidden() {
+        User leader = new User();
+        leader.setUserId(1L);
+        Group group = new Group();
+        group.setId(10L);
+        group.setLeader(leader);
+
+        Submission parent = buildSubmission(200L, 10L);
+        parent.setStatus(SubmissionStatus.REVISION_REQUESTED);
+
+        com.spms.backend.model.Schedule schedule = new com.spms.backend.model.Schedule();
+        schedule.setProposalRevisionDeadline(java.time.Instant.now().minusSeconds(3600)); // 1 hour ago
+
+        when(submissionRepository.findById(200L)).thenReturn(Optional.of(parent));
+        when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
+        when(scheduleRepository.findTopByOrderByIdDesc()).thenReturn(Optional.of(schedule));
+
+        assertThrows(ForbiddenException.class, () ->
+                submissionService.createRevision(200L, "file.pdf", "desc", 1L));
     }
 
     @Test

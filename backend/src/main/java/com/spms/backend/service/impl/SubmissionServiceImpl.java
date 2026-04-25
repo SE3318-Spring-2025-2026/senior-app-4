@@ -19,6 +19,7 @@ import com.spms.backend.model.enums.SubmissionStatus;
 import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
+import com.spms.backend.repository.ScheduleRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.NotificationService;
@@ -41,19 +42,22 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final NotificationService notificationService;
     private final UserRepository userRepository;
     private final GroupMemberRepository groupMemberRepository;
+    private final ScheduleRepository scheduleRepository;
 
     public SubmissionServiceImpl(SubmissionRepository submissionRepository,
                                  GroupRepository groupRepository,
                                  GroupCommitteeAssignmentRepository assignmentRepository,
                                  NotificationService notificationService,
                                  UserRepository userRepository,
-                                 GroupMemberRepository groupMemberRepository) {
+                                 GroupMemberRepository groupMemberRepository,
+                                 ScheduleRepository scheduleRepository) {
         this.submissionRepository = submissionRepository;
         this.groupRepository = groupRepository;
         this.assignmentRepository = assignmentRepository;
         this.notificationService = notificationService;
         this.userRepository = userRepository;
         this.groupMemberRepository = groupMemberRepository;
+        this.scheduleRepository = scheduleRepository;
     }
 
     @Override
@@ -192,7 +196,15 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw new ForbiddenException("Only the group leader may submit a revision.");
         }
 
-        // 4. AC: Update parent status to SUPERSEDED
+        // 4. D10: Deadline check
+        scheduleRepository.findTopByOrderByIdDesc().ifPresent(schedule -> {
+            if (schedule.getProposalRevisionDeadline() != null &&
+                    java.time.Instant.now().isAfter(schedule.getProposalRevisionDeadline())) {
+                throw new ForbiddenException("Revision deadline has passed (D10).");
+            }
+        });
+
+        // 5. AC: Update parent status to SUPERSEDED
         parent.setStatus(SubmissionStatus.SUPERSEDED);
         submissionRepository.save(parent);
 
@@ -212,12 +224,28 @@ public class SubmissionServiceImpl implements SubmissionService {
 
         Submission saved = submissionRepository.save(revision);
 
-        // 7. Notify committee members
-        // TODO: [P3-NOTIFY-1] Send notification to committee members when revision is submitted
+        // 8. Notify committee members and coordinators (Fan-out)
+        GroupCommitteeAssignment assignment = assignmentRepository
+                .findTopByGroupIdAndStatusOrderByAssignedAtDesc(parent.getGroupId(), "ASSIGNED")
+                .orElseThrow(() -> new ForbiddenException("Group is not assigned to any committee."));
+
+        Committee committee = assignment.getCommittee();
+        String notificationMsg = "Revision v" + newVersion + " submitted for submission #" + parentSubmissionId + " by Group: " + group.getGroupName();
+
+        if (committee.getAdvisors() != null) {
+            committee.getAdvisors().forEach(advisor ->
+                    notificationService.createSystemAlert(advisor.getAdvisor().getUserId(), notificationMsg, "REVISION_ALERT", "submissionId:" + saved.getId())
+            );
+        }
+
+        if (committee.getJuryMembers() != null) {
+            committee.getJuryMembers().forEach(jury ->
+                    notificationService.createSystemAlert(jury.getJuryMember().getUserId(), notificationMsg, "REVISION_ALERT", "submissionId:" + saved.getId())
+            );
+        }
+
         userRepository.findAllByRole("COORDINATOR").forEach(coord ->
-                notificationService.createSystemAlert(coord.getUserId(),
-                        "Revision v" + newVersion + " submitted for submission #" + parentSubmissionId,
-                        "REVISION_ALERT", "submissionId:" + saved.getId())
+                notificationService.createSystemAlert(coord.getUserId(), notificationMsg, "REVISION_ALERT", "submissionId:" + saved.getId())
         );
 
         RevisionCreateResponseDto.Data data = new RevisionCreateResponseDto.Data(
