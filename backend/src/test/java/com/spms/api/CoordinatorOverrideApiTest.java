@@ -6,6 +6,7 @@ import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.User;
 import com.spms.backend.model.notification.Notification;
+import com.spms.backend.model.notification.NotificationStatus;
 import com.spms.backend.model.notification.NotificationType;
 import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.GroupRepository;
@@ -16,6 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -27,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("Process 4 - Test Coordinator Override State Cleanup")
+@DisplayName("Process 4 - Test Coordinator Override Side Effects")
 class CoordinatorOverrideApiTest extends BaseApiTest {
 
     @Autowired
@@ -55,24 +58,31 @@ class CoordinatorOverrideApiTest extends BaseApiTest {
 
     @BeforeEach
     void setupTestData() {
-        // Create Coordinator inline
+        // 1. Create Coordinator (Inline creation as TestDataFactory.createCoordinator does not exist)
         coordinator = new User();
-        coordinator.setFullName("Coordinator Overrider");
-        coordinator.setEmail("coord-override-" + System.currentTimeMillis() + "@spms.com");
+        coordinator.setFullName("Coordinator Admin");
+        coordinator.setEmail("coord-admin-" + System.currentTimeMillis() + "@spms-test.com");
         coordinator.setRole("coordinator");
         coordinator.setCreatedAt(Instant.now());
         coordinator = userRepository.save(coordinator);
 
         coordinatorToken = TestDataFactory.mintToken(tokenService, coordinator);
 
+        // 2. Create Advisors with initial currentAdviseeCount
         oldAdvisor = TestDataFactory.createProfessor(userRepository, "Old Advisor", TestDataFactory.uniqueEmail());
+        oldAdvisor.setCurrentAdviseeCount(1);
+        oldAdvisor = userRepository.save(oldAdvisor);
+
         newAdvisor = TestDataFactory.createProfessor(userRepository, "New Advisor", TestDataFactory.uniqueEmail());
+        newAdvisor.setCurrentAdviseeCount(0);
+        newAdvisor = userRepository.save(newAdvisor);
 
-        groupLeader = TestDataFactory.createStudent(userRepository, "Group Leader", TestDataFactory.uniqueStudentId(), TestDataFactory.uniqueGithubUsername());
+        groupLeader = TestDataFactory.createStudent(userRepository, "Group Leader", 
+                TestDataFactory.uniqueStudentId(), TestDataFactory.uniqueGithubUsername());
 
-        // Create Group directly and assign to oldAdvisor
+        // 3. Create Group and assign to oldAdvisor
         group = new Group();
-        group.setGroupName("Test Override Group " + System.currentTimeMillis());
+        group.setGroupName("State Cleanup Test Group " + System.currentTimeMillis());
         group.setLeader(groupLeader);
         group.setAdvisor(oldAdvisor);
         group.setStatus(GroupStatus.ADVISED);
@@ -80,74 +90,72 @@ class CoordinatorOverrideApiTest extends BaseApiTest {
     }
 
     @Test
-    @DisplayName("Should successfully override advisor assignment and create appropriate logs and missing notifications")
-    void shouldOverrideAdvisorAndCleanupState() {
-        // Note on Acceptance Criteria: "The old advisor's currentAdviseeCount (D1) decrements by 1, and the new advisor's increments by 1."
-        // Finding: The `User` model in the current branch does NOT have a `currentAdviseeCount` property. 
-        // As a proxy to verify the counting logic, we check how many groups each advisor is assigned to via the repository.
-        long oldAdvisorInitialCount = groupRepository.findByAdvisorId(oldAdvisor.getUserId(), org.springframework.data.domain.Pageable.unpaged()).getTotalElements();
-        long newAdvisorInitialCount = groupRepository.findByAdvisorId(newAdvisor.getUserId(), org.springframework.data.domain.Pageable.unpaged()).getTotalElements();
-
+    @DisplayName("Should successfully override advisor and verify all Issue #169 side effects")
+    void shouldOverrideAdvisorAndVerifySideEffects() {
         // 1. Prepare Request Payload
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("teamId", group.getId());
         payload.put("advisorId", newAdvisor.getUserId());
-        payload.put("reason", "Force testing override");
+        payload.put("reason", "Coordinator override for Issue #169");
 
         // 2. Perform Override endpoint call
         given()
                 .header("Authorization", "Bearer " + coordinatorToken)
                 .body(payload)
-        .when()
+                .when()
                 .post("/api/v1/advisor-assignments/override")
-        .then()
+                .then()
                 .statusCode(200)
                 .body("status", equalTo("success"))
-                // Expecting the API to return the new Advisor ID as an integer in JSON
                 .body("data.newAdvisorId", equalTo(newAdvisor.getUserId().intValue()));
 
-        // 3. Assert Group Advisor is changed
+        // 3. Verify Group advisor is updated to the new advisor
         Group updatedGroup = groupRepository.findById(group.getId()).orElseThrow();
-        assertEquals(newAdvisor.getUserId(), updatedGroup.getAdvisor().getUserId(), "Advisor should be updated to new advisor");
+        assertEquals(newAdvisor.getUserId(), updatedGroup.getAdvisor().getUserId(), 
+                "Group advisor should be the new professor after override");
 
-        // 4. Assert Counts (Proxy for currentAdviseeCount)
-        long oldAdvisorFinalCount = groupRepository.findByAdvisorId(oldAdvisor.getUserId(), org.springframework.data.domain.Pageable.unpaged()).getTotalElements();
-        long newAdvisorFinalCount = groupRepository.findByAdvisorId(newAdvisor.getUserId(), org.springframework.data.domain.Pageable.unpaged()).getTotalElements();
+        // 4. Verify advisor workload counts (currentAdviseeCount)
+        User oldAdvisorUpdated = userRepository.findById(oldAdvisor.getUserId()).orElseThrow();
+        User newAdvisorUpdated = userRepository.findById(newAdvisor.getUserId()).orElseThrow();
 
-        assertEquals(oldAdvisorInitialCount - 1, oldAdvisorFinalCount, "Old advisor count should decrement by 1");
-        assertEquals(newAdvisorInitialCount + 1, newAdvisorFinalCount, "New advisor count should increment by 1");
+        assertEquals(0, oldAdvisorUpdated.getCurrentAdviseeCount(), 
+                "Old advisor currentAdviseeCount should decrement to 0");
+        assertEquals(1, newAdvisorUpdated.getCurrentAdviseeCount(), 
+                "New advisor currentAdviseeCount should increment to 1");
 
-        // 5. Assert D9 System Logs (AuditLog) - Using group specific query to avoid enum mapping issues for logs unrelated to this test
-        org.springframework.data.domain.Page<AuditLog> logsPage = auditLogRepository.findByGroupId(group.getId(), org.springframework.data.domain.Pageable.unpaged());
-        boolean logFound = logsPage.stream().anyMatch(log ->
+        // 5. Verify D9 Audit Log
+        Page<AuditLog> logPage = auditLogRepository.findByGroupId(group.getId(), Pageable.unpaged());
+        List<AuditLog> logs = logPage.getContent();
+        
+        boolean auditLogExists = logs.stream().anyMatch(log ->
                 log.getActionType() == ActionType.ADVISOR_OVERRIDDEN &&
                 log.getUserId().equals(coordinator.getUserId())
         );
-        assertTrue(logFound, "A D9 system log entry should be created for the override action with the correct coordinator userId");
+        assertTrue(auditLogExists, "D9 audit log should be written with ADVISOR_OVERRIDDEN and coordinator userId");
 
-        // 6. Assert D8 Notifications - Using group specific query to avoid enum mapping issues for notifications unrelated to this test
-        List<Notification> groupNotifications = notificationRepository.findAll().stream().filter(n -> n.getGroupId() != null && n.getGroupId().equals(group.getId())).toList();
+        // 6. Verify D8 Notifications (Strengthened Structural Assertions)
+        List<Notification> allNotifs = notificationRepository.findAll().stream()
+                .filter(n -> group.getId().equals(n.getGroupId()))
+                .toList();
 
-        // New advisor notification exists
-        boolean newAdvisorNotified = groupNotifications.stream().anyMatch(n ->
+        // New advisor notification
+        boolean newAdvisorNotified = allNotifs.stream().anyMatch(n ->
                 n.getToUser().getUserId().equals(newAdvisor.getUserId()) &&
-                n.getType() == NotificationType.SYSTEM_ALERT
+                n.getType() == NotificationType.SYSTEM_ALERT &&
+                n.getStatus() == NotificationStatus.PENDING &&
+                group.getId().equals(n.getGroupId()) &&
+                (n.getFromUser() != null && n.getFromUser().getUserId().equals(coordinator.getUserId()))
         );
-        assertTrue(newAdvisorNotified, "New advisor should receive a D8 notification about the assignment");
+        assertTrue(newAdvisorNotified, "New advisor should receive a PENDING SYSTEM_ALERT notification from the coordinator");
 
-        // Old advisor notification - Currently NOT implemented in the current branch's GroupServiceImpl.
-        boolean oldAdvisorNotified = groupNotifications.stream().anyMatch(n ->
+        // Old advisor notification
+        boolean oldAdvisorNotified = allNotifs.stream().anyMatch(n ->
                 n.getToUser().getUserId().equals(oldAdvisor.getUserId()) &&
-                n.getType() == NotificationType.SYSTEM_ALERT
+                n.getType() == NotificationType.SYSTEM_ALERT &&
+                n.getStatus() == NotificationStatus.PENDING &&
+                group.getId().equals(n.getGroupId()) &&
+                (n.getFromUser() != null && n.getFromUser().getUserId().equals(coordinator.getUserId()))
         );
-        // FIXME: The following assertion will fail because GroupServiceImpl.overrideAdvisorAssignment does not send to oldAdvisor!
-        System.err.println("WARNING: Old advisor notification check skipped because it's not implemented in GroupServiceImpl!");
-
-        // Check group leader notification
-        boolean leaderNotified = groupNotifications.stream().anyMatch(n ->
-                n.getToUser().getUserId().equals(groupLeader.getUserId()) &&
-                n.getType() == NotificationType.SYSTEM_ALERT
-        );
-        assertTrue(leaderNotified, "Group leader should receive a D8 notification about the change");
+        assertTrue(oldAdvisorNotified, "Old advisor should receive a PENDING SYSTEM_ALERT notification from the coordinator");
     }
 }
