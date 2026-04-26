@@ -1,0 +1,811 @@
+"use client";
+
+import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Download,
+  FileText,
+  GitBranch,
+  RefreshCw,
+  Star,
+  Users,
+} from "lucide-react";
+import { toast } from "sonner";
+import Sidebar from "@/components/Sidebar";
+import { getToken, getUser } from "@/lib/auth";
+import {
+  fetchSubmissionDetail,
+  fetchSubmissionGrades,
+  fetchSubmissionRevisionHistory,
+  type DeliverableType,
+  type GradeItem,
+  type SubmissionDetail,
+  type SubmissionGradeSummary,
+  type SubmissionId,
+  type SubmissionRevision,
+  type SubmissionRevisionNode,
+  type SubmissionStatus,
+} from "@/lib/submissions-api";
+
+type AuthState = "loading" | "ready" | "denied";
+
+export default function CoordinatorSubmissionDetailPage() {
+  const router = useRouter();
+  const [authState, setAuthState] = useState<AuthState>("loading");
+
+  useEffect(() => {
+    const token = getToken();
+    const user = getUser();
+
+    if (!token || !user) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    if (user.requiresPasswordChange) {
+      router.replace("/auth/change-password");
+      return;
+    }
+
+    startTransition(() => {
+      setAuthState(user.role === "coordinator" ? "ready" : "denied");
+    });
+  }, [router]);
+
+  if (authState === "loading") return <Spinner />;
+  if (authState === "denied") return <AccessDenied />;
+
+  return <SubmissionDetailWorkspace />;
+}
+
+function SubmissionDetailWorkspace() {
+  const params = useParams();
+  const submissionIdParam = params.submissionId;
+  const submissionId = Array.isArray(submissionIdParam) ? submissionIdParam[0] : submissionIdParam;
+
+  const [detail, setDetail] = useState<SubmissionDetail | null>(null);
+  const [revisionHistory, setRevisionHistory] = useState<SubmissionRevision[] | SubmissionRevisionNode[]>([]);
+  const [gradeSummary, setGradeSummary] = useState<SubmissionGradeSummary | null>(null);
+  const [revisionWarning, setRevisionWarning] = useState<string | null>(null);
+  const [gradeWarning, setGradeWarning] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!submissionId) return;
+
+    setLoading(true);
+    setError(null);
+    setRevisionWarning(null);
+    setGradeWarning(null);
+
+    try {
+      if (isMockPreviewEnabled()) {
+        const mock = createMockSubmissionDetail(submissionId);
+        setDetail(mock.detail);
+        setRevisionHistory(mock.revisionHistory);
+        setGradeSummary(mock.gradeSummary);
+        setLoading(false);
+        return;
+      }
+
+      const detailResponse = await fetchSubmissionDetail(submissionId);
+      const nextDetail = detailResponse.data;
+      setDetail(nextDetail);
+      setRevisionHistory(nextDetail.revisionHistory ?? []);
+      setGradeSummary(nextDetail.gradeSummary ?? null);
+
+      const [revisionResult, gradesResult] = await Promise.allSettled([
+        fetchSubmissionRevisionHistory(submissionId),
+        fetchSubmissionGrades(submissionId),
+      ]);
+
+      if (revisionResult.status === "fulfilled") {
+        const revisions = revisionResult.value.data;
+        if (revisions && revisions.length > 0) {
+          setRevisionHistory(revisions);
+        }
+      } else {
+        setRevisionWarning(revisionResult.reason instanceof Error ? revisionResult.reason.message : "Revision history could not be loaded.");
+      }
+
+      if (gradesResult.status === "fulfilled") {
+        setGradeSummary(gradesResult.value.data ?? nextDetail.gradeSummary ?? null);
+      } else {
+        setGradeWarning(gradesResult.reason instanceof Error ? gradesResult.reason.message : "Grade details could not be loaded.");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Submission detail could not be loaded.";
+      setError(message);
+      setDetail(null);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [submissionId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const revisionTree = useMemo(
+    () => buildRevisionTree(detail, revisionHistory),
+    [detail, revisionHistory],
+  );
+
+  return (
+    <div className="flex min-h-screen bg-gray-950 text-white">
+      <Sidebar activePage="submissions" />
+      <main className="flex min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-8 py-4">
+          <div className="min-w-0">
+            <Link href="/coordinator/submissions" className="inline-flex items-center gap-2 text-xs text-gray-500 transition hover:text-blue-300">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to submissions
+            </Link>
+            <h1 className="mt-2 truncate text-base font-semibold text-white">Submission Detail</h1>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Status, revision chain, review state, and grading summary for a single submission
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-gray-400 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-8">
+          {loading ? (
+            <div className="flex h-64 items-center justify-center">
+              <RefreshCw className="h-6 w-6 animate-spin text-blue-500" />
+            </div>
+          ) : error || !detail ? (
+            <ErrorState message={error ?? "Submission detail was not returned by the API."} />
+          ) : (
+            <div className="space-y-6">
+              <SubmissionHeader detail={detail} />
+
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.8fr)]">
+                <div className="space-y-6">
+                  <OverviewPanel detail={detail} />
+                  <RevisionHistoryPanel
+                    currentSubmissionId={detail.id}
+                    tree={revisionTree}
+                    warning={revisionWarning}
+                  />
+                </div>
+
+                <div className="space-y-6">
+                  <ReviewPanel detail={detail} />
+                  <GradePanel summary={gradeSummary} warning={gradeWarning} />
+                  <FilePanel detail={detail} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function SubmissionHeader({ detail }: { detail: SubmissionDetail }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-gray-900 px-6 py-5">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <SubmissionStatusBadge status={detail.status} />
+            <DeliverableTypeBadge type={detail.deliverableType} />
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-gray-300">
+              Revision {detail.revisionNumber ?? 1}
+            </span>
+          </div>
+          <h2 className="mt-4 truncate text-2xl font-semibold text-white">
+            {detail.teamName ?? `Team #${detail.teamId}`}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-gray-400">
+            Submitted {formatDateTime(detail.submittedAt)}
+            {detail.deadline ? `, due ${formatDateTime(detail.deadline)}` : ""}
+          </p>
+        </div>
+
+        <div className="grid min-w-[280px] grid-cols-2 gap-3">
+          <Metric label="Reviews" value={`${detail.reviewSummary?.totalReviews ?? 0}`} />
+          <Metric
+            label="Average"
+            value={formatGrade(detail.gradeSummary?.averageGrade)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OverviewPanel({ detail }: { detail: SubmissionDetail }) {
+  return (
+    <section className="rounded-2xl border border-white/8 bg-gray-900 p-6">
+      <div className="mb-5 flex items-center gap-2">
+        <FileText className="h-4 w-4 text-blue-300" />
+        <h3 className="text-sm font-semibold text-white">Submission Overview</h3>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <InfoTile label="Submission ID" value={String(detail.id)} />
+        <InfoTile label="Team ID" value={String(detail.teamId)} />
+        <InfoTile label="Committee" value={detail.assignedCommitteeName ?? valueOrDash(detail.assignedCommitteeId)} />
+        <InfoTile label="Parent Submission" value={valueOrDash(detail.parentSubmissionId)} />
+        <InfoTile label="Submitted" value={formatDateTime(detail.submittedAt)} />
+        <InfoTile label="Deadline" value={detail.deadline ? formatDateTime(detail.deadline) : "-"} />
+      </div>
+    </section>
+  );
+}
+
+function RevisionHistoryPanel({
+  currentSubmissionId,
+  tree,
+  warning,
+}: {
+  currentSubmissionId: SubmissionId;
+  tree: SubmissionRevisionNode[];
+  warning: string | null;
+}) {
+  return (
+    <section className="rounded-2xl border border-white/8 bg-gray-900 p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <GitBranch className="h-4 w-4 text-blue-300" />
+          <h3 className="text-sm font-semibold text-white">Revision History</h3>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-gray-400">
+          {countRevisionNodes(tree)} node{countRevisionNodes(tree) === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {warning && (
+        <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-100/80">
+          TODO(#157 backend): revision history endpoint is not available yet. Showing any revision data included in SubmissionDetailResponse. API said: {warning}
+        </div>
+      )}
+
+      {tree.length === 0 ? (
+        <div className="mt-5 rounded-xl border border-dashed border-white/10 bg-white/4 px-4 py-8 text-center">
+          <p className="text-sm font-medium text-white">No revision history yet</p>
+          <p className="mt-1 text-xs text-gray-500">The original submission will appear here once the detail API returns revision data.</p>
+        </div>
+      ) : (
+        <div className="mt-5 space-y-3">
+          {tree.map((node) => (
+            <RevisionTreeNode
+              key={String(node.id)}
+              node={node}
+              currentSubmissionId={currentSubmissionId}
+              depth={0}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RevisionTreeNode({
+  node,
+  currentSubmissionId,
+  depth,
+}: {
+  node: SubmissionRevisionNode;
+  currentSubmissionId: SubmissionId;
+  depth: number;
+}) {
+  const current = sameId(node.id, currentSubmissionId);
+  const children = sortRevisionNodes(node.children ?? []);
+
+  return (
+    <div className="relative">
+      <div className="flex gap-3">
+        {depth > 0 && (
+          <div className="w-6 shrink-0">
+            <div className="ml-3 h-6 w-px bg-white/10" />
+            <div className="h-px w-6 bg-white/10" />
+          </div>
+        )}
+
+        <div className={`flex-1 rounded-xl border px-4 py-3 ${current ? "border-blue-500/30 bg-blue-500/10" : "border-white/10 bg-white/4"}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-gray-950 px-2.5 py-1 text-xs font-medium text-gray-300">
+                Rev. {node.revisionNumber}
+              </span>
+              <SubmissionStatusBadge status={node.status} />
+              {current && (
+                <span className="rounded-full border border-blue-400/30 bg-blue-400/10 px-2.5 py-1 text-xs font-medium text-blue-200">
+                  Current
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-gray-500">{formatDateTime(node.submittedAt)}</span>
+          </div>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <div className="min-w-0">
+              <p className="truncate text-xs text-gray-500">Submission {String(node.id)}</p>
+              {node.description && (
+                <p className="mt-1 text-sm text-gray-300">{node.description}</p>
+              )}
+            </div>
+            {node.fileUrl && (
+              <a
+                href={node.fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-gray-300 transition hover:bg-white/5 hover:text-white"
+              >
+                <Download className="h-3.5 w-3.5" />
+                File
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {children.length > 0 && (
+        <div className="ml-9 mt-3 space-y-3 border-l border-white/10 pl-3">
+          {children.map((child) => (
+            <RevisionTreeNode
+              key={String(child.id)}
+              node={child}
+              currentSubmissionId={currentSubmissionId}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReviewPanel({ detail }: { detail: SubmissionDetail }) {
+  const latestStatus = detail.reviewSummary?.latestStatus;
+
+  return (
+    <section className="rounded-2xl border border-white/8 bg-gray-900 p-6">
+      <div className="mb-5 flex items-center gap-2">
+        <CheckCircle2 className="h-4 w-4 text-green-300" />
+        <h3 className="text-sm font-semibold text-white">Review Summary</h3>
+      </div>
+
+      <div className="grid gap-3">
+        <InfoTile label="Total reviews" value={`${detail.reviewSummary?.totalReviews ?? 0}`} />
+        <InfoTile label="Latest decision" value={latestStatus ? reviewDecisionLabel(latestStatus) : "Pending"} />
+      </div>
+    </section>
+  );
+}
+
+function GradePanel({
+  summary,
+  warning,
+}: {
+  summary: SubmissionGradeSummary | null;
+  warning: string | null;
+}) {
+  const grades = summary?.grades ?? [];
+
+  return (
+    <section className="rounded-2xl border border-white/8 bg-gray-900 p-6">
+      <div className="mb-5 flex items-center gap-2">
+        <Star className="h-4 w-4 text-amber-300" />
+        <h3 className="text-sm font-semibold text-white">Grading Summary</h3>
+      </div>
+
+      {warning && (
+        <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-100/80">
+          Grade detail endpoint is not available or returned an error. Showing the summary included in SubmissionDetailResponse. API said: {warning}
+        </div>
+      )}
+
+      {!summary ? (
+        <div className="rounded-xl border border-dashed border-white/10 bg-white/4 px-4 py-8 text-center">
+          <p className="text-sm font-medium text-white">No grading data yet</p>
+          <p className="mt-1 text-xs text-gray-500">Grades appear after committee members submit scores.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <Metric label="Average" value={formatGrade(summary.averageGrade)} />
+            <Metric label="Submitted" value={`${summary.gradeCount}/${summary.totalCommitteeMembers}`} />
+            <Metric label="Complete" value={summary.isGradingComplete ? "Yes" : "No"} />
+          </div>
+
+          {grades.length > 0 && (
+            <div className="overflow-hidden rounded-xl border border-white/10">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/5 text-left">
+                    <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Professor</th>
+                    <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Grade</th>
+                    <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Graded</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {grades.map((grade) => (
+                    <GradeRow key={String(grade.id)} grade={grade} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function GradeRow({ grade }: { grade: GradeItem }) {
+  return (
+    <tr className="bg-white/[0.02]">
+      <td className="px-4 py-3">
+        <p className="font-medium text-white">{grade.professorName}</p>
+        {grade.feedback && <p className="mt-1 line-clamp-2 text-xs text-gray-500">{grade.feedback}</p>}
+      </td>
+      <td className="px-4 py-3 text-gray-300">{formatGrade(grade.grade)}</td>
+      <td className="px-4 py-3 text-xs text-gray-500">{formatDateTime(grade.gradedAt)}</td>
+    </tr>
+  );
+}
+
+function FilePanel({ detail }: { detail: SubmissionDetail }) {
+  return (
+    <section className="rounded-2xl border border-white/8 bg-gray-900 p-6">
+      <div className="mb-5 flex items-center gap-2">
+        <Download className="h-4 w-4 text-blue-300" />
+        <h3 className="text-sm font-semibold text-white">Deliverable File</h3>
+      </div>
+
+      {detail.fileUrl ? (
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-4">
+          <p className="truncate text-sm font-medium text-white">{detail.fileName ?? "Submission file"}</p>
+          <a
+            href={detail.fileUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-950 transition hover:bg-gray-100"
+          >
+            <Download className="h-4 w-4" />
+            Download
+          </a>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-white/10 bg-white/4 px-4 py-8 text-center">
+          <p className="text-sm font-medium text-white">No file URL returned</p>
+          <p className="mt-1 text-xs text-gray-500">TODO(#157 backend): include fileUrl in SubmissionDetailResponse.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-white/8 bg-white/4 px-4 py-3">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="mt-1 truncate text-sm font-medium text-white">{value}</p>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-center">
+      <p className="text-lg font-semibold text-white">{value}</p>
+      <p className="mt-1 text-xs text-gray-500">{label}</p>
+    </div>
+  );
+}
+
+function SubmissionStatusBadge({ status }: { status: SubmissionStatus }) {
+  const styles: Record<SubmissionStatus, string> = {
+    PENDING_REVIEW: "bg-yellow-500/15 text-yellow-400 border-yellow-500/20",
+    UNDER_REVIEW: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+    REVISION_REQUESTED: "bg-orange-500/15 text-orange-400 border-orange-500/20",
+    APPROVED: "bg-green-500/15 text-green-400 border-green-500/20",
+    GRADED: "bg-purple-500/15 text-purple-400 border-purple-500/20",
+  };
+  const labels: Record<SubmissionStatus, string> = {
+    PENDING_REVIEW: "Pending Review",
+    UNDER_REVIEW: "Under Review",
+    REVISION_REQUESTED: "Revision Requested",
+    APPROVED: "Approved",
+    GRADED: "Graded",
+  };
+
+  return (
+    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${styles[status]}`}>
+      {labels[status]}
+    </span>
+  );
+}
+
+function DeliverableTypeBadge({ type }: { type: DeliverableType }) {
+  const labels: Record<DeliverableType, string> = {
+    PROPOSAL: "Proposal",
+    REVISED_PROPOSAL: "Revised Proposal",
+    STATEMENT_OF_WORK: "SoW",
+  };
+
+  return (
+    <span className="inline-flex rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-xs font-medium text-gray-300">
+      {labels[type]}
+    </span>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div className="flex h-64 items-center justify-center">
+      <div className="max-w-lg rounded-2xl border border-red-500/20 bg-red-500/10 p-8 text-center">
+        <h2 className="text-lg font-semibold text-white">Submission detail unavailable</h2>
+        <p className="mt-3 text-sm text-red-100/80">{message}</p>
+        <p className="mt-3 text-xs text-red-100/60">
+          TODO(#157 backend): implement GET /api/v1/submissions/:submissionId using SubmissionDetailResponse.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-950">
+      <RefreshCw className="h-6 w-6 animate-spin text-blue-500" />
+    </div>
+  );
+}
+
+function AccessDenied() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-950 px-6">
+      <div className="max-w-md rounded-2xl border border-red-500/20 bg-red-500/10 p-8 text-center">
+        <Users className="mx-auto h-8 w-8 text-red-300" />
+        <h1 className="mt-4 text-lg font-semibold text-white">Access restricted</h1>
+        <p className="mt-2 text-sm text-red-100/80">Only Coordinators can access submission details.</p>
+      </div>
+    </div>
+  );
+}
+
+function buildRevisionTree(
+  detail: SubmissionDetail | null,
+  history: SubmissionRevision[] | SubmissionRevisionNode[],
+): SubmissionRevisionNode[] {
+  const source = history.length > 0 ? history : detail ? [detailToRevision(detail)] : [];
+  const flattened = flattenRevisionNodes(source);
+  const withCurrent = detail && !flattened.some((node) => sameId(node.id, detail.id))
+    ? [...flattened, detailToRevision(detail)]
+    : flattened;
+
+  if (withCurrent.length === 0) return [];
+  if (source.some((node) => Array.isArray((node as SubmissionRevisionNode).children) && (node as SubmissionRevisionNode).children!.length > 0)) {
+    return sortRevisionNodes(normalizeNestedNodes(source));
+  }
+
+  const nodes = withCurrent.map((node) => ({ ...node, children: [] as SubmissionRevisionNode[] }));
+  const byId = new Map(nodes.map((node) => [String(node.id), node]));
+  const roots: SubmissionRevisionNode[] = [];
+  let hasExplicitParent = false;
+
+  for (const node of nodes) {
+    const parentId = node.parentSubmissionId;
+    const parent = parentId == null ? null : byId.get(String(parentId));
+    if (parent) {
+      hasExplicitParent = true;
+      parent.children = [...(parent.children ?? []), node];
+    } else {
+      roots.push(node);
+    }
+  }
+
+  if (hasExplicitParent) {
+    return sortRevisionNodes(roots);
+  }
+
+  const ordered = sortRevisionNodes(nodes);
+  for (let index = 0; index < ordered.length - 1; index += 1) {
+    ordered[index].children = [ordered[index + 1]];
+  }
+  return ordered.length > 0 ? [ordered[0]] : [];
+}
+
+function normalizeNestedNodes(nodes: (SubmissionRevision | SubmissionRevisionNode)[]): SubmissionRevisionNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    children: normalizeNestedNodes((node as SubmissionRevisionNode).children ?? []),
+  }));
+}
+
+function flattenRevisionNodes(nodes: (SubmissionRevision | SubmissionRevisionNode)[]): SubmissionRevision[] {
+  return nodes.flatMap((node) => [
+    node,
+    ...flattenRevisionNodes((node as SubmissionRevisionNode).children ?? []),
+  ]);
+}
+
+function detailToRevision(detail: SubmissionDetail): SubmissionRevisionNode {
+  return {
+    id: detail.id,
+    parentSubmissionId: detail.parentSubmissionId,
+    revisionNumber: detail.revisionNumber ?? 1,
+    status: detail.status,
+    submittedAt: detail.submittedAt,
+    deliverableType: detail.deliverableType,
+    fileUrl: detail.fileUrl,
+    description: detail.fileName ?? null,
+    children: [],
+  };
+}
+
+function sortRevisionNodes(nodes: SubmissionRevisionNode[]): SubmissionRevisionNode[] {
+  return [...nodes].sort((a, b) => {
+    const revisionDelta = (a.revisionNumber ?? 0) - (b.revisionNumber ?? 0);
+    if (revisionDelta !== 0) return revisionDelta;
+    return new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime();
+  });
+}
+
+function countRevisionNodes(nodes: SubmissionRevisionNode[]): number {
+  return nodes.reduce((total, node) => total + 1 + countRevisionNodes(node.children ?? []), 0);
+}
+
+function sameId(a: SubmissionId, b: SubmissionId) {
+  return String(a) === String(b);
+}
+
+function formatDateTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatGrade(value?: number | null) {
+  return typeof value === "number" ? value.toFixed(1) : "-";
+}
+
+function valueOrDash(value?: SubmissionId | null) {
+  return value == null ? "-" : String(value);
+}
+
+function reviewDecisionLabel(value: string) {
+  const labels: Partial<Record<SubmissionStatus, string>> = {
+    APPROVED: "Approved",
+    REVISION_REQUESTED: "Revision Requested",
+    UNDER_REVIEW: "Under Review",
+    GRADED: "Graded",
+    PENDING_REVIEW: "Pending Review",
+  };
+
+  return labels[value as SubmissionStatus] ?? value;
+}
+
+function isMockPreviewEnabled() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("mock") === "1";
+}
+
+function createMockSubmissionDetail(submissionId: SubmissionId): {
+  detail: SubmissionDetail;
+  revisionHistory: SubmissionRevisionNode[];
+  gradeSummary: SubmissionGradeSummary;
+} {
+  const revisionHistory: SubmissionRevisionNode[] = [
+    {
+      id: 1,
+      revisionNumber: 1,
+      status: "REVISION_REQUESTED",
+      submittedAt: "2026-04-10T09:15:00",
+      description: "Initial proposal submitted with project scope and milestones.",
+      deliverableType: "PROPOSAL",
+      fileUrl: "https://example.com/submissions/proposal-v1.pdf",
+      children: [
+        {
+          id: 2,
+          parentSubmissionId: 1,
+          revisionNumber: 2,
+          status: "APPROVED",
+          submittedAt: "2026-04-17T14:40:00",
+          description: "Updated methodology, risk analysis, and timeline after committee review.",
+          deliverableType: "REVISED_PROPOSAL",
+          fileUrl: "https://example.com/submissions/proposal-v2.pdf",
+          children: [
+            {
+              id: 3,
+              parentSubmissionId: 2,
+              revisionNumber: 3,
+              status: "GRADED",
+              submittedAt: "2026-04-22T11:20:00",
+              description: "Final proposal package used for grading.",
+              deliverableType: "REVISED_PROPOSAL",
+              fileUrl: "https://example.com/submissions/proposal-v3.pdf",
+              children: [],
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const gradeSummary: SubmissionGradeSummary = {
+    averageGrade: 87.7,
+    gradeCount: 3,
+    totalCommitteeMembers: 3,
+    isGradingComplete: true,
+    grades: [
+      {
+        id: 101,
+        professorId: 21,
+        professorName: "Dr. Ayse Demir",
+        grade: 90,
+        feedback: "Clear scope and strong validation plan.",
+        gradedAt: "2026-04-23T10:10:00",
+      },
+      {
+        id: 102,
+        professorId: 22,
+        professorName: "Dr. Mehmet Kaya",
+        grade: 85,
+        feedback: "Architecture is solid; deployment risks should be watched.",
+        gradedAt: "2026-04-23T11:25:00",
+      },
+      {
+        id: 103,
+        professorId: 23,
+        professorName: "Dr. Elif Arslan",
+        grade: 88,
+        feedback: "Good revision response and measurable milestones.",
+        gradedAt: "2026-04-23T13:05:00",
+      },
+    ],
+  };
+
+  return {
+    detail: {
+      id: submissionId,
+      teamId: 42,
+      teamName: "Senior Project Team 42",
+      fileUrl: "https://example.com/submissions/proposal-v3.pdf",
+      fileName: "proposal-final-revision.pdf",
+      deliverableType: "REVISED_PROPOSAL",
+      status: "GRADED",
+      assignedCommitteeId: 7,
+      assignedCommitteeName: "Software Systems Committee",
+      revisionNumber: 3,
+      parentSubmissionId: 2,
+      submittedAt: "2026-04-22T11:20:00",
+      deadline: "2026-04-24T23:59:00",
+      reviewSummary: {
+        totalReviews: 4,
+        latestStatus: "APPROVED",
+      },
+      gradeSummary,
+      revisionHistory,
+    },
+    revisionHistory,
+    gradeSummary,
+  };
+}
