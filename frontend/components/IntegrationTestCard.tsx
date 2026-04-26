@@ -1,31 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { IntegrationTestResult } from "@/lib/github-types";
+import { type IntegrationsTestResponse } from "@/lib/integrations-api";
 
 type Props = {
     groupId: number;
-    mockResult?: IntegrationTestResult;
+    onTest: () => Promise<IntegrationsTestResponse>;
 };
 
-export default function IntegrationTestCard({ groupId, mockResult }: Props) {
+export default function IntegrationTestCard({ groupId, onTest }: Props) {
     const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState<IntegrationTestResult | null>(null);
+    const [result, setResult] = useState<IntegrationsTestResponse | null>(null);
 
     async function handleTest() {
         setLoading(true);
 
         try {
-            await new Promise((r) => setTimeout(r, 1000));
-
-            if (mockResult) {
-                setResult(mockResult);
-            }
+            const res = await onTest();
+            setResult(res);
         } finally {
             setLoading(false);
         }
     }
-
     return (
         <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
             <div className="mb-4 flex items-center justify-between">

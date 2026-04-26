@@ -22,16 +22,15 @@ export default function GithubStatusCard({ integration }: Props) {
     };
 
     return (
-        <div className="bg-gray-900/80 border border-white/10 rounded-2xl p-6 shadow-lg">
-
+        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">
             {/* Title */}
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm text-gray-400">GitHub Integration</h3>
 
                 <span
                     className={`text-xs px-3 py-1 rounded-full font-medium ${isConnected
-                            ? "bg-green-500/15 text-green-400"
-                            : "bg-gray-700 text-gray-400"
+                        ? "bg-green-500/15 text-green-400"
+                        : "bg-gray-700 text-gray-400"
                         }`}
                 >
                     {isConnected ? "Connected" : "Not Connected"}
