@@ -104,7 +104,10 @@ function SubmissionDetailWorkspace() {
       ]);
 
       if (revisionResult.status === "fulfilled") {
-        setRevisionHistory(revisionResult.value.data ?? []);
+        const revisions = revisionResult.value.data;
+        if (revisions && revisions.length > 0) {
+          setRevisionHistory(revisions);
+        }
       } else {
         setRevisionWarning(revisionResult.reason instanceof Error ? revisionResult.reason.message : "Revision history could not be loaded.");
       }
@@ -689,7 +692,15 @@ function valueOrDash(value?: SubmissionId | null) {
 }
 
 function reviewDecisionLabel(value: string) {
-  return value === "REVISION_REQUESTED" ? "Revision Requested" : "Approved";
+  const labels: Partial<Record<SubmissionStatus, string>> = {
+    APPROVED: "Approved",
+    REVISION_REQUESTED: "Revision Requested",
+    UNDER_REVIEW: "Under Review",
+    GRADED: "Graded",
+    PENDING_REVIEW: "Pending Review",
+  };
+
+  return labels[value as SubmissionStatus] ?? value;
 }
 
 function isMockPreviewEnabled() {
