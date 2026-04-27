@@ -102,7 +102,13 @@ function GroupsContent() {
                 setLoading(true);
                 setError("");
 
-                const response = await fetchGroups(0, 1000);
+                const response = await fetchGroups(
+                    0, 
+                    1000, 
+                    statusFilter === "all" ? undefined : statusFilter,
+                    searchQuery || undefined,
+                    advisorFilter === "all" ? undefined : advisorFilter
+                );
 
                 if (cancelled) return;
 
@@ -153,7 +159,7 @@ function GroupsContent() {
         return () => {
             cancelled = true;
         };
-    }, [currentUser?.role, currentUserId]);
+    }, [currentUser?.role, currentUserId, statusFilter, searchQuery, advisorFilter]);
 
     const filteredGroups = useMemo(() => {
         let filtered = [...groups];
