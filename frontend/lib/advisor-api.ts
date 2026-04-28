@@ -98,8 +98,8 @@ export async function createAdvisorRequest(groupId: number, professorId: number)
     }
 }
 
-export async function withdrawAdvisorRequest(groupId: number): Promise<void> {
-    const res = await fetch(`${API_BASE}/groups/${groupId}/advisor-request`, {
+export async function withdrawAdvisorRequest(requestId: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/advisor-requests/${requestId}`, {
         method: "DELETE",
         headers: {
             Authorization: getAuthHeaders().Authorization,

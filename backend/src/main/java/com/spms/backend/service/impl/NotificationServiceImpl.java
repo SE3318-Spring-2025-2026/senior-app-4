@@ -108,7 +108,12 @@ public class NotificationServiceImpl implements NotificationService {
         Notification notification = new Notification();
         notification.setType(NotificationType.ADVISOR_REQUEST);
         notification.setStatus(NotificationStatus.PENDING);
-        notification.setMessage(leader.getFullName() + " has requested you as an advisor for their group.");
+        // C-28: include optional custom message from team leader
+        String baseMsg = leader.getFullName() + " has requested you as an advisor for their group.";
+        String customMsg = request.message();
+        notification.setMessage(customMsg != null && !customMsg.isBlank()
+                ? baseMsg + " Message: " + customMsg
+                : baseMsg);
         notification.setGroupId(groupId);
         notification.setFromUser(leader);
         notification.setToUser(professor);

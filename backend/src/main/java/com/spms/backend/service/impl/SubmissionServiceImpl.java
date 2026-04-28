@@ -3,6 +3,7 @@ package com.spms.backend.service.impl;
 import com.spms.backend.dto.SubmissionResponse;
 import com.spms.backend.dto.response.RevisionCreateResponseDto;
 import com.spms.backend.dto.response.RevisionHistoryResponseDto;
+import com.spms.backend.dto.response.SubmissionDetailResponse;
 import com.spms.backend.dto.response.SubmissionListResponse;
 import com.spms.backend.dto.response.SubmissionListResponse.PaginationMeta;
 import com.spms.backend.dto.response.SubmissionListResponse.SubmissionSummary;
@@ -16,18 +17,21 @@ import com.spms.backend.model.GroupMember;
 import com.spms.backend.model.Submission;
 import com.spms.backend.model.enums.DeliverableType;
 import com.spms.backend.model.enums.SubmissionStatus;
+import com.spms.backend.repository.CommitteeAdvisorRepository;
 import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.ScheduleRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.service.FileStorageService;
 import com.spms.backend.service.NotificationService;
 import com.spms.backend.service.SubmissionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +47,8 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final UserRepository userRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final ScheduleRepository scheduleRepository;
+    private final FileStorageService fileStorageService;
+    private final CommitteeAdvisorRepository committeeAdvisorRepository;
 
     public SubmissionServiceImpl(SubmissionRepository submissionRepository,
                                  GroupRepository groupRepository,
@@ -50,7 +56,9 @@ public class SubmissionServiceImpl implements SubmissionService {
                                  NotificationService notificationService,
                                  UserRepository userRepository,
                                  GroupMemberRepository groupMemberRepository,
-                                 ScheduleRepository scheduleRepository) {
+                                 ScheduleRepository scheduleRepository,
+                                 FileStorageService fileStorageService,
+                                 CommitteeAdvisorRepository committeeAdvisorRepository) {
         this.submissionRepository = submissionRepository;
         this.groupRepository = groupRepository;
         this.assignmentRepository = assignmentRepository;
@@ -58,12 +66,14 @@ public class SubmissionServiceImpl implements SubmissionService {
         this.userRepository = userRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.scheduleRepository = scheduleRepository;
+        this.fileStorageService = fileStorageService;
+        this.committeeAdvisorRepository = committeeAdvisorRepository;
     }
 
     @Override
     @Transactional
-    public SubmissionResponse submit(Long groupId, DeliverableType type, String content, String fileName, Long callerId) {
-
+    public SubmissionResponse submit(Long groupId, DeliverableType type,
+                                     String content, MultipartFile file, Long callerId) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found with ID: " + groupId));
 
@@ -75,28 +85,33 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .findTopByGroupIdAndStatusOrderByAssignedAtDesc(groupId, "ASSIGNED")
                 .orElseThrow(() -> new ForbiddenException("Group is not assigned to any committee."));
 
-        // Pipeline Validation
-        if (type == DeliverableType.SOW || type == DeliverableType.STATEMENT_OF_WORK) {
+        // C-6: TODO(P2-dep): submission deadline check against D11 Schedule needs
+        // proposal/SoW/demo deadline columns not yet in Schedule entity — touches P2 boundary.
+        // Implement once P2 team adds those columns to the schedule table.
+
+        // C-7: Pipeline validation (cleaned up after B-2 enum consolidation)
+        if (type == DeliverableType.STATEMENT_OF_WORK) {
             Optional<Submission> previousProposal = submissionRepository
                     .findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(groupId, DeliverableType.PROPOSAL);
-
             if (previousProposal.isEmpty() || previousProposal.get().getStatus() != SubmissionStatus.GRADED) {
-                throw new BadRequestException("Cannot submit Statement of Work: The Proposal for this group must be fully GRADED first.");
+                throw new BadRequestException("Cannot submit Statement of Work: Proposal must be GRADED first.");
             }
-        } else if (type == DeliverableType.REVISED_PROPOSAL || type == DeliverableType.REVISION) {
+        } else if (type == DeliverableType.REVISED_PROPOSAL) {
             Optional<Submission> originalProposal = submissionRepository
                     .findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(groupId, DeliverableType.PROPOSAL);
-
             if (originalProposal.isEmpty() || originalProposal.get().getStatus() != SubmissionStatus.REVISION_REQUESTED) {
-                throw new BadRequestException("Cannot submit Revised Proposal: An existing Proposal must have REVISION_REQUESTED status.");
+                throw new BadRequestException("Cannot submit Revised Proposal: Proposal must have REVISION_REQUESTED status.");
             }
         }
+
+        // C-8: store the actual file
+        String fileUrl = fileStorageService.store(file);
 
         Submission submission = new Submission();
         submission.setGroupId(groupId);
         submission.setDeliverableType(type);
         submission.setContent(content);
-        submission.setFileUrl("/uploads/" + fileName);
+        submission.setFileUrl(fileUrl);
         submission.setStatus(SubmissionStatus.PENDING_REVIEW);
         submission.setCommitteeId(assignment.getCommittee().getCommitteeId());
 
@@ -107,19 +122,17 @@ public class SubmissionServiceImpl implements SubmissionService {
 
         if (committee.getAdvisors() != null) {
             committee.getAdvisors().forEach(advisor ->
-                    notificationService.createSystemAlert(advisor.getAdvisor().getUserId(), notificationMsg, "SUBMISSION_ALERT", "submissionId:" + savedSubmission.getId())
-            );
+                    notificationService.createSystemAlert(advisor.getAdvisor().getUserId(), notificationMsg,
+                            "SUBMISSION_ALERT", "submissionId:" + savedSubmission.getId()));
         }
-
         if (committee.getJuryMembers() != null) {
             committee.getJuryMembers().forEach(jury ->
-                    notificationService.createSystemAlert(jury.getJuryMember().getUserId(), notificationMsg, "SUBMISSION_ALERT", "submissionId:" + savedSubmission.getId())
-            );
+                    notificationService.createSystemAlert(jury.getJuryMember().getUserId(), notificationMsg,
+                            "SUBMISSION_ALERT", "submissionId:" + savedSubmission.getId()));
         }
-
         userRepository.findAllByRole("COORDINATOR").forEach(coordinator ->
-                notificationService.createSystemAlert(coordinator.getUserId(), notificationMsg, "SUBMISSION_ALERT", "submissionId:" + savedSubmission.getId())
-        );
+                notificationService.createSystemAlert(coordinator.getUserId(), notificationMsg,
+                        "SUBMISSION_ALERT", "submissionId:" + savedSubmission.getId()));
 
         SubmissionResponse.SubmissionData data = new SubmissionResponse.SubmissionData(
                 savedSubmission.getId(),
@@ -127,35 +140,60 @@ public class SubmissionServiceImpl implements SubmissionService {
                 savedSubmission.getDeliverableType(),
                 savedSubmission.getStatus(),
                 savedSubmission.getCommitteeId(),
-                savedSubmission.getCreatedAt()
-        );
+                savedSubmission.getCreatedAt());
 
         return new SubmissionResponse("success", "Submission successfully created.", data);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public SubmissionListResponse listSubmissions(Long userId, String role, Pageable pageable) {
+    public SubmissionListResponse listSubmissions(Long userId, String role,
+                                                   Long teamId, String statusParam,
+                                                   Long committeeId, String deliverableTypeParam,
+                                                   Pageable pageable) {
+        // C-13: parse enums from params
+        SubmissionStatus statusFilter = parseStatus(statusParam);
+        DeliverableType typeFilter = parseDeliverableType(deliverableTypeParam);
+
         Page<Submission> page;
 
         if ("COORDINATOR".equalsIgnoreCase(role)) {
-            page = submissionRepository.findAll(pageable);
+            // C-26: honour all filter params
+            page = submissionRepository.findWithFilters(teamId, statusFilter, committeeId, typeFilter, pageable);
+
         } else if ("STUDENT".equalsIgnoreCase(role)) {
             GroupMember member = groupMemberRepository.findTopByUser_UserId(userId)
                     .orElseThrow(() -> new ForbiddenException("Student is not assigned to any group."));
-            page = submissionRepository.findByGroupId(member.getGroup().getId(), pageable);
+            Long groupId = member.getGroup().getId();
+            // Students can only see their own group; ignore teamId filter
+            page = submissionRepository.findWithFilters(groupId, statusFilter, committeeId, typeFilter, pageable);
+
+        } else if ("PROFESSOR".equalsIgnoreCase(role)) {
+            // C-25: professor sees submissions for groups in their assigned committees
+            List<Long> committeeIds = committeeAdvisorRepository.findCommitteeIdsByAdvisorUserId(userId);
+            if (committeeIds.isEmpty()) {
+                page = Page.empty(pageable);
+            } else {
+                page = submissionRepository.findByCommitteeIdInWithFilters(
+                        committeeIds, teamId, statusFilter, typeFilter, pageable);
+            }
         } else {
             throw new ForbiddenException("Role '" + role + "' is not authorized to list submissions.");
         }
 
         List<SubmissionSummary> items = page.getContent().stream()
-                .map(s -> new SubmissionSummary(
-                        s.getId(),
-                        s.getGroupId(),
-                        s.getDeliverableType() != null ? s.getDeliverableType().name() : null,
-                        s.getStatus() != null ? s.getStatus().name() : null,
-                        s.getCommitteeId(),
-                        s.getCreatedAt()))
+                .map(s -> {
+                    String teamName = resolveTeamName(s.getGroupId());
+                    return new SubmissionSummary(
+                            s.getId(),
+                            s.getGroupId(),
+                            teamName,
+                            s.getDeliverableType() != null ? s.getDeliverableType().name() : null,
+                            s.getStatus() != null ? s.getStatus().name() : null,
+                            s.getCommitteeId(),
+                            s.getVersion(),
+                            s.getCreatedAt());
+                })
                 .toList();
 
         PaginationMeta meta = new PaginationMeta(
@@ -167,28 +205,54 @@ public class SubmissionServiceImpl implements SubmissionService {
         return new SubmissionListResponse("success", items, meta);
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    //  P3-REV-1: POST /submissions/{submissionId}/revisions
-    // ──────────────────────────────────────────────────────────────────────────
+    @Override
+    @Transactional(readOnly = true)
+    public SubmissionDetailResponse getSubmission(Long submissionId, Long userId, String role) {
+        Submission s = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new NotFoundException("Submission not found: " + submissionId));
+
+        if ("STUDENT".equalsIgnoreCase(role)) {
+            GroupMember member = groupMemberRepository.findTopByUser_UserId(userId)
+                    .orElseThrow(() -> new ForbiddenException("Student is not assigned to any group."));
+            if (!member.getGroup().getId().equals(s.getGroupId())) {
+                throw new ForbiddenException("You can only view your own group's submissions.");
+            }
+        } else if (!"PROFESSOR".equalsIgnoreCase(role) && !"COORDINATOR".equalsIgnoreCase(role)) {
+            throw new ForbiddenException("Role '" + role + "' is not authorized.");
+        }
+
+        String teamName = resolveTeamName(s.getGroupId());
+
+        return new SubmissionDetailResponse(
+                s.getId(),
+                s.getGroupId(),
+                teamName,
+                s.getDeliverableType() != null ? s.getDeliverableType().name() : null,
+                s.getStatus() != null ? s.getStatus().name() : null,
+                s.getContent(),
+                s.getFileUrl(),
+                s.getCommitteeId(),
+                s.getFinalGrade(),
+                s.getParentSubmissionId(),
+                s.getVersion(),
+                s.getCreatedAt());
+    }
 
     @Override
     @Transactional
     public RevisionCreateResponseDto createRevision(Long parentSubmissionId,
-                                                    String fileName,
+                                                    MultipartFile file,
                                                     String description,
                                                     Long callerId) {
-        // 1. Validate parent exists
         Submission parent = submissionRepository.findById(parentSubmissionId)
                 .orElseThrow(() -> new NotFoundException("Submission not found with ID: " + parentSubmissionId));
 
-        // 2. AC: Parent must be in REVISION_REQUESTED status
         if (parent.getStatus() != SubmissionStatus.REVISION_REQUESTED) {
             throw new BadRequestException(
-                    "Cannot submit revision: parent submission status is " + parent.getStatus()
+                    "Cannot submit revision: parent status is " + parent.getStatus()
                     + " but must be REVISION_REQUESTED.");
         }
 
-        // 3. Authorization: only group leader may submit revisions
         Group group = groupRepository.findById(parent.getGroupId())
                 .orElseThrow(() -> new NotFoundException("Group not found with ID: " + parent.getGroupId()));
 
@@ -196,7 +260,6 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw new ForbiddenException("Only the group leader may submit a revision.");
         }
 
-        // 4. D10: Deadline check
         scheduleRepository.findTopByOrderByIdDesc().ifPresent(schedule -> {
             if (schedule.getProposalRevisionDeadline() != null &&
                     java.time.Instant.now().isAfter(schedule.getProposalRevisionDeadline())) {
@@ -204,19 +267,19 @@ public class SubmissionServiceImpl implements SubmissionService {
             }
         });
 
-        // 5. AC: Update parent status to SUPERSEDED
         parent.setStatus(SubmissionStatus.SUPERSEDED);
         submissionRepository.save(parent);
 
-        // 5. Auto-increment version number
         int newVersion = (parent.getVersion() != null ? parent.getVersion() : 1) + 1;
 
-        // 6. Create the revision record
+        // C-8: store the actual file
+        String fileUrl = fileStorageService.store(file);
+
         Submission revision = new Submission();
         revision.setGroupId(parent.getGroupId());
         revision.setDeliverableType(parent.getDeliverableType());
         revision.setContent(description != null ? description : "");
-        revision.setFileUrl("/uploads/" + fileName);
+        revision.setFileUrl(fileUrl);
         revision.setStatus(SubmissionStatus.PENDING_REVIEW);
         revision.setCommitteeId(parent.getCommitteeId());
         revision.setParentSubmissionId(parentSubmissionId);
@@ -224,70 +287,55 @@ public class SubmissionServiceImpl implements SubmissionService {
 
         Submission saved = submissionRepository.save(revision);
 
-        // 8. Notify committee members and coordinators (Fan-out)
         GroupCommitteeAssignment assignment = assignmentRepository
                 .findTopByGroupIdAndStatusOrderByAssignedAtDesc(parent.getGroupId(), "ASSIGNED")
                 .orElseThrow(() -> new ForbiddenException("Group is not assigned to any committee."));
 
         Committee committee = assignment.getCommittee();
-        String notificationMsg = "Revision v" + newVersion + " submitted for submission #" + parentSubmissionId + " by Group: " + group.getGroupName();
+        String notificationMsg = "Revision v" + newVersion + " submitted for submission #"
+                + parentSubmissionId + " by Group: " + group.getGroupName();
 
         if (committee.getAdvisors() != null) {
             committee.getAdvisors().forEach(advisor ->
-                    notificationService.createSystemAlert(advisor.getAdvisor().getUserId(), notificationMsg, "REVISION_ALERT", "submissionId:" + saved.getId())
-            );
+                    notificationService.createSystemAlert(advisor.getAdvisor().getUserId(), notificationMsg,
+                            "REVISION_ALERT", "submissionId:" + saved.getId()));
         }
-
         if (committee.getJuryMembers() != null) {
             committee.getJuryMembers().forEach(jury ->
-                    notificationService.createSystemAlert(jury.getJuryMember().getUserId(), notificationMsg, "REVISION_ALERT", "submissionId:" + saved.getId())
-            );
+                    notificationService.createSystemAlert(jury.getJuryMember().getUserId(), notificationMsg,
+                            "REVISION_ALERT", "submissionId:" + saved.getId()));
         }
-
         userRepository.findAllByRole("COORDINATOR").forEach(coord ->
-                notificationService.createSystemAlert(coord.getUserId(), notificationMsg, "REVISION_ALERT", "submissionId:" + saved.getId())
-        );
+                notificationService.createSystemAlert(coord.getUserId(), notificationMsg,
+                        "REVISION_ALERT", "submissionId:" + saved.getId()));
 
         RevisionCreateResponseDto.Data data = new RevisionCreateResponseDto.Data(
                 saved.getId(),
                 saved.getParentSubmissionId(),
                 saved.getVersion(),
                 saved.getStatus().name(),
-                saved.getCreatedAt()
-        );
+                saved.getCreatedAt());
 
         return new RevisionCreateResponseDto("success", "Revision submitted successfully.", data);
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    //  P3-REV-2: GET /submissions/{submissionId}/revisions
-    // ──────────────────────────────────────────────────────────────────────────
-
     @Override
     @Transactional(readOnly = true)
     public RevisionHistoryResponseDto getRevisionHistory(Long submissionId, Long userId, String role) {
-        // 1. Validate the submission exists
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new NotFoundException("Submission not found with ID: " + submissionId));
 
-        // 2. Authorization Check
         if ("STUDENT".equalsIgnoreCase(role)) {
             GroupMember member = groupMemberRepository.findTopByUser_UserId(userId)
                     .orElseThrow(() -> new ForbiddenException("Student is not assigned to any group."));
             if (!member.getGroup().getId().equals(submission.getGroupId())) {
                 throw new ForbiddenException("You can only view revision history for your own group's submissions.");
             }
-        } else if ("PROFESSOR".equalsIgnoreCase(role)) {
-            // Check if professor is in the committee assigned to this submission
-            // This requires a check against CommitteeAdvisor or CommitteeJury
-            // For now, checking if the submission's committee matches the assignment (simplified check)
-            // A more robust check would involve checking the Committee membership of the userId.
-            // TODO: [P3-AUTH-1] Add detailed professor-committee membership check for revision history
-        } else if (!"COORDINATOR".equalsIgnoreCase(role)) {
+        } else if (!"PROFESSOR".equalsIgnoreCase(role) && !"COORDINATOR".equalsIgnoreCase(role)) {
             throw new ForbiddenException("Role '" + role + "' is not authorized to view revision history.");
         }
 
-        // 3. Resolve the ABSOLUTE root of the chain by walking up
+        // Walk to root
         Submission current = submission;
         while (current.getParentSubmissionId() != null) {
             final Long parentId = current.getParentSubmissionId();
@@ -296,9 +344,6 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
         Long absoluteRootId = current.getId();
 
-        // 4. Fetch the full chain (root + all descendants)
-        // We use groupId and deliverableType as a filter to narrow down, 
-        // then filter in-memory for those belonging to the same root tree to be safe.
         List<Submission> allPotential = submissionRepository.findAllByGroupIdAndDeliverableType(
                 submission.getGroupId(), submission.getDeliverableType());
 
@@ -318,31 +363,46 @@ public class SubmissionServiceImpl implements SubmissionService {
                         s.getVersion(),
                         s.getStatus() != null ? s.getStatus().name() : null,
                         s.getCreatedAt(),
-                        s.getContent()
-                ))
+                        s.getContent()))
                 .collect(Collectors.toList());
 
         return new RevisionHistoryResponseDto("success", items);
     }
 
-    /** Helper to check if a submission eventually leads back to the same absolute root */
     private boolean isPartOfChain(Submission s, Long absoluteRootId, List<Submission> pool) {
         if (s.getId().equals(absoluteRootId)) return true;
-        
         Long parentId = s.getParentSubmissionId();
         while (parentId != null) {
             if (parentId.equals(absoluteRootId)) return true;
-            
-            // Look up parent in the pool to avoid N+1 queries
-            final Long currentParentId = parentId;
-            Submission parent = pool.stream()
-                    .filter(p -> p.getId().equals(currentParentId))
-                    .findFirst()
-                    .orElse(null);
-            
-            if (parent == null) break; // Should not happen with consistent data
+            final Long current = parentId;
+            Submission parent = pool.stream().filter(p -> p.getId().equals(current)).findFirst().orElse(null);
+            if (parent == null) break;
             parentId = parent.getParentSubmissionId();
         }
         return false;
+    }
+
+    private String resolveTeamName(Long groupId) {
+        return groupRepository.findById(groupId)
+                .map(Group::getGroupName)
+                .orElse("Team #" + groupId);
+    }
+
+    private SubmissionStatus parseStatus(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return SubmissionStatus.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private DeliverableType parseDeliverableType(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return DeliverableType.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

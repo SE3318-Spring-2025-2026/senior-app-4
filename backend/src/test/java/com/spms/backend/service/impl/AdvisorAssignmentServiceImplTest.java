@@ -253,5 +253,11 @@ class AdvisorAssignmentServiceImplTest {
         public Page<AuditLog> findByActionType(com.spms.backend.model.ActionType actionType, Pageable pageable) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public Optional<AuditLog> findTopByGroupIdAndActionTypeOrderByCreatedAtDesc(
+                Long groupId, com.spms.backend.model.ActionType actionType) {
+            return Optional.empty();
+        }
     }
 }

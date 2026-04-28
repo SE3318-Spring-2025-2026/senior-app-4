@@ -53,4 +53,30 @@ public class GradingCriteriaController {
                 "data", criteria
         ));
     }
+
+    // C-18: PUT /api/v1/grading-criteria/{id}
+    @PutMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> updateCriteria(
+            @PathVariable Long id,
+            @Valid @RequestBody GradingCriteriaCreateRequestDto request,
+            @RequestAttribute("jwt_role") Object role) {
+
+        GradingCriteriaDto updated = gradingCriteriaService.update(id, request, role.toString());
+
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Grading criteria updated successfully.",
+                "data", updated
+        ));
+    }
+
+    // C-18: DELETE /api/v1/grading-criteria/{id}
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteCriteria(
+            @PathVariable Long id,
+            @RequestAttribute("jwt_role") Object role) {
+
+        gradingCriteriaService.delete(id, role.toString());
+        return ResponseEntity.noContent().build();
+    }
 }

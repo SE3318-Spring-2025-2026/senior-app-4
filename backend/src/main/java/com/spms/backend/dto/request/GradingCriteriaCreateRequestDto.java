@@ -15,5 +15,7 @@ public record GradingCriteriaCreateRequestDto(
         @NotNull(message = "weight is required")
         @DecimalMin(value = "0.0", message = "weight must be >= 0")
         @DecimalMax(value = "100.0", message = "weight must be <= 100")
-        Double weight
+        Double weight,
+
+        String gradingType
 ) {}

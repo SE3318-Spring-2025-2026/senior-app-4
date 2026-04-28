@@ -15,13 +15,16 @@ import com.spms.backend.model.Submission;
 import com.spms.backend.model.User;
 import com.spms.backend.model.enums.DeliverableType;
 import com.spms.backend.model.enums.SubmissionStatus;
+import com.spms.backend.repository.CommitteeAdvisorRepository;
 import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.ScheduleRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.service.FileStorageService;
 import com.spms.backend.service.impl.SubmissionServiceImpl;
+import org.springframework.mock.web.MockMultipartFile;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,6 +61,10 @@ class SubmissionServiceTest {
     private GroupMemberRepository groupMemberRepository;
     @Mock
     private ScheduleRepository scheduleRepository;
+    @Mock
+    private FileStorageService fileStorageService;
+    @Mock
+    private CommitteeAdvisorRepository committeeAdvisorRepository;
 
     private SubmissionService submissionService;
     private Pageable pageable;
@@ -71,7 +78,9 @@ class SubmissionServiceTest {
                 notificationService,
                 userRepository,
                 groupMemberRepository,
-                scheduleRepository);
+                scheduleRepository,
+                fileStorageService,
+                committeeAdvisorRepository);
         pageable = PageRequest.of(0, 10);
     }
 
@@ -100,9 +109,11 @@ class SubmissionServiceTest {
             return s;
         });
         when(userRepository.findAllByRole("COORDINATOR")).thenReturn(Collections.emptyList());
+        when(fileStorageService.store(any())).thenReturn("/api/v1/files/test.pdf");
 
+        MockMultipartFile file = new MockMultipartFile("file", "file.pdf", "application/pdf", new byte[0]);
         SubmissionResponse response = submissionService.submit(
-                10L, DeliverableType.PROPOSAL, "content", "file.pdf", 1L);
+                10L, DeliverableType.PROPOSAL, "content", file, 1L);
 
         assertEquals("success", response.getStatus());
         assertNotNull(response.getData());
@@ -129,8 +140,9 @@ class SubmissionServiceTest {
         when(submissionRepository.findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(
                 10L, DeliverableType.PROPOSAL)).thenReturn(Optional.empty());
 
+        MockMultipartFile file = new MockMultipartFile("file", "file.pdf", "application/pdf", new byte[0]);
         assertThrows(BadRequestException.class, () ->
-                submissionService.submit(10L, DeliverableType.STATEMENT_OF_WORK, "content", "file.pdf", 1L));
+                submissionService.submit(10L, DeliverableType.STATEMENT_OF_WORK, "content", file, 1L));
     }
 
     @Test
@@ -154,8 +166,9 @@ class SubmissionServiceTest {
         when(submissionRepository.findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(
                 10L, DeliverableType.PROPOSAL)).thenReturn(Optional.of(proposal));
 
+        MockMultipartFile file = new MockMultipartFile("file", "file.pdf", "application/pdf", new byte[0]);
         assertThrows(BadRequestException.class, () ->
-                submissionService.submit(10L, DeliverableType.REVISED_PROPOSAL, "content", "file.pdf", 1L));
+                submissionService.submit(10L, DeliverableType.REVISED_PROPOSAL, "content", file, 1L));
     }
 
     @Test
@@ -170,21 +183,23 @@ class SubmissionServiceTest {
         when(assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(10L, "ASSIGNED"))
                 .thenReturn(Optional.empty());
 
+        MockMultipartFile file = new MockMultipartFile("file", "file.pdf", "application/pdf", new byte[0]);
         assertThrows(ForbiddenException.class, () ->
-                submissionService.submit(10L, DeliverableType.PROPOSAL, "content", "file.pdf", 1L));
+                submissionService.submit(10L, DeliverableType.PROPOSAL, "content", file, 1L));
     }
 
     @Test
     void listSubmissionsReturnsAllForCoordinator() {
         Submission submission = buildSubmission(101L, 7L);
-        when(submissionRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(submission)));
+        when(submissionRepository.findWithFilters(null, null, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(submission)));
 
-        SubmissionListResponse response = submissionService.listSubmissions(1L, "COORDINATOR", pageable);
+        SubmissionListResponse response = submissionService.listSubmissions(1L, "COORDINATOR", null, null, null, null, pageable);
 
         assertEquals("success", response.status());
         assertEquals(1, response.data().size());
         assertEquals(101L, response.data().get(0).id());
-        verify(submissionRepository).findAll(pageable);
+        verify(submissionRepository).findWithFilters(null, null, null, null, pageable);
     }
 
     @Test
@@ -196,13 +211,14 @@ class SubmissionServiceTest {
 
         Submission submission = buildSubmission(102L, 25L);
         when(groupMemberRepository.findTopByUser_UserId(55L)).thenReturn(Optional.of(member));
-        when(submissionRepository.findByGroupId(25L, pageable)).thenReturn(new PageImpl<>(List.of(submission)));
+        when(submissionRepository.findWithFilters(25L, null, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(submission)));
 
-        SubmissionListResponse response = submissionService.listSubmissions(55L, "STUDENT", pageable);
+        SubmissionListResponse response = submissionService.listSubmissions(55L, "STUDENT", null, null, null, null, pageable);
 
         assertEquals(1, response.data().size());
         assertEquals(25L, response.data().get(0).teamId());
-        verify(submissionRepository).findByGroupId(25L, pageable);
+        verify(submissionRepository).findWithFilters(25L, null, null, null, pageable);
     }
 
     @Test
@@ -211,14 +227,14 @@ class SubmissionServiceTest {
 
         assertThrows(
                 ForbiddenException.class,
-                () -> submissionService.listSubmissions(55L, "STUDENT", pageable));
+                () -> submissionService.listSubmissions(55L, "STUDENT", null, null, null, null, pageable));
     }
 
     @Test
     void listSubmissionsThrowsForbiddenForUnauthorizedRole() {
         assertThrows(
                 ForbiddenException.class,
-                () -> submissionService.listSubmissions(77L, "PROFESSOR", pageable));
+                () -> submissionService.listSubmissions(77L, "ADMIN", null, null, null, null, pageable));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -255,8 +271,10 @@ class SubmissionServiceTest {
             return s;
         });
         when(userRepository.findAllByRole("COORDINATOR")).thenReturn(Collections.emptyList());
+        when(fileStorageService.store(any())).thenReturn("/api/v1/files/revision.pdf");
 
-        RevisionCreateResponseDto response = submissionService.createRevision(200L, "revision.pdf", "Fixed issues", 1L);
+        MockMultipartFile revFile = new MockMultipartFile("file", "revision.pdf", "application/pdf", new byte[0]);
+        RevisionCreateResponseDto response = submissionService.createRevision(200L, revFile, "Fixed issues", 1L);
 
         assertEquals("success", response.getStatus());
         assertNotNull(response.getData());
@@ -285,8 +303,9 @@ class SubmissionServiceTest {
         when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
         when(scheduleRepository.findTopByOrderByIdDesc()).thenReturn(Optional.of(schedule));
 
+        MockMultipartFile deadlineFile = new MockMultipartFile("file", "file.pdf", "application/pdf", new byte[0]);
         assertThrows(ForbiddenException.class, () ->
-                submissionService.createRevision(200L, "file.pdf", "desc", 1L));
+                submissionService.createRevision(200L, deadlineFile, "desc", 1L));
     }
 
     @Test
@@ -296,16 +315,18 @@ class SubmissionServiceTest {
 
         when(submissionRepository.findById(200L)).thenReturn(Optional.of(parent));
 
+        MockMultipartFile badFile = new MockMultipartFile("file", "file.pdf", "application/pdf", new byte[0]);
         assertThrows(BadRequestException.class, () ->
-                submissionService.createRevision(200L, "file.pdf", null, 1L));
+                submissionService.createRevision(200L, badFile, null, 1L));
     }
 
     @Test
     void testCreateRevision_Returns404_WhenParentNotFound() {
         when(submissionRepository.findById(999L)).thenReturn(Optional.empty());
 
+        MockMultipartFile nfFile = new MockMultipartFile("file", "file.pdf", "application/pdf", new byte[0]);
         assertThrows(NotFoundException.class, () ->
-                submissionService.createRevision(999L, "file.pdf", null, 1L));
+                submissionService.createRevision(999L, nfFile, null, 1L));
     }
 
     @Test

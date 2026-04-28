@@ -64,16 +64,40 @@ public class AdvisorRequestDetailServiceImpl implements AdvisorRequestDetailServ
                 currentAdviseeCount
         );
 
+        // B-3: extract decidedAt and reason from metadata JSON
+        java.time.Instant decidedAt = null;
+        String reason = null;
+        String metadata = notification.getMetadata();
+        if (metadata != null) {
+            decidedAt = extractInstant(metadata, "decidedAt");
+            reason = extractString(metadata, "reason");
+        }
+
         return new AdvisorRequestDetailDto(
                 notification.getId(),
                 mapStatus(notification.getStatus()),
                 notification.getMessage(),
                 notification.getCreatedAt(),
-                null,   // decidedAt — not tracked in Notification
-                null,   // reason — not tracked in Notification
+                decidedAt,
+                reason,
                 teamDto,
                 professorDto
         );
+    }
+
+    private java.time.Instant extractInstant(String json, String key) {
+        String val = extractString(json, key);
+        if (val == null || val.isBlank()) return null;
+        try { return java.time.Instant.parse(val); } catch (Exception e) { return null; }
+    }
+
+    private String extractString(String json, String key) {
+        String search = "\"" + key + "\":\"";
+        int start = json.indexOf(search);
+        if (start < 0) return null;
+        start += search.length();
+        int end = json.indexOf("\"", start);
+        return end > start ? json.substring(start, end) : null;
     }
 
     private String mapStatus(NotificationStatus status) {

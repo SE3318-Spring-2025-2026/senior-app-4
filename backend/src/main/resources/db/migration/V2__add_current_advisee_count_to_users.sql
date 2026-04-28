@@ -1,1 +1,0 @@
-ALTER TABLE users ADD COLUMN current_advisee_count INTEGER NOT NULL DEFAULT 0;

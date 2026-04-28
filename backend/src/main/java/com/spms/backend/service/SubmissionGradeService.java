@@ -148,6 +148,10 @@ public class SubmissionGradeService {
         boolean isGradingComplete = false;
         if (allGrades.size() >= totalCommitteeMembersCount) {
             isGradingComplete = true;
+            // C-11: TODO(P6-dep): Replace simple average with PDF grading formula:
+            // final = Σ(deliverableGrade × scalar × weight), scalar = AVG(scrumAvg, codeReviewAvg)/100,
+            // weights {Proposal 15%, SoW 35%, Demo 50%}, per-student story-point ratio.
+            // Full implementation requires Process 6 (Scrum Tracking) data — not yet started.
             double average = allGrades.stream()
                     .mapToDouble(SubmissionGrade::getScore)
                     .average()

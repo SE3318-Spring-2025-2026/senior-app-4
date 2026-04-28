@@ -24,7 +24,7 @@ class SubmissionGradeServiceTest {
     @Mock
     private SubmissionRepository submissionRepository;
     @Mock
-    private GradeRepository gradeRepository;
+    private SubmissionGradeRepository gradeRepository;
     @Mock
     private GroupCommitteeAssignmentRepository assignmentRepository;
     @Mock
@@ -91,14 +91,15 @@ class SubmissionGradeServiceTest {
         leader.setUserId(200L); // Group Leader ID
         group.setLeader(leader);
 
-        Grade grade = new Grade(submissionId, professorId, 80.0, null);
+        SubmissionGrade grade = new SubmissionGrade();
         grade.setId(1L);
+        grade.setScore(80.0);
 
         when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(submission));
         when(gradeRepository.existsBySubmissionIdAndProfessorId(submissionId, professorId)).thenReturn(false);
         when(assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(groupId, "ASSIGNED"))
                 .thenReturn(Optional.of(assignment));
-        when(gradeRepository.save(any(Grade.class))).thenReturn(grade);
+        when(gradeRepository.save(any(SubmissionGrade.class))).thenReturn(grade);
         when(gradeRepository.findBySubmissionId(submissionId)).thenReturn(Collections.singletonList(grade));
         when(groupRepository.findById(groupId)).thenReturn(Optional.of(group));
 
@@ -144,14 +145,15 @@ class SubmissionGradeServiceTest {
         GroupCommitteeAssignment assignment = new GroupCommitteeAssignment();
         assignment.setCommittee(committee);
 
-        Grade grade = new Grade(submissionId, professorId, 80.0, null);
+        SubmissionGrade grade = new SubmissionGrade();
         grade.setId(1L);
+        grade.setScore(80.0);
 
         when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(submission));
         when(gradeRepository.existsBySubmissionIdAndProfessorId(submissionId, professorId)).thenReturn(false);
         when(assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(groupId, "ASSIGNED"))
                 .thenReturn(Optional.of(assignment));
-        when(gradeRepository.save(any(Grade.class))).thenReturn(grade);
+        when(gradeRepository.save(any(SubmissionGrade.class))).thenReturn(grade);
         when(gradeRepository.findBySubmissionId(submissionId)).thenReturn(Collections.singletonList(grade));
 
         // Act

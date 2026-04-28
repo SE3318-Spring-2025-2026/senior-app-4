@@ -7,5 +7,6 @@ public record ReviewDto(
     Long submissionId,
     String reviewerName,
     String comment,
+    String status,
     Instant createdAt
 ) {}

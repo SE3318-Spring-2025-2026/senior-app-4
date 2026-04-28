@@ -18,10 +18,11 @@ import java.util.Optional;
 /**
  * Process 4.9 — Disband Unassigned Groups (DFD flow disb_f1).
  *
- * Advisor assignment deadline geçtiğinde, advisor ataması yapılmamış
- * (advisor == null) grupları otomatik olarak disband eder.
- * Manual tetikleme için aynı mantık coordinator endpoint'i tarafından
- * da kullanılabilir (ileride eklenirse).
+ * C-23 NOTE (P2 boundary — notify red team):
+ * Both this service and ScheduleValidatorService.handleAdvisorAssignmentDeadline() run on the same
+ * hourly cron and both write to the same groups (advisor==null, status!=DISBANDED).
+ * Last-write-wins on overlap — one sets FORMING, the other DISBANDED.
+ * Fix requires coordination with the P2 (red) team to either merge both paths or add a guard flag.
  */
 @Service
 public class AdvisorDeadlineDisbandService {

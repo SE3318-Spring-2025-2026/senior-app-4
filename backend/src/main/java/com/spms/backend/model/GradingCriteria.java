@@ -1,5 +1,7 @@
 package com.spms.backend.model;
 
+import com.spms.backend.model.enums.DeliverableType;
+import com.spms.backend.model.enums.GradingType;
 import jakarta.persistence.*;
 import java.time.Instant;
 
@@ -11,9 +13,13 @@ public class GradingCriteria {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "deliverable_type", nullable = false, length = 50)
-    @Convert(converter = DeliverableTypeConverter.class)
     private DeliverableType deliverableType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "grading_type", length = 20)
+    private GradingType gradingType;
 
     @Column(name = "name", nullable = false, length = 255)
     private String name;
@@ -40,6 +46,9 @@ public class GradingCriteria {
 
     public DeliverableType getDeliverableType() { return deliverableType; }
     public void setDeliverableType(DeliverableType deliverableType) { this.deliverableType = deliverableType; }
+
+    public GradingType getGradingType() { return gradingType; }
+    public void setGradingType(GradingType gradingType) { this.gradingType = gradingType; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }

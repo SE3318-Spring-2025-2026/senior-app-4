@@ -28,7 +28,7 @@ class GradingCriteriaServiceTest {
 
     @Test
     void create_succeeds() {
-        var req = new GradingCriteriaCreateRequestDto("PROPOSAL", "Technical Feasibility", "Desc", 30.0);
+        var req = new GradingCriteriaCreateRequestDto("PROPOSAL", "Technical Feasibility", "Desc", 30.0, null);
         GradingCriteriaDto dto = service.create(req, CREATOR_ID);
 
         assertNotNull(dto.id());
@@ -40,7 +40,7 @@ class GradingCriteriaServiceTest {
 
     @Test
     void createWithInvalidDeliverableType_throwsBadRequest() {
-        var req = new GradingCriteriaCreateRequestDto("INVALID_TYPE", "Name", null, 10.0);
+        var req = new GradingCriteriaCreateRequestDto("INVALID_TYPE", "Name", null, 10.0, null);
         assertThrows(BadRequestException.class, () -> service.create(req, CREATOR_ID));
     }
 
@@ -48,8 +48,8 @@ class GradingCriteriaServiceTest {
 
     @Test
     void listWithoutFilter_returnsAll() {
-        service.create(new GradingCriteriaCreateRequestDto("PROPOSAL", "C1", null, 50.0), CREATOR_ID);
-        service.create(new GradingCriteriaCreateRequestDto("STATEMENT_OF_WORK", "C2", null, 50.0), CREATOR_ID);
+        service.create(new GradingCriteriaCreateRequestDto("PROPOSAL", "C1", null, 50.0, null), CREATOR_ID);
+        service.create(new GradingCriteriaCreateRequestDto("STATEMENT_OF_WORK", "C2", null, 50.0, null), CREATOR_ID);
 
         List<GradingCriteriaDto> all = service.list(null);
         assertEquals(2, all.size());
@@ -57,8 +57,8 @@ class GradingCriteriaServiceTest {
 
     @Test
     void listWithFilter_returnsOnlyMatchingType() {
-        service.create(new GradingCriteriaCreateRequestDto("PROPOSAL", "C1", null, 50.0), CREATOR_ID);
-        service.create(new GradingCriteriaCreateRequestDto("STATEMENT_OF_WORK", "C2", null, 50.0), CREATOR_ID);
+        service.create(new GradingCriteriaCreateRequestDto("PROPOSAL", "C1", null, 50.0, null), CREATOR_ID);
+        service.create(new GradingCriteriaCreateRequestDto("STATEMENT_OF_WORK", "C2", null, 50.0, null), CREATOR_ID);
 
         List<GradingCriteriaDto> proposals = service.list("PROPOSAL");
         assertEquals(1, proposals.size());
@@ -67,7 +67,7 @@ class GradingCriteriaServiceTest {
 
     @Test
     void listWithBlankFilter_returnsAll() {
-        service.create(new GradingCriteriaCreateRequestDto("PROPOSAL", "C1", null, 40.0), CREATOR_ID);
+        service.create(new GradingCriteriaCreateRequestDto("PROPOSAL", "C1", null, 40.0, null), CREATOR_ID);
 
         List<GradingCriteriaDto> all = service.list("  ");
         assertEquals(1, all.size());

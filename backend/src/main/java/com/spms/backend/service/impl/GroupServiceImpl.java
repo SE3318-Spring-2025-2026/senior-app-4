@@ -640,6 +640,8 @@ public class GroupServiceImpl implements GroupService {
             userRepository.save(professor);
 
             request.setStatus(NotificationStatus.ACCEPTED);
+            // B-3: persist decidedAt + reason in metadata for AdvisorRequestDetailServiceImpl
+            request.setMetadata("{\"decidedAt\":\"" + java.time.Instant.now() + "\",\"reason\":\"\"}");
             notificationRepository.save(request);
 
             // Manual Audit Log for APPROVE (FIX-3)
@@ -692,6 +694,9 @@ public class GroupServiceImpl implements GroupService {
 
         } else if ("REJECT".equals(status)) {
             request.setStatus(NotificationStatus.REJECTED);
+            // B-3: persist decidedAt + reason in metadata
+            String escapedReason = reason != null ? reason.replace("\"", "'") : "";
+            request.setMetadata("{\"decidedAt\":\"" + java.time.Instant.now() + "\",\"reason\":\"" + escapedReason + "\"}");
             notificationRepository.save(request);
 
             AuditLog log = new AuditLog();
