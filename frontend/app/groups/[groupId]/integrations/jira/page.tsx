@@ -32,9 +32,10 @@ export default function JiraIntegrationPage() {
                 if (res.data && res.data.data) {
                     setIntegration(res.data.data);
                 }
-            } catch (err: any) {
+            } catch (err: unknown) {
                 // If 404, it means no integration exists, which is fine
-                if (err.response?.status !== 404) {
+                const axiosError = err as { response?: { status: number } };
+                if (axiosError.response?.status !== 404) {
                     console.error("Failed to load Jira integration", err);
                 }
             } finally {
@@ -66,7 +67,7 @@ export default function JiraIntegrationPage() {
             setProjectKey("");
             setApiKey("");
             toast.success("JIRA space successfully connected.");
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
         } finally {
             setBindLoading(false);
