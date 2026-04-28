@@ -84,7 +84,9 @@ function DashboardLayout() {
 
         <div className="flex-1 p-8">
           <div className="max-w-2xl mx-auto space-y-5">
+            <StudentList />
             <UploadCard />
+            
           </div>
         </div>
       </main>
@@ -259,6 +261,106 @@ function StatBox({ label, value, color }: { label: string; value: number; color:
     <div className="px-6 py-6 text-center space-y-1">
       <p className={`text-3xl font-bold ${colors[color]}`}>{value}</p>
       <p className="text-xs text-gray-600">{label}</p>
+    </div>
+  )
+}
+function StudentList() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [users, setUsers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("spms_token") : null;
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/student-ids`, { 
+        method: "GET",
+        headers,
+        });
+
+        if (!res.ok) throw new Error("Failed to fetch users");
+
+        const data = await res.json();
+        
+        if (Array.isArray(data)) setUsers(data);
+        else if (data && Array.isArray(data.content)) setUsers(data.content);
+        else if (data && Array.isArray(data.data)) setUsers(data.data);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  // 🔍 ARAMA FİLTRESİ
+  const filteredUsers = users.filter((u) => {
+    if (searchTerm.trim() === "") return false;
+
+    const query = searchTerm.toLowerCase();
+    
+    const id = u.studentId ? String(u.studentId).toLowerCase() : "";
+    const name = u.fullName ? String(u.fullName).toLowerCase() : "";
+
+    return id.includes(query) || name.includes(query);
+  });
+
+  return (
+    <div className="h-full">
+      <h2 className="text-lg font-semibold text-white mb-4">Student List</h2>
+
+      {/* studentId search barı */}
+      <div className="mb-4 relative">
+        <input
+          type="text"
+          placeholder="Search by Student ID or Full Name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full px-4 py-3 pl-11 rounded-xl text-sm outline-none transition-all focus:ring-2 bg-gray-900 border border-white/10 text-white focus:border-blue-500 focus:ring-blue-500/20 placeholder-gray-500"
+        />
+        <svg
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </div>
+
+
+      {searchTerm.trim() !== "" && (
+        <div className="rounded-xl border border-white/10 bg-gray-900 overflow-hidden shadow-xl">
+          {filteredUsers.length > 0 ? (
+            <ul className="divide-y divide-white/5 max-h-[300px] overflow-y-auto custom-scrollbar">
+              {filteredUsers.map((u, index) => (
+                <li key={index} className="px-4 py-3 flex justify-between items-center hover:bg-white/5 transition-colors cursor-default">
+                  
+
+                  <div className="flex flex-col">
+                    <span className="font-medium text-gray-200">
+                      {u.fullName || "Unknown Name"}
+                    </span>
+                    <span className="font-mono text-xs text-gray-500 mt-0.5">
+                      {u.studentId || "No ID"}
+                    </span>
+                  </div>
+                  
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="px-4 py-8 text-center text-gray-500 text-sm">
+              No users found matching <span className="text-white font-medium">"{searchTerm}"</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -50,14 +50,15 @@ export async function fetchGithubIntegration(
     );
 
     if (!res.ok) {
-        console.error(await parseError(res));
+        const errorMessage = await parseError(res);
+
         return {
             success: false,
             data: {
                 status: "inactive",
                 organizationName: null,
                 connectedAt: null,
-                message: "Not connected",
+                message: errorMessage || "Not connected",
             },
         };
     }
@@ -82,7 +83,8 @@ export async function fetchJiraIntegration(
     );
 
     if (!res.ok) {
-        console.error(await parseError(res));
+        const errorMessage = await parseError(res);
+
         return {
             success: false,
             data: {
@@ -90,9 +92,78 @@ export async function fetchJiraIntegration(
                 jiraSpaceUrl: null,
                 projectKey: null,
                 connectedAt: null,
-                message: "Not connected",
+                message: errorMessage || "Not connected",
             },
         };
+    }
+
+    return res.json();
+}
+
+export type IntegrationsTestResponse = {
+    github: {
+        connected: boolean;
+        message: string;
+    };
+    jira: {
+        connected: boolean;
+        message: string;
+    };
+};
+
+export async function bindGithubIntegration(
+    groupId: number,
+    githubPat: string,
+    organizationName: string
+): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/integrations/github`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({
+            githubPat,
+            organizationName,
+        }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+export async function unbindGithubIntegration(groupId: number): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/integrations/github`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+export async function testIntegrations(
+    groupId: number
+): Promise<IntegrationsTestResponse> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/integrations/test`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
     }
 
     return res.json();

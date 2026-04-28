@@ -42,6 +42,12 @@ public class Notification {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(name = "read_status", nullable = false)
+    private boolean readStatus = false;
+
+    @Column(name = "metadata", columnDefinition = "TEXT")
+    private String metadata;
+
     public Long getId() {
         return id;
     }
@@ -105,4 +111,15 @@ public class Notification {
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
+
+    public boolean isReadStatus() {
+        return readStatus;
+    }
+
+    public void setReadStatus(boolean readStatus) {
+        this.readStatus = readStatus;
+    }
+
+    public String getMetadata() { return metadata; }
+    public void setMetadata(String metadata) { this.metadata = metadata; }
 }

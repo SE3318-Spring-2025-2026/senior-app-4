@@ -6,14 +6,11 @@ import Link from "next/link";
 import { toast } from "sonner";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import AppTopbar from "@/components/AppTopbar";
-import { useNotifications } from "@/components/NotificationProvider";
 import apiClient from "@/lib/client";
 
 export default function JiraIntegrationPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
-
-    const { unreadOrPendingCount } = useNotifications();
 
     const [integration, setIntegration] = useState<{ jiraSpaceUrl: string; projectKey: string; status: string } | null>(null);
     const [loading, setLoading] = useState(true);
@@ -96,10 +93,7 @@ export default function JiraIntegrationPage() {
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-indigo-900/20 via-gray-950 to-gray-950 -z-10 pointer-events-none" />
                 
                 <div className="mx-auto max-w-4xl space-y-8 relative">
-                    <AppTopbar
-                        title="JIRA Integration"
-                        notificationCount={unreadOrPendingCount}
-                    />
+                    <AppTopbar title="JIRA Integration" />
 
                     <Link
                         href={`/groups/${groupId}`}

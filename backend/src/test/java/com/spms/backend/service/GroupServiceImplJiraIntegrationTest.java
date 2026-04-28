@@ -1,5 +1,6 @@
 package com.spms.backend.service;
 
+import com.spms.backend.client.GithubApiClient;
 import com.spms.backend.client.JiraApiClient;
 import com.spms.backend.dto.request.JiraBindingRequest;
 import com.spms.backend.dto.response.JiraIntegrationResponse;
@@ -56,22 +57,24 @@ class GroupServiceImplJiraIntegrationTest {
     private GithubIntegrationRepository githubIntegrationRepository;
     @Mock
     private JiraApiClient jiraApiClient;
+    @Mock // Ekledik ki hata vermesin
+    private GithubApiClient githubApiClient;
 
     private GroupServiceImpl groupService;
-
-    @BeforeEach
+@BeforeEach
     void setUp() {
         groupService = new GroupServiceImpl(
                 groupRepository,
                 groupMemberRepository,
                 userRepository,
                 notificationService,
-                authService,
-                jiraIntegrationRepository,
-                githubIntegrationRepository,
-                jiraApiClient,
-                notificationRepository,
-                auditLogRepository
+                auditLogRepository,            
+                authService,                   
+                jiraIntegrationRepository,     
+                githubIntegrationRepository,   
+                jiraApiClient,                 
+                notificationRepository,        
+                githubApiClient                
         );
     }
 

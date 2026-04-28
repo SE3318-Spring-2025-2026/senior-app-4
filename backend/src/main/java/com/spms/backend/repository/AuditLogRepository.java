@@ -14,4 +14,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     Page<AuditLog> findByActionType(ActionType actionType, Pageable pageable);
     
     Page<AuditLog> findByGroupId(Long groupId, Pageable pageable);
+
+    java.util.Optional<AuditLog> findTopByGroupIdAndActionTypeOrderByCreatedAtDesc(Long groupId, ActionType actionType);
 }

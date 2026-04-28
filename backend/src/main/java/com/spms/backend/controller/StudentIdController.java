@@ -7,6 +7,7 @@ import com.spms.backend.dto.response.StudentIdResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.DuplicateUserException;
 import com.spms.backend.model.ValidStudentId;
+import com.spms.backend.repository.UserRepository;
 import com.spms.backend.repository.ValidStudentIdRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -25,21 +27,38 @@ import java.util.stream.Collectors;
 public class StudentIdController {
 
     private final ValidStudentIdRepository validStudentIdRepository;
+    private final UserRepository userRepository; // Bunu ekle
 
-    public StudentIdController(ValidStudentIdRepository validStudentIdRepository) {
+    public StudentIdController(ValidStudentIdRepository validStudentIdRepository, UserRepository userRepository) {
         this.validStudentIdRepository = validStudentIdRepository;
+        this.userRepository = userRepository;
     }
 
-    @Operation(summary = "List all valid student IDs")
+    // 2. Metodu şu şekilde modifiye et
+    @Operation(summary = "List all valid student IDs with names")
     @GetMapping
-    public ResponseEntity<StudentIdListResponse> getAllStudentIds() {
-        List<Map<String, String>> data = validStudentIdRepository.findAll().stream()
-                .map(e -> Map.of("studentId", e.getStudentId(), "status", e.getStatus()))
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(new StudentIdListResponse(
-                "Student IDs retrieved successfully.", data.size(), data
-        ));
-    }
+        public ResponseEntity<StudentIdListResponse> getAllStudentId() {
+            List<Map<String, String>> data = validStudentIdRepository.findAll().stream()
+                .map(e -> {
+
+            Map<String, String> studentMap = new HashMap<>();
+            studentMap.put("studentId", e.getStudentId());
+            studentMap.put("status", e.getStatus());
+
+
+            userRepository.findByStudentId(e.getStudentId()).ifPresentOrElse(
+                user -> studentMap.put("fullName", user.getFullName()),
+                () -> studentMap.put("fullName", "Not Registered Yet") 
+             );
+
+                return studentMap;
+            })
+            .collect(Collectors.toList());
+
+    return ResponseEntity.ok(new StudentIdListResponse(
+            "Student IDs with names retrieved successfully.", data.size(), data
+    ));
+}
 
     @Operation(summary = "Add a single valid student ID")
     @PostMapping
@@ -83,3 +102,4 @@ public class StudentIdController {
         return ResponseEntity.ok(new DeleteResponse("Resource deleted successfully."));
     }
 }
+
