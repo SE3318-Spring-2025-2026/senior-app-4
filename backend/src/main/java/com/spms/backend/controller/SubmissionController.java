@@ -208,7 +208,6 @@ public class SubmissionController {
             return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
     // ──────────────────────────────────────────────────────────────────────────
     //  P3-GRADE-3: PUT /submissions/{submissionId}/grades/{gradeId}
     // ──────────────────────────────────────────────────────────────────────────

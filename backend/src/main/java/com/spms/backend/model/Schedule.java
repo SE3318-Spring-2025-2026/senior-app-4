@@ -21,6 +21,9 @@ public class Schedule {
     @Column(name = "proposal_revision_deadline")
     private Instant proposalRevisionDeadline;
 
+    @Column(name = "grading_deadline")
+    private Instant gradingDeadline;
+
     @Column(name = "updated_by")
     private Long updatedBy;
 
@@ -45,6 +48,11 @@ public class Schedule {
     public Instant getProposalRevisionDeadline() { return proposalRevisionDeadline; }
     public void setProposalRevisionDeadline(Instant proposalRevisionDeadline) {
         this.proposalRevisionDeadline = proposalRevisionDeadline;
+    }
+
+    public Instant getGradingDeadline() { return gradingDeadline; }
+    public void setGradingDeadline(Instant gradingDeadline) {
+        this.gradingDeadline = gradingDeadline;
     }
 
     public Long getUpdatedBy() { return updatedBy; }

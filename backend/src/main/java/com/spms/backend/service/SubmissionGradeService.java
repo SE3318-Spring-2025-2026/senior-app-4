@@ -201,15 +201,12 @@ public class SubmissionGradeService {
         }
 
         // 4. D10 Schedule Deadline Check → 403
-        // TODO: [P3-DEADLINE] The schedule table currently lacks a grading_deadline column.
-        //       Once the column is added to the schedule table and Schedule entity,
-        //       uncomment the following block to enforce the grading deadline.
-        // scheduleRepository.findTopByOrderByIdDesc().ifPresent(schedule -> {
-        //     if (schedule.getGradingDeadline() != null
-        //             && java.time.Instant.now().isAfter(schedule.getGradingDeadline())) {
-        //         throw new com.spms.backend.exception.ForbiddenException("Grading deadline has passed (D10).");
-        //     }
-        // });
+        scheduleRepository.findTopByOrderByIdDesc().ifPresent(schedule -> {
+            if (schedule.getGradingDeadline() != null
+                    && java.time.Instant.now().isAfter(schedule.getGradingDeadline())) {
+                throw new com.spms.backend.exception.ForbiddenException("Grading deadline has passed (D10).");
+            }
+        });
 
         // 5. Update the grade fields
         grade.setScore(request.getGrade());
