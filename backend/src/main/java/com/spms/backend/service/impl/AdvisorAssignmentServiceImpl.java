@@ -24,10 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * P4-ASSIGN-1 list logic + professor release of advisee group.
- * TODO(P4-ASSIGN-2): expose {@code assignmentType} and accurate {@code assignedAt} once stored on group or derivable from audit.
- */
+/** P4-ASSIGN-1 list logic + professor release of advisee group. */
 @Service
 public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
 
@@ -76,7 +73,7 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         return groups.stream()
                 .filter(g -> matchesAdvisorIdFilter(g, filterAdvisorId))
                 .filter(g -> matchesHasAdvisorFilter(g, hasAdvisor))
-                .map(AdvisorAssignmentServiceImpl::toDto)
+                .map(this::toDto)
                 .sorted(Comparator.comparing(GroupAdvisorAssignmentDto::teamId))
                 .collect(Collectors.toList());
     }
@@ -92,7 +89,7 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         return groups.stream()
                 .filter(g -> g.getAdvisor() != null && Objects.equals(g.getAdvisor().getUserId(), professorUserId))
                 .filter(g -> matchesHasAdvisorFilter(g, hasAdvisor))
-                .map(AdvisorAssignmentServiceImpl::toDto)
+                .map(this::toDto)
                 .sorted(Comparator.comparing(GroupAdvisorAssignmentDto::teamId))
                 .collect(Collectors.toList());
     }
@@ -112,7 +109,20 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         return g.getAdvisor() != null && filterAdvisorId.equals(g.getAdvisor().getUserId());
     }
 
-    private static GroupAdvisorAssignmentDto toDto(Group g) {
+    private GroupAdvisorAssignmentDto toDto(Group g) {
+        Instant assignedAt = null;
+        String assignmentType = null;
+        if (g.getAdvisor() != null) {
+            java.util.Optional<AuditLog> log = auditLogRepository
+                    .findTopByGroupIdAndActionTypeOrderByCreatedAtDesc(g.getId(), ActionType.ADVISOR_ASSIGNED);
+            if (log.isPresent()) {
+                assignedAt = log.get().getCreatedAt();
+                String details = log.get().getEventDetails();
+                // "approved by professor" → came via advisor request; otherwise coordinator override
+                assignmentType = (details != null && details.toLowerCase().contains("approved"))
+                        ? "REQUESTED" : "OVERRIDDEN";
+            }
+        }
         return new GroupAdvisorAssignmentDto(
                 g.getId(),
                 g.getGroupName(),
@@ -120,8 +130,8 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
                 g.getAdvisor() != null ? g.getAdvisor().getUserId() : null,
                 g.getAdvisor() != null ? g.getAdvisor().getFullName() : null,
                 g.getStatus().name(),
-                null,
-                null);
+                assignedAt,
+                assignmentType);
     }
 
     @Override

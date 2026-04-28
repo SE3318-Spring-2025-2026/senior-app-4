@@ -1,11 +1,13 @@
 package com.spms.backend.controller;
 
 import com.spms.backend.dto.SubmissionResponse;
+import com.spms.backend.dto.request.CreateReviewRequestDto;
 import com.spms.backend.dto.response.ErrorResponse;
 import com.spms.backend.dto.response.GradeListResponse;
 import com.spms.backend.dto.response.ReviewDto;
 import com.spms.backend.dto.response.RevisionCreateResponseDto;
 import com.spms.backend.dto.response.RevisionHistoryResponseDto;
+import com.spms.backend.dto.response.SubmissionDetailResponse;
 import com.spms.backend.dto.response.SubmissionListResponse;
 import com.spms.backend.dto.request.GradeSubmissionRequest;
 import com.spms.backend.dto.response.GradeSubmissionResponse;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/submissions")
@@ -41,13 +44,38 @@ public class SubmissionController {
     @GetMapping
     public ResponseEntity<?> listSubmissions(
             Pageable pageable,
+            @RequestParam(required = false) Long teamId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long committeeId,
+            @RequestParam(required = false) String deliverableType,
             @RequestAttribute("jwt_userId") Object userId,
             @RequestAttribute("jwt_role") Object role) {
         try {
             Long currentUserId = Long.valueOf(userId.toString());
             String userRole = role.toString();
-            SubmissionListResponse response = submissionService.listSubmissions(currentUserId, userRole, pageable);
+            SubmissionListResponse response = submissionService.listSubmissions(
+                    currentUserId, userRole, teamId, status, committeeId, deliverableType, pageable);
             return ResponseEntity.ok(response);
+        } catch (com.spms.backend.exception.ForbiddenException e) {
+            return new ResponseEntity<>(new ErrorResponse("Forbidden", e.getMessage()), HttpStatus.FORBIDDEN);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ErrorResponse("Internal Server Error", e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // C-1: GET /submissions/{id}
+    @GetMapping("/{submissionId}")
+    public ResponseEntity<?> getSubmission(
+            @PathVariable Long submissionId,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+        try {
+            Long currentUserId = Long.valueOf(userId.toString());
+            String userRole = role.toString();
+            SubmissionDetailResponse response = submissionService.getSubmission(submissionId, currentUserId, userRole);
+            return ResponseEntity.ok(response);
+        } catch (com.spms.backend.exception.NotFoundException e) {
+            return new ResponseEntity<>(new ErrorResponse("Not Found", e.getMessage()), HttpStatus.NOT_FOUND);
         } catch (com.spms.backend.exception.ForbiddenException e) {
             return new ResponseEntity<>(new ErrorResponse("Forbidden", e.getMessage()), HttpStatus.FORBIDDEN);
         } catch (Exception e) {
@@ -69,8 +97,7 @@ public class SubmissionController {
             Long callerId = Long.valueOf(userId.toString());
 
             String content = description != null ? description : "";
-            String fileName = file.getOriginalFilename();
-            SubmissionResponse response = submissionService.submit(groupId, type, content, fileName, callerId);
+            SubmissionResponse response = submissionService.submit(groupId, type, content, file, callerId);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
 
         } catch (IllegalArgumentException e) {
@@ -86,16 +113,6 @@ public class SubmissionController {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    //  P3-REV-1: POST /submissions/{submissionId}/revisions
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Submit a revised version of a deliverable.
-     * Parent submission must be in REVISION_REQUESTED status.
-     * Only the group leader may call this endpoint.
-     * Returns 201 Created on success.
-     */
     @PostMapping(value = "/{submissionId}/revisions", consumes = "multipart/form-data")
     public ResponseEntity<?> createRevision(
             @PathVariable Long submissionId,
@@ -104,8 +121,7 @@ public class SubmissionController {
             @RequestPart(value = "description", required = false) String description) {
         try {
             Long callerId = Long.valueOf(userId.toString());
-            String fileName = file.getOriginalFilename();
-            RevisionCreateResponseDto response = submissionService.createRevision(submissionId, fileName, description, callerId);
+            RevisionCreateResponseDto response = submissionService.createRevision(submissionId, file, description, callerId);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
 
         } catch (com.spms.backend.exception.BadRequestException e) {
@@ -119,14 +135,6 @@ public class SubmissionController {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    //  P3-REV-2: GET /submissions/{submissionId}/revisions
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Returns the full revision chain (original + all revisions) ordered by version.
-     * Returns 404 if the submission does not exist.
-     */
     @GetMapping("/{submissionId}/revisions")
     public ResponseEntity<?> getRevisionHistory(
             @PathVariable Long submissionId,
@@ -181,13 +189,46 @@ public class SubmissionController {
         }
     }
 
+    // C-24 fixed: role-based access in ReviewServiceImpl
     @GetMapping("/{submissionId}/reviews")
-    public ResponseEntity<List<ReviewDto>> getReviews(
+    public ResponseEntity<?> getReviews(
             @PathVariable Long submissionId,
-            @RequestAttribute("jwt_userId") Object userId) {
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+        try {
+            Long currentUserId = Long.valueOf(userId.toString());
+            String userRole = role.toString();
+            List<ReviewDto> reviews = reviewService.getReviewsForSubmission(submissionId, currentUserId, userRole);
+            return ResponseEntity.ok(reviews);
+        } catch (com.spms.backend.exception.ForbiddenException e) {
+            return new ResponseEntity<>(new ErrorResponse("Forbidden", e.getMessage()), HttpStatus.FORBIDDEN);
+        } catch (com.spms.backend.exception.NotFoundException e) {
+            return new ResponseEntity<>(new ErrorResponse("Not Found", e.getMessage()), HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ErrorResponse("Internal Server Error", e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
-        Long currentUserId = Long.valueOf(userId.toString());
-        List<ReviewDto> reviews = reviewService.getReviewsForSubmission(submissionId, currentUserId);
-        return ResponseEntity.ok(reviews);
+    // C-2: POST /submissions/{submissionId}/reviews
+    @PostMapping("/{submissionId}/reviews")
+    public ResponseEntity<?> createReview(
+            @PathVariable Long submissionId,
+            @Valid @RequestBody CreateReviewRequestDto request,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+        try {
+            Long reviewerId = Long.valueOf(userId.toString());
+            String reviewerRole = role.toString();
+            ReviewDto review = reviewService.createReview(submissionId, reviewerId, reviewerRole, request);
+            return new ResponseEntity<>(Map.of("status", "success", "data", review), HttpStatus.CREATED);
+        } catch (com.spms.backend.exception.ForbiddenException e) {
+            return new ResponseEntity<>(new ErrorResponse("Forbidden", e.getMessage()), HttpStatus.FORBIDDEN);
+        } catch (com.spms.backend.exception.BadRequestException e) {
+            return new ResponseEntity<>(new ErrorResponse("Bad Request", e.getMessage()), HttpStatus.BAD_REQUEST);
+        } catch (com.spms.backend.exception.NotFoundException e) {
+            return new ResponseEntity<>(new ErrorResponse("Not Found", e.getMessage()), HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ErrorResponse("Internal Server Error", e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }

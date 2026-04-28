@@ -4,5 +4,6 @@ import jakarta.validation.constraints.NotNull;
 
 public record AdvisorRequestCreateDto(
         @NotNull String teamId,
-        @NotNull Long professorId
+        @NotNull Long professorId,
+        String message
 ) {}

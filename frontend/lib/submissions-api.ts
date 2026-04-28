@@ -2,8 +2,16 @@ import { getToken } from "@/lib/auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
 
-export type DeliverableType = "PROPOSAL" | "REVISED_PROPOSAL" | "STATEMENT_OF_WORK";
-export type SubmissionStatus = "PENDING_REVIEW" | "UNDER_REVIEW" | "REVISION_REQUESTED" | "APPROVED" | "GRADED";
+export type DeliverableType = "PROPOSAL" | "REVISED_PROPOSAL" | "STATEMENT_OF_WORK" | "DEMONSTRATION";
+export type SubmissionStatus =
+  | "SUBMITTED"
+  | "PENDING_REVIEW"
+  | "UNDER_REVIEW"
+  | "REVISION_REQUESTED"
+  | "APPROVED"
+  | "GRADED"
+  | "SUPERSEDED"
+  | "REJECTED";
 export type DeadlineStatus = "APPROACHING" | "OVERDUE";
 export type ReviewDecision = "APPROVED" | "REVISION_REQUESTED";
 export type SubmissionId = string | number;

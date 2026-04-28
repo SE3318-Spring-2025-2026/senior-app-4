@@ -3,30 +3,28 @@ package com.spms.backend.service;
 import com.spms.backend.dto.SubmissionResponse;
 import com.spms.backend.dto.response.RevisionCreateResponseDto;
 import com.spms.backend.dto.response.RevisionHistoryResponseDto;
+import com.spms.backend.dto.response.SubmissionDetailResponse;
 import com.spms.backend.dto.response.SubmissionListResponse;
 import com.spms.backend.model.enums.DeliverableType;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface SubmissionService {
 
     SubmissionResponse submit(Long groupId, DeliverableType type,
-                              String content, String fileName, Long callerId);
+                              String content, MultipartFile file, Long callerId);
 
-    SubmissionListResponse listSubmissions(Long userId, String role, Pageable pageable);
+    SubmissionListResponse listSubmissions(Long userId, String role,
+                                           Long teamId, String status,
+                                           Long committeeId, String deliverableType,
+                                           Pageable pageable);
 
-    /**
-     * POST /submissions/{submissionId}/revisions  [P3-REV-1]
-     * Parent must be in REVISION_REQUESTED status; parent is updated to SUPERSEDED;
-     * version auto-increments from parent version.
-     */
+    SubmissionDetailResponse getSubmission(Long submissionId, Long userId, String role);
+
     RevisionCreateResponseDto createRevision(Long parentSubmissionId,
-                                             String fileName,
+                                             MultipartFile file,
                                              String description,
                                              Long callerId);
 
-    /**
-     * GET /submissions/{submissionId}/revisions  [P3-REV-2]
-     * Returns the full revision chain including the root submission.
-     */
     RevisionHistoryResponseDto getRevisionHistory(Long submissionId, Long userId, String role);
 }

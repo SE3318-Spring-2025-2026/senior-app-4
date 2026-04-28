@@ -51,7 +51,7 @@ public class NotificationController {
         }
         Long requestId = notificationService.requestAdvisor(
                 teamId,
-                new AdvisorRequestDto(request.professorId()),
+                new AdvisorRequestDto(request.professorId(), request.message()),
                 leaderId
         );
         return ResponseEntity

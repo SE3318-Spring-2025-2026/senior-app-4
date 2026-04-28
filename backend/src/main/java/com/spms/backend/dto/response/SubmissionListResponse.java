@@ -11,9 +11,11 @@ public record SubmissionListResponse(
     public record SubmissionSummary(
             Long id,
             Long teamId,
+            String teamName,
             String deliverableType,
             String status,
             Long assignedCommitteeId,
+            Integer revisionNumber,
             LocalDateTime submittedAt) {
     }
 
