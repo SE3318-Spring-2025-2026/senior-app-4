@@ -85,6 +85,11 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .findTopByGroupIdAndStatusOrderByAssignedAtDesc(groupId, "ASSIGNED")
                 .orElseThrow(() -> new ForbiddenException("Group is not assigned to any committee."));
 
+        // Reject if a root submission of this type already exists for the group
+        if (submissionRepository.existsByGroupIdAndDeliverableTypeAndParentSubmissionIdIsNull(groupId, type)) {
+            throw new BadRequestException("A root submission of type " + type + " already exists for this group.");
+        }
+
         // C-6: TODO(P2-dep): submission deadline check against D11 Schedule needs
         // proposal/SoW/demo deadline columns not yet in Schedule entity — touches P2 boundary.
         // Implement once P2 team adds those columns to the schedule table.
