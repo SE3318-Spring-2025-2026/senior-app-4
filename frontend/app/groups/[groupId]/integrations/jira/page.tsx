@@ -15,11 +15,12 @@ export default function JiraIntegrationPage() {
 
     const { unreadOrPendingCount } = useNotifications();
 
-    const [integration, setIntegration] = useState<{ spaceUrl: string; status: string } | null>(null);
+    const [integration, setIntegration] = useState<{ jiraSpaceUrl: string; projectKey: string; status: string } | null>(null);
     const [loading, setLoading] = useState(true);
     
     // Form states
     const [spaceUrl, setSpaceUrl] = useState("");
+    const [projectKey, setProjectKey] = useState("");
     const [apiKey, setApiKey] = useState("");
     const [bindLoading, setBindLoading] = useState(false);
 
@@ -31,8 +32,8 @@ export default function JiraIntegrationPage() {
         const fetchIntegration = async () => {
             try {
                 const res = await apiClient.get(`/groups/${groupId}/integrations/jira`);
-                if (res.data) {
-                    setIntegration(res.data);
+                if (res.data && res.data.data) {
+                    setIntegration(res.data.data);
                 }
             } catch (err: any) {
                 // If 404, it means no integration exists, which is fine
@@ -50,20 +51,22 @@ export default function JiraIntegrationPage() {
     async function handleBind(e: React.FormEvent) {
         e.preventDefault();
         
-        if (!spaceUrl.trim() || !apiKey.trim()) {
-            toast.error("Space URL and API Key are required.");
+        if (!spaceUrl.trim() || !projectKey.trim() || !apiKey.trim()) {
+            toast.error("Space URL, Project Key, and API Key are required.");
             return;
         }
 
         setBindLoading(true);
         try {
             const res = await apiClient.post(`/groups/${groupId}/integrations/jira`, {
-                spaceUrl: spaceUrl.trim(),
+                jiraSpaceUrl: spaceUrl.trim(),
+                projectKey: projectKey.trim(),
                 apiKey: apiKey.trim()
             });
             
-            setIntegration(res.data || { spaceUrl, status: "ACTIVE" });
+            setIntegration(res.data?.data || { jiraSpaceUrl: spaceUrl, projectKey, status: "ACTIVE" });
             setSpaceUrl("");
+            setProjectKey("");
             setApiKey("");
             toast.success("JIRA space successfully connected.");
         } catch (error: any) {
@@ -126,7 +129,10 @@ export default function JiraIntegrationPage() {
                                     <div>
                                         <h3 className="text-lg font-semibold text-white">JIRA Space Connected</h3>
                                         <p className="mt-1 text-sm text-gray-400">
-                                            Currently syncing with: <span className="text-gray-300 font-mono bg-white/5 px-2 py-0.5 rounded">{integration.spaceUrl}</span>
+                                            Currently syncing with: <span className="text-gray-300 font-mono bg-white/5 px-2 py-0.5 rounded">{integration.jiraSpaceUrl}</span>
+                                        </p>
+                                        <p className="mt-1 text-sm text-gray-400">
+                                            Project Key: <span className="text-gray-300 font-mono bg-white/5 px-2 py-0.5 rounded">{integration.projectKey}</span>
                                         </p>
                                         <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-green-500/10 border border-green-500/20">
                                             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
@@ -146,6 +152,17 @@ export default function JiraIntegrationPage() {
                                                 placeholder="https://your-domain.atlassian.net"
                                                 value={spaceUrl}
                                                 onChange={(e) => setSpaceUrl(e.target.value)}
+                                                className="w-full bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-300 mb-1.5">Project Key</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="e.g. SPMS"
+                                                value={projectKey}
+                                                onChange={(e) => setProjectKey(e.target.value)}
                                                 className="w-full bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
                                             />
                                         </div>
