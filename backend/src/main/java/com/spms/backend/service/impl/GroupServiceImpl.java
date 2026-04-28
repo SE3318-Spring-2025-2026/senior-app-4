@@ -162,23 +162,34 @@ public class GroupServiceImpl implements GroupService {
     // rol bazlı grup getirmek için
     @Override
     @Transactional(readOnly = true)
-    public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole) {
+    public Page<GroupResponseDto> getGroups(String statusStr, String groupName, Boolean advisorAssigned, Pageable pageable, Long requesterId, String requesterRole) {
 
         Page<Group> groupsPage;
 
         String role = (requesterRole != null) ? requesterRole.toLowerCase() : "guest";
+        
+        GroupStatus status = null;
+        if (statusStr != null && !statusStr.trim().isEmpty() && !statusStr.equalsIgnoreCase("all")) {
+            try {
+                status = GroupStatus.valueOf(statusStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid group status filter: {}", statusStr);
+            }
+        }
+        
+        String groupNameFilter = (groupName != null && !groupName.trim().isEmpty()) ? groupName.trim() : null;
 
         switch (role) {
             case "student":
-                groupsPage = groupRepository.findAllWithStudentGroupFirst(requesterId, pageable);
+                groupsPage = groupRepository.findAllWithStudentGroupFirstFiltered(requesterId, status, groupNameFilter, advisorAssigned, pageable);
                 break;
 
             case "professor":
-                groupsPage = groupRepository.findByAdvisorId(requesterId, pageable);
+                groupsPage = groupRepository.findByAdvisorIdFiltered(requesterId, status, groupNameFilter, advisorAssigned, pageable);
                 break;
 
             case "coordinator":
-                groupsPage = groupRepository.findAll(pageable);
+                groupsPage = groupRepository.findAllFiltered(status, groupNameFilter, advisorAssigned, pageable);
                 try {
                     List<Object[]> counts = groupRepository.countGroupsByStatus();
                     counts.forEach(
@@ -189,8 +200,7 @@ public class GroupServiceImpl implements GroupService {
                 break;
 
             default:
-
-                groupsPage = groupRepository.findAll(pageable);
+                groupsPage = groupRepository.findAllFiltered(status, groupNameFilter, advisorAssigned, pageable);
                 break;
         }
         if (groupsPage == null) {
