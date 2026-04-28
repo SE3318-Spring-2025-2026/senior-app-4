@@ -630,6 +630,9 @@ public class GroupServiceImpl implements GroupService {
                 .orElseThrow(() -> new NotFoundException("Professor not found."));
 
         if ("APPROVE".equals(status)) {
+            if (group.getAdvisor() != null) {
+                throw new com.spms.backend.exception.ConflictException("Group already has an assigned advisor. The advisor must release the group first.");
+            }
             group.setAdvisor(professor);
             group.setStatus(GroupStatus.ADVISED);
             group.setUpdatedAt(Instant.now());
