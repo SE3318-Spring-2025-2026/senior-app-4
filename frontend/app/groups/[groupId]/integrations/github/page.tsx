@@ -1,5 +1,6 @@
 "use client";
 
+import Sidebar from "@/components/Sidebar";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -10,6 +11,11 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import AppTopbar from "@/components/AppTopbar";
 import { fetchGroupDetail } from "@/lib/groups-api";
 import { fetchGithubIntegration, type GithubIntegrationApiResponse } from "@/lib/integrations-api";
+import {
+    bindGithubIntegration,
+    unbindGithubIntegration,
+    testIntegrations,
+} from "@/lib/integrations-api";
 import { getUser } from "@/lib/auth";
 
 export default function GithubIntegrationPage() {
@@ -73,33 +79,53 @@ export default function GithubIntegrationPage() {
         );
     }
 
-    const isLeader = group.leaderId === currentUser?.userId;
+    const isLeader = group?.leaderId === currentUser?.userId;
+
+    const githubStatus = integration?.data?.status?.toLowerCase();
+
+    const isGithubConnected =
+        !!integration?.data?.organizationName &&
+        githubStatus !== "inactive" &&
+        githubStatus !== "error";
 
     async function handleBind(githubPat: string, organizationName: string) {
-        console.log("Bind request:", { githubPat, organizationName });
+        try {
+            await bindGithubIntegration(groupId, githubPat, organizationName);
 
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+            setStatusMessage(`GitHub organization "${organizationName}" bound successfully.`);
 
-        setStatusMessage(`GitHub organization "${organizationName}" bound successfully.`);
+            const updated = await fetchGithubIntegration(groupId);
+            setIntegration(updated);
+        } catch (err: any) {
+            setStatusMessage(err.message || "Failed to bind GitHub.");
+        }
     }
 
     async function handleUnbind() {
         setUnbindLoading(true);
 
         try {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            await unbindGithubIntegration(groupId);
+
             setStatusMessage("GitHub organization unbound successfully.");
             setShowConfirm(false);
+
+            const updated = await fetchGithubIntegration(groupId);
+            setIntegration(updated);
+        } catch (err: any) {
+            setStatusMessage(err.message || "Failed to unbind GitHub.");
         } finally {
             setUnbindLoading(false);
         }
     }
 
+
     return (
-        <>
-            <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
+        <div className="min-h-screen bg-gray-950 flex">
+            <Sidebar activePage="groups" />
+            <main className="flex-1 min-w-0 px-6 py-10 text-white">
                 <div className="mx-auto max-w-4xl space-y-8">
-                    <AppTopbar />
+                    <AppTopbar hideNotification />
 
                     <Link
                         href={`/groups/${groupId}`}
@@ -121,19 +147,16 @@ export default function GithubIntegrationPage() {
                         </div>
                     )}
 
-                    <GithubStatusCard
-                        integration={
-                            integration?.data?.status === "inactive"
-                                ? undefined
-                                : integration?.data
-                        }
-                    />
+                    <GithubStatusCard integration={integration?.data} />
 
                     {isLeader ? (
                         <>
-                            <GithubBindForm onBind={handleBind} />
 
-                            {integration?.data?.status === "active" && (
+                            {!isGithubConnected && (
+                                <GithubBindForm onBind={handleBind} />
+                            )}
+
+                            {isGithubConnected && (
                                 <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
                                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
@@ -157,6 +180,9 @@ export default function GithubIntegrationPage() {
 
                             <IntegrationTestCard
                                 groupId={groupId}
+                                onTest={async () => {
+                                    return await testIntegrations(groupId);
+                                }}
                             />
                         </>
                     ) : (
@@ -177,6 +203,6 @@ export default function GithubIntegrationPage() {
                 onConfirm={handleUnbind}
                 onCancel={() => setShowConfirm(false)}
             />
-        </>
+        </div>
     );
 }

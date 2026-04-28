@@ -99,3 +99,72 @@ export async function fetchJiraIntegration(
 
     return res.json();
 }
+
+export type IntegrationsTestResponse = {
+    github: {
+        connected: boolean;
+        message: string;
+    };
+    jira: {
+        connected: boolean;
+        message: string;
+    };
+};
+
+export async function bindGithubIntegration(
+    groupId: number,
+    githubPat: string,
+    organizationName: string
+): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/integrations/github`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({
+            githubPat,
+            organizationName,
+        }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+export async function unbindGithubIntegration(groupId: number): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/integrations/github`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+export async function testIntegrations(
+    groupId: number
+): Promise<IntegrationsTestResponse> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/integrations/test`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
