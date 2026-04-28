@@ -4,6 +4,7 @@ import com.spms.backend.dto.response.GradeItemDTO;
 import com.spms.backend.dto.response.GradeListResponse;
 import com.spms.backend.dto.request.GradeSubmissionRequest;
 import com.spms.backend.dto.response.GradeSubmissionResponse;
+import com.spms.backend.dto.response.SuccessResponse;
 import com.spms.backend.model.Committee;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupCommitteeAssignment;
@@ -17,6 +18,7 @@ import com.spms.backend.repository.SubmissionGradeRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.NotificationService;
+import com.spms.backend.repository.ScheduleRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,7 @@ public class SubmissionGradeService {
     private final GroupRepository groupRepository;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
+    private final ScheduleRepository scheduleRepository;
 
     public SubmissionGradeService(
             SubmissionGradeRepository gradeRepository,
@@ -41,13 +44,15 @@ public class SubmissionGradeService {
             GroupCommitteeAssignmentRepository assignmentRepository,
             GroupRepository groupRepository,
             NotificationService notificationService,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            ScheduleRepository scheduleRepository) {
         this.gradeRepository = gradeRepository;
         this.submissionRepository = submissionRepository;
         this.assignmentRepository = assignmentRepository;
         this.groupRepository = groupRepository;
         this.notificationService = notificationService;
         this.userRepository = userRepository;
+        this.scheduleRepository = scheduleRepository;
     }
 
     public GradeListResponse getSubmissionGrades(Long submissionId, String userRole) {
@@ -177,5 +182,63 @@ public class SubmissionGradeService {
         }
 
         return new GradeSubmissionResponse("success", "Grade submitted successfully.", grade.getId(), isGradingComplete);
+    }
+
+    @Transactional
+    public SuccessResponse updateGrade(Long submissionId, Long gradeId, Long professorId, GradeSubmissionRequest request) {
+        // 1. Validate grade exists → 404
+        SubmissionGrade grade = gradeRepository.findById(gradeId)
+                .orElseThrow(() -> new com.spms.backend.exception.NotFoundException("Grade not found with ID: " + gradeId));
+
+        // 2. Validate grade belongs to specified submission → 404
+        if (!grade.getSubmissionId().equals(submissionId)) {
+            throw new com.spms.backend.exception.NotFoundException("Grade not found for the specified submission");
+        }
+
+        // 3. Ownership check: professor can only update own grade → 403
+        if (!grade.getProfessorId().equals(professorId)) {
+            throw new com.spms.backend.exception.ForbiddenException("Professor can only update their own grade record");
+        }
+
+        // 4. D10 Schedule Deadline Check → 403
+        // TODO: [P3-DEADLINE] The schedule table currently lacks a grading_deadline column.
+        //       Once the column is added to the schedule table and Schedule entity,
+        //       uncomment the following block to enforce the grading deadline.
+        // scheduleRepository.findTopByOrderByIdDesc().ifPresent(schedule -> {
+        //     if (schedule.getGradingDeadline() != null
+        //             && java.time.Instant.now().isAfter(schedule.getGradingDeadline())) {
+        //         throw new com.spms.backend.exception.ForbiddenException("Grading deadline has passed (D10).");
+        //     }
+        // });
+
+        // 5. Update the grade fields
+        grade.setScore(request.getGrade());
+        grade.setFeedback(request.getFeedback());
+        grade.setGradedAt(java.time.LocalDateTime.now());
+        gradeRepository.save(grade);
+
+        // 6. Recalculate average if grading is complete
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new com.spms.backend.exception.NotFoundException("Submission not found"));
+
+        assignmentRepository
+                .findTopByGroupIdAndStatusOrderByAssignedAtDesc(submission.getGroupId(), "ASSIGNED")
+                .ifPresent(assignment -> {
+                    Committee committee = assignment.getCommittee();
+                    int totalMembers = committee.getAdvisors().size() + committee.getJuryMembers().size();
+                    List<SubmissionGrade> allGrades = gradeRepository.findBySubmissionId(submissionId);
+
+                    if (allGrades.size() >= totalMembers) {
+                        double average = allGrades.stream()
+                                .mapToDouble(SubmissionGrade::getScore)
+                                .average()
+                                .orElse(0.0);
+                        submission.setFinalGrade(average);
+                        submission.setStatus(SubmissionStatus.GRADED);
+                        submissionRepository.save(submission);
+                    }
+                });
+
+        return new SuccessResponse("success", "Grade updated successfully.");
     }
 }
