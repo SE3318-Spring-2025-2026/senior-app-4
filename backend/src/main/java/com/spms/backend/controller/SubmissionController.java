@@ -113,6 +113,17 @@ public class SubmissionController {
         }
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    //  P3-REV-1: POST /submissions/{submissionId}/revisions
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Submit a revised version of a deliverable.
+     * Parent submission must be in REVISION_REQUESTED status.
+     * Only the group leader may call this endpoint.
+     * Returns 201 Created on success.
+     */
+
     @PostMapping(value = "/{submissionId}/revisions", consumes = "multipart/form-data")
     public ResponseEntity<?> createRevision(
             @PathVariable Long submissionId,
@@ -134,6 +145,15 @@ public class SubmissionController {
             return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+    
+    // ──────────────────────────────────────────────────────────────────────────
+    //  P3-REV-2: GET /submissions/{submissionId}/revisions
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Returns the full revision chain (original + all revisions) ordered by version.
+     * Returns 404 if the submission does not exist.
+     */
 
     @GetMapping("/{submissionId}/revisions")
     public ResponseEntity<?> getRevisionHistory(
@@ -184,6 +204,35 @@ public class SubmissionController {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         } catch (SecurityException e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.FORBIDDEN);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+    //  P3-GRADE-3: PUT /submissions/{submissionId}/grades/{gradeId}
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Update own grade for a submission.
+     * Only the grade author can update (403 otherwise).
+     * Blocked if D10 schedule deadline has passed (403).
+     * Returns 200 with SuccessResponse on success.
+     */
+    @PutMapping("/{submissionId}/grades/{gradeId}")
+    public ResponseEntity<?> updateGrade(
+            @PathVariable Long submissionId,
+            @PathVariable Long gradeId,
+            @Valid @RequestBody GradeSubmissionRequest request,
+            @RequestAttribute("jwt_userId") Object userId) {
+        try {
+            Long professorId = Long.valueOf(userId.toString());
+            com.spms.backend.dto.response.SuccessResponse response =
+                    gradeService.updateGrade(submissionId, gradeId, professorId, request);
+            return ResponseEntity.ok(response);
+        } catch (com.spms.backend.exception.ForbiddenException e) {
+            return new ResponseEntity<>(new ErrorResponse("Forbidden", e.getMessage()), HttpStatus.FORBIDDEN);
+        } catch (com.spms.backend.exception.NotFoundException e) {
+            return new ResponseEntity<>(new ErrorResponse("Not Found", e.getMessage()), HttpStatus.NOT_FOUND);
         } catch (Exception e) {
             return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }

@@ -31,6 +31,10 @@ class SubmissionGradeServiceTest {
     private GroupRepository groupRepository;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private ScheduleRepository scheduleRepository;
 
     @InjectMocks
     private SubmissionGradeService submissionGradeService;
@@ -92,6 +96,9 @@ class SubmissionGradeServiceTest {
         group.setLeader(leader);
 
         SubmissionGrade grade = new SubmissionGrade();
+        grade.setSubmissionId(submissionId);
+        grade.setProfessorId(professorId);
+        grade.setScore(80.0);
         grade.setId(1L);
         grade.setScore(80.0);
 
@@ -146,6 +153,9 @@ class SubmissionGradeServiceTest {
         assignment.setCommittee(committee);
 
         SubmissionGrade grade = new SubmissionGrade();
+        grade.setSubmissionId(submissionId);
+        grade.setProfessorId(professorId);
+        grade.setScore(80.0);
         grade.setId(1L);
         grade.setScore(80.0);
 
@@ -163,6 +173,159 @@ class SubmissionGradeServiceTest {
         assertFalse(response.getData().getIsGradingComplete());
         assertNull(submission.getFinalGrade());
         verify(notificationService, never()).createSystemAlert(anyLong(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void updateGrade_Success_ReturnsSuccessResponse() {
+        // Arrange
+        Long submissionId = 1L;
+        Long gradeId = 100L;
+        Long professorId = 5L;
+        GradeSubmissionRequest request = new GradeSubmissionRequest();
+        request.setGrade(95.0);
+        request.setFeedback("Updated feedback");
+
+        SubmissionGrade existingGrade = new SubmissionGrade();
+        existingGrade.setId(gradeId);
+        existingGrade.setSubmissionId(submissionId);
+        existingGrade.setProfessorId(professorId);
+        existingGrade.setScore(80.0);
+
+        Submission submission = new Submission();
+        submission.setId(submissionId);
+        submission.setGroupId(10L);
+
+        Committee committee = new Committee();
+        CommitteeAdvisor advisor = new CommitteeAdvisor();
+        User advisorUser = new User();
+        advisorUser.setUserId(professorId);
+        advisor.setAdvisor(advisorUser);
+        committee.setAdvisors(Collections.singletonList(advisor));
+        committee.setJuryMembers(Collections.emptyList());
+
+        GroupCommitteeAssignment assignment = new GroupCommitteeAssignment();
+        assignment.setCommittee(committee);
+
+        when(gradeRepository.findById(gradeId)).thenReturn(Optional.of(existingGrade));
+        when(scheduleRepository.findTopByOrderByIdDesc()).thenReturn(Optional.empty());
+        when(gradeRepository.save(any(SubmissionGrade.class))).thenReturn(existingGrade);
+        when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(submission));
+        when(assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(10L, "ASSIGNED"))
+                .thenReturn(Optional.of(assignment));
+        when(gradeRepository.findBySubmissionId(submissionId)).thenReturn(Collections.singletonList(existingGrade));
+
+        // Act
+        com.spms.backend.dto.response.SuccessResponse response =
+                submissionGradeService.updateGrade(submissionId, gradeId, professorId, request);
+
+        // Assert — spec says SuccessResponse {status, message}
+        assertEquals("success", response.status());
+        assertEquals("Grade updated successfully.", response.message());
+        // Verify entity fields were updated
+        assertEquals(95.0, existingGrade.getScore());
+        assertEquals("Updated feedback", existingGrade.getFeedback());
+        verify(gradeRepository).save(existingGrade);
+    }
+
+    @Test
+    void updateGrade_NotOwner_ThrowsForbidden() {
+        // Arrange
+        Long submissionId = 1L;
+        Long gradeId = 100L;
+        Long ownerProfessorId = 5L;
+        Long wrongProfessorId = 6L;
+        GradeSubmissionRequest request = new GradeSubmissionRequest();
+        request.setGrade(95.0);
+
+        SubmissionGrade existingGrade = new SubmissionGrade();
+        existingGrade.setId(gradeId);
+        existingGrade.setSubmissionId(submissionId);
+        existingGrade.setProfessorId(ownerProfessorId);
+
+        when(gradeRepository.findById(gradeId)).thenReturn(Optional.of(existingGrade));
+
+        // Act & Assert — must be 403
+        assertThrows(com.spms.backend.exception.ForbiddenException.class, () -> 
+            submissionGradeService.updateGrade(submissionId, gradeId, wrongProfessorId, request)
+        );
+        verify(gradeRepository, never()).save(any());
+    }
+
+    @Test
+    void updateGrade_GradeNotFound_ThrowsNotFound() {
+        // Arrange
+        Long submissionId = 1L;
+        Long gradeId = 999L;
+        Long professorId = 5L;
+        GradeSubmissionRequest request = new GradeSubmissionRequest();
+        request.setGrade(85.0);
+
+        when(gradeRepository.findById(gradeId)).thenReturn(Optional.empty());
+
+        // Act & Assert — must be 404
+        assertThrows(com.spms.backend.exception.NotFoundException.class, () ->
+            submissionGradeService.updateGrade(submissionId, gradeId, professorId, request)
+        );
+    }
+
+    @Test
+    void updateGrade_GradeBelongsToDifferentSubmission_ThrowsNotFound() {
+        // Arrange
+        Long submissionId = 1L;
+        Long differentSubmissionId = 99L;
+        Long gradeId = 100L;
+        Long professorId = 5L;
+        GradeSubmissionRequest request = new GradeSubmissionRequest();
+        request.setGrade(85.0);
+
+        SubmissionGrade existingGrade = new SubmissionGrade();
+        existingGrade.setId(gradeId);
+        existingGrade.setSubmissionId(differentSubmissionId); // belongs to another submission
+        existingGrade.setProfessorId(professorId);
+
+        when(gradeRepository.findById(gradeId)).thenReturn(Optional.of(existingGrade));
+
+        // Act & Assert — must be 404 (grade not found for this submission)
+        assertThrows(com.spms.backend.exception.NotFoundException.class, () ->
+            submissionGradeService.updateGrade(submissionId, gradeId, professorId, request)
+        );
+        verify(gradeRepository, never()).save(any());
+    }
+
+    @Test
+    void updateGrade_UpdatesGradedAtTimestamp() {
+        // Arrange
+        Long submissionId = 1L;
+        Long gradeId = 100L;
+        Long professorId = 5L;
+        GradeSubmissionRequest request = new GradeSubmissionRequest();
+        request.setGrade(90.0);
+
+        java.time.LocalDateTime originalTime = java.time.LocalDateTime.of(2025, 1, 1, 12, 0);
+        SubmissionGrade existingGrade = new SubmissionGrade();
+        existingGrade.setId(gradeId);
+        existingGrade.setSubmissionId(submissionId);
+        existingGrade.setProfessorId(professorId);
+        existingGrade.setScore(80.0);
+        existingGrade.setGradedAt(originalTime);
+
+        Submission submission = new Submission();
+        submission.setId(submissionId);
+        submission.setGroupId(10L);
+
+        when(gradeRepository.findById(gradeId)).thenReturn(Optional.of(existingGrade));
+        when(scheduleRepository.findTopByOrderByIdDesc()).thenReturn(Optional.empty());
+        when(gradeRepository.save(any(SubmissionGrade.class))).thenReturn(existingGrade);
+        when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(submission));
+        when(assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(10L, "ASSIGNED"))
+                .thenReturn(Optional.empty());
+
+        // Act
+        submissionGradeService.updateGrade(submissionId, gradeId, professorId, request);
+
+        // Assert — gradedAt should have been refreshed
+        assertNotEquals(originalTime, existingGrade.getGradedAt());
+        assertNotNull(existingGrade.getGradedAt());
     }
 }
 
