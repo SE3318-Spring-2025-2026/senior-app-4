@@ -11,7 +11,13 @@ type Props = {
 };
 
 export default function GithubStatusCard({ integration }: Props) {
-    const isConnected = integration?.status === "active";
+    const status = integration?.status?.toLowerCase();
+
+    const isConnected =
+        !!integration &&
+        !!integration.organizationName &&
+        status !== "inactive" &&
+        status !== "error";
 
     const formatDate = (date?: string | null) => {
         if (!date) return "-";

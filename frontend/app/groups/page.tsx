@@ -11,9 +11,29 @@ import {
     createGroupApi,
     ApiGroupListItem,
 } from "@/lib/groups-api";
+import {
+    fetchGithubIntegration,
+    fetchJiraIntegration,
+} from "@/lib/integrations-api";
 import { Group } from "@/lib/group-types";
 import { getUser, getToken, decodeToken } from "@/lib/auth";
 import { showToast } from "@/components/toast/ToastContext";
+
+function isIntegrationConnected(data?: {
+    status?: string | null;
+    organizationName?: string | null;
+    jiraSpaceUrl?: string | null;
+    projectKey?: string | null;
+} | null) {
+    const status = data?.status?.toLowerCase();
+
+    return (
+        !!data &&
+        status !== "inactive" &&
+        status !== "error" &&
+        (!!data.organizationName || !!data.jiraSpaceUrl || !!data.projectKey)
+    );
+}
 
 function mapApiGroupToUiGroup(apiGroup: ApiGroupListItem): Group {
     return {
@@ -105,7 +125,27 @@ export default function GroupsPage() {
 
                 if (cancelled) return;
 
-                const mappedGroups = response.content.map(mapApiGroupToUiGroup);
+                const mappedGroups = await Promise.all(
+                    response.content.map(async (apiGroup) => {
+                        const uiGroup = mapApiGroupToUiGroup(apiGroup);
+
+                        try {
+                            const [githubIntegration, jiraIntegration] = await Promise.all([
+                                fetchGithubIntegration(apiGroup.id),
+                                fetchJiraIntegration(apiGroup.id),
+                            ]);
+
+                            return {
+                                ...uiGroup,
+                                githubBound: isIntegrationConnected(githubIntegration.data),
+                                jiraBound: isIntegrationConnected(jiraIntegration.data),
+                            };
+                        } catch {
+                            return uiGroup;
+                        }
+                    })
+                );
+
                 setGroups(mappedGroups);
                 setTotalPages(Math.max(response.totalPages, 1));
 
@@ -187,7 +227,27 @@ export default function GroupsPage() {
             updateParams({ page: 0 });
 
             const response = await fetchGroups(0, pageSize, statusFilter, searchQuery, advisorFilter);
-            const mappedGroups = response.content.map(mapApiGroupToUiGroup);
+            const mappedGroups = await Promise.all(
+                response.content.map(async (apiGroup) => {
+                    const uiGroup = mapApiGroupToUiGroup(apiGroup);
+
+                    try {
+                        const [githubIntegration, jiraIntegration] = await Promise.all([
+                            fetchGithubIntegration(apiGroup.id),
+                            fetchJiraIntegration(apiGroup.id),
+                        ]);
+
+                        return {
+                            ...uiGroup,
+                            githubBound: isIntegrationConnected(githubIntegration.data),
+                            jiraBound: isIntegrationConnected(jiraIntegration.data),
+                        };
+                    } catch {
+                        return uiGroup;
+                    }
+                })
+            );
+
             setGroups(mappedGroups);
             setTotalPages(Math.max(response.totalPages, 1));
             setOwnGroupId(createdGroup.id);

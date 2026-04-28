@@ -79,7 +79,14 @@ export default function GithubIntegrationPage() {
         );
     }
 
-    const isLeader = group.leaderId === currentUser?.userId;
+    const isLeader = group?.leaderId === currentUser?.userId;
+
+    const githubStatus = integration?.data?.status?.toLowerCase();
+
+    const isGithubConnected =
+        !!integration?.data?.organizationName &&
+        githubStatus !== "inactive" &&
+        githubStatus !== "error";
 
     async function handleBind(githubPat: string, organizationName: string) {
         try {
@@ -112,6 +119,7 @@ export default function GithubIntegrationPage() {
         }
     }
 
+
     return (
         <div className="min-h-screen bg-gray-950 flex">
             <Sidebar activePage="groups" />
@@ -139,19 +147,16 @@ export default function GithubIntegrationPage() {
                         </div>
                     )}
 
-                    <GithubStatusCard
-                        integration={
-                            integration?.data?.status === "inactive"
-                                ? undefined
-                                : integration?.data
-                        }
-                    />
+                    <GithubStatusCard integration={integration?.data} />
 
                     {isLeader ? (
                         <>
-                            <GithubBindForm onBind={handleBind} />
 
-                            {integration?.data?.status === "active" && (
+                            {!isGithubConnected && (
+                                <GithubBindForm onBind={handleBind} />
+                            )}
+
+                            {isGithubConnected && (
                                 <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
                                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                                         <div>

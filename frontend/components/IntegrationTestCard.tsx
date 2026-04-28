@@ -17,6 +17,7 @@ export default function IntegrationTestCard({ groupId, onTest }: Props) {
 
         try {
             const res = await onTest();
+            console.log("Integration test response:", res);
             setResult(res);
         } finally {
             setLoading(false);
