@@ -64,7 +64,7 @@ class NotificationServiceImplTest {
 
         assertThrows(
                 ConflictException.class,
-                () -> notificationService.requestAdvisor(10L, new AdvisorRequestDto(99L), 1L)
+                () -> notificationService.requestAdvisor(10L, new AdvisorRequestDto(99L, null), 1L)
         );
 
         verify(notificationRepository, never()).save(org.mockito.ArgumentMatchers.any(Notification.class));
@@ -84,7 +84,7 @@ class NotificationServiceImplTest {
 
         assertThrows(
                 BadRequestException.class,
-                () -> notificationService.requestAdvisor(10L, new AdvisorRequestDto(99L), 1L)
+                () -> notificationService.requestAdvisor(10L, new AdvisorRequestDto(99L, null), 1L)
         );
 
         verify(notificationRepository, never()).save(org.mockito.ArgumentMatchers.any(Notification.class));
@@ -106,7 +106,7 @@ class NotificationServiceImplTest {
         when(notificationRepository.save(any(Notification.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        notificationService.requestAdvisor(10L, new AdvisorRequestDto(99L), 1L);
+        notificationService.requestAdvisor(10L, new AdvisorRequestDto(99L, null), 1L);
 
         ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository).save(notificationCaptor.capture());
@@ -135,7 +135,7 @@ class NotificationServiceImplTest {
 
         assertThrows(
                 BadRequestException.class,
-                () -> notificationService.requestAdvisor(10L, new AdvisorRequestDto(99L), 1L)
+                () -> notificationService.requestAdvisor(10L, new AdvisorRequestDto(99L, null), 1L)
         );
 
         verify(notificationRepository, never()).save(any(Notification.class));
