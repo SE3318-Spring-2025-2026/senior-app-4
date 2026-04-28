@@ -230,3 +230,61 @@ export async function leaveGroupApi(groupId: number) {
         throw new Error(await parseError(res));
     }
 }
+
+export async function deleteGroupApi(groupId: number) {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
+
+export async function transferAdvisorApi(groupId: number, professorId: number) {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/advisor/transfer`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({ professorId }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
+
+export async function addMemberDirectApi(
+    groupId: number,
+    studentId: number
+) {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/members/direct`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({ studentId }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}

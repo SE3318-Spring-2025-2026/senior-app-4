@@ -49,7 +49,7 @@ function getAuthHeaders() {
 export async function fetchProfessors(): Promise<ProfessorDirectoryItem[]> {
     // TODO(#80): replace the generic professor directory with a dedicated
     // "available professors" endpoint once backend filtering/availability data lands.
-    const res = await fetch(`${API_BASE}/users?role=professor`, {
+    const res = await fetch(`${API_BASE}/users`, {
         method: "GET",
         headers: {
             Authorization: getAuthHeaders().Authorization,
@@ -62,7 +62,10 @@ export async function fetchProfessors(): Promise<ProfessorDirectoryItem[]> {
     }
 
     const payload = (await res.json()) as UserListResponse;
-    return payload.data ?? [];
+
+    return (payload.data ?? []).filter(
+        (user) => user.role?.toLowerCase() === "professor"
+    );
 }
 
 export async function fetchAdvisorRequestStatus(groupId: number): Promise<AdvisorRequestStatus | null> {

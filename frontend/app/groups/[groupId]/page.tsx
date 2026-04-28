@@ -3,7 +3,7 @@
 import Sidebar from "@/components/Sidebar";
 import { showToast } from "@/components/toast/ToastContext";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AdvisorRequestPanel from "@/components/AdvisorRequestPanel";
 import StatusBadge from "@/components/StatusBadge";
@@ -17,8 +17,12 @@ import {
     updateGroupNameApi,
     removeMemberApi,
     leaveGroupApi,
-    addMemberApi
+    addMemberApi,
+    deleteGroupApi,
+    transferAdvisorApi,
+    addMemberDirectApi
 } from "@/lib/groups-api";
+import { fetchProfessors, ProfessorDirectoryItem } from "@/lib/advisor-api";
 //import { inviteMemberApi } from "@/lib/notifications-api";
 import { getUser, getToken, decodeToken } from "@/lib/auth";
 import {
@@ -41,6 +45,7 @@ function formatDate(dateString: string) {
 export default function GroupDetailPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
+    const router = useRouter();
 
     const [group, setGroup] = useState<ApiGroupDetail | null>(null);
     const [githubIntegration, setGithubIntegration] =
@@ -67,6 +72,13 @@ export default function GroupDetailPage() {
     const [leaving, setLeaving] = useState(false);
     const [leaveError, setLeaveError] = useState("");
 
+    const [professors, setProfessors] = useState<ProfessorDirectoryItem[]>([]);
+    const [selectedAdvisorId, setSelectedAdvisorId] = useState("");
+    const [assigningAdvisor, setAssigningAdvisor] = useState(false);
+    const [coordinatorStudentId, setCoordinatorStudentId] = useState("");
+    const [coordinatorAddingStudent, setCoordinatorAddingStudent] = useState(false);
+    const [deletingGroup, setDeletingGroup] = useState(false);
+
     const currentUser = getUser();
     const token = getToken();
     const decoded = token ? decodeToken(token) : null;
@@ -84,6 +96,8 @@ export default function GroupDetailPage() {
         Number(group?.leaderId) === currentUserId;
 
     const isStudent = currentUser?.role?.toLowerCase() === "student";
+
+    const isCoordinator = currentUser?.role?.toLowerCase() === "coordinator";
 
     const isGroupMember =
         isStudent &&
@@ -117,6 +131,10 @@ export default function GroupDetailPage() {
                 setNewGroupName(groupData.groupName);
                 setGithubIntegration(githubData);
                 setJiraIntegration(jiraData);
+                if (currentUser?.role?.toLowerCase() === "coordinator") {
+                    const professorData = await fetchProfessors();
+                    if (!cancelled) setProfessors(professorData);
+                }
             } catch (err) {
                 if (cancelled) return;
                 const message =
@@ -246,6 +264,88 @@ export default function GroupDetailPage() {
             showToast(message, "error");
         } finally {
             setLeaving(false);
+        }
+    }
+
+    async function handleAssignAdvisor(e: React.FormEvent) {
+        e.preventDefault();
+
+        const professorId = Number(selectedAdvisorId);
+        if (!professorId) {
+            showToast("Please select an advisor.", "warning");
+            return;
+        }
+
+        setAssigningAdvisor(true);
+        try {
+            await transferAdvisorApi(groupId, professorId);
+
+            const updatedGroup = await fetchGroupDetail(groupId);
+            const updatedMembers = await fetchGroupMembers(groupId);
+
+            setGroup({
+                ...updatedGroup,
+                members: updatedMembers,
+            });
+
+            showToast("Advisor assigned successfully.", "success");
+            setSelectedAdvisorId("");
+        } catch (err) {
+            showToast(
+                err instanceof Error ? err.message : "Failed to assign advisor.",
+                "error"
+            );
+        } finally {
+            setAssigningAdvisor(false);
+        }
+    }
+
+    async function handleCoordinatorAddStudent(e: React.FormEvent) {
+        e.preventDefault();
+
+        const studentId = Number(coordinatorStudentId.trim());
+        if (!studentId) {
+            showToast("Please enter a valid student ID.", "warning");
+            return;
+        }
+
+        setCoordinatorAddingStudent(true);
+        try {
+            await addMemberDirectApi(groupId, studentId);
+            const updatedMembers = await fetchGroupMembers(groupId);
+            setGroup((prev) => prev ? { ...prev, members: updatedMembers } : prev);
+
+            showToast("Student added successfully.", "success");
+            setCoordinatorStudentId("");
+        } catch (err) {
+            showToast(
+                err instanceof Error ? err.message : "Failed to add student.",
+                "error"
+            );
+        } finally {
+            setCoordinatorAddingStudent(false);
+        }
+    }
+
+    async function handleDeleteGroup() {
+        const confirmed = window.confirm(
+            "Are you sure you want to delete/disband this group?"
+        );
+
+        if (!confirmed) return;
+
+        setDeletingGroup(true);
+        try {
+            await deleteGroupApi(groupId);
+            showToast("Group deleted successfully.", "success");
+            router.push("/groups");
+        } catch (err) {
+            showToast(
+                err instanceof Error ? err.message : "Failed to delete group.",
+                "error"
+            );
+        } finally {
+            setDeletingGroup(false);
         }
     }
 
@@ -389,11 +489,83 @@ export default function GroupDetailPage() {
                         </div>
                     </div>
 
-                    <AdvisorRequestPanel
-                        groupId={group.id}
-                        leaderId={group.leaderId}
-                        advisorId={group.advisorId ?? null}
-                    />
+                    {!isCoordinator && (
+                        <AdvisorRequestPanel
+                            groupId={group.id}
+                            leaderId={group.leaderId}
+                            advisorId={group.advisorId ?? null}
+                        />
+                    )}
+
+                    {isCoordinator && (
+                        <div className="mb-8 rounded-2xl border border-orange-500/20 bg-orange-500/5 p-7 shadow-lg shadow-black/20 backdrop-blur">
+                            <h2 className="text-2xl font-semibold text-white">Coordinator Controls</h2>
+                            <p className="mt-2 text-sm text-gray-400">
+                                Assign an advisor, add students directly, or delete this group.
+                            </p>
+
+                            <form onSubmit={handleAssignAdvisor} className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end">
+                                <div className="flex-1">
+                                    <label className="mb-2 block text-sm font-medium text-gray-300">
+                                        Assign Advisor
+                                    </label>
+                                    <select
+                                        value={selectedAdvisorId}
+                                        onChange={(e) => setSelectedAdvisorId(e.target.value)}
+                                        className="w-full rounded-xl border border-white/10 bg-gray-900 pl-4 pr-10 py-3 text-white outline-none focus:border-orange-500"
+                                    >
+                                        <option value="">Select advisor...</option>
+                                        {professors.map((professor) => (
+                                            <option key={professor.userId} value={professor.userId}>
+                                                {professor.fullName}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={assigningAdvisor || !selectedAdvisorId}
+                                    className="rounded-xl bg-orange-600 px-6 py-3 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-50"
+                                >
+                                    {assigningAdvisor ? "Assigning..." : "Assign Advisor"}
+                                </button>
+                            </form>
+
+                            <form onSubmit={handleCoordinatorAddStudent} className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end">
+                                <div className="flex-1">
+                                    <label className="mb-2 block text-sm font-medium text-gray-300">
+                                        Add Student
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={coordinatorStudentId}
+                                        onChange={(e) => setCoordinatorStudentId(e.target.value)}
+                                        placeholder="Student ID"
+                                        className="w-full rounded-xl border border-white/10 bg-gray-900 pl-4 pr-10 py-3 text-white placeholder-gray-500 outline-none focus:border-blue-500"
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={coordinatorAddingStudent || !coordinatorStudentId.trim()}
+                                    className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+                                >
+                                    {coordinatorAddingStudent ? "Adding..." : "Add Student"}
+                                </button>
+                            </form>
+
+                            <div className="mt-6 border-t border-white/10 pt-6">
+                                <button
+                                    onClick={handleDeleteGroup}
+                                    disabled={deletingGroup}
+                                    className="rounded-xl bg-red-600 px-6 py-3 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+                                >
+                                    {deletingGroup ? "Deleting..." : "Delete Group"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-7 shadow-lg shadow-black/20 backdrop-blur mb-6">
                         <div className="flex items-center justify-between mb-5">
@@ -428,7 +600,7 @@ export default function GroupDetailPage() {
                                             {member.role}
                                         </span>
 
-                                        {isLeader && member.role?.toLowerCase() !== "leader" && (
+                                        {(isLeader || isCoordinator) && member.role?.toLowerCase() !== "leader" && (
                                             <button
                                                 onClick={() => handleRemoveMember(member.studentId)}
                                                 disabled={removingMemberId === member.studentId}
