@@ -65,9 +65,18 @@ public class StudentRegistrationService {
     }
 
     private User reconcileExistingStudent(User existingUser, String githubUsername, String fullName) {
+        boolean dirty = false;
+
+        // Rol her zaman "student" olmalı (token içindeki jwt_role null olmaması için)
+        if (!StringUtils.hasText(existingUser.getRole())) {
+            existingUser.setRole(STUDENT_ROLE);
+            dirty = true;
+        }
+
         // fullName varsa güncelle
         if (StringUtils.hasText(fullName) && !StringUtils.hasText(existingUser.getFullName())) {
             existingUser.setFullName(fullName);
+            dirty = true;
         }
 
         if (!StringUtils.hasText(existingUser.getGithubUsername())) {
@@ -81,7 +90,7 @@ public class StudentRegistrationService {
         }
 
         if (existingUser.getGithubUsername().trim().equalsIgnoreCase(githubUsername)) {
-            if (StringUtils.hasText(fullName) && !StringUtils.hasText(existingUser.getFullName())) {
+            if (dirty) {
                 return userRepository.save(existingUser);
             }
             return existingUser;

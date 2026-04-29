@@ -1,0 +1,1705 @@
+openapi: 3.0.3
+info:
+  title: Senior Project Management System API
+  version: 1.0.0
+  description: |
+    OpenAPI specification for Process 5: Committee Assignment
+    based on the Level-2 DFD.
+
+    This specification includes:
+    - Process 5.1: Create/Update Committees
+    - Process 5.2: Assign Advisors to Committee
+    - Process 5.3: Assign Additional Jury Members
+    - Process 5.4: Assign Groups to Committee
+    - Process 5.5: Validate Assignment Rules & Schedule
+    - Process 5.6: View Committee Assignments
+    - Process 5.7: Notify Committee Members
+    - Process 5.8: Logging & Audit Trail
+
+servers:
+  - url: /api/v1
+    description: Base API URL
+
+tags:
+  - name: Committee Management (P5.1)
+    description: Create, update, and manage committees
+  - name: Advisor Assignment (P5.2)
+    description: Assign advisors to committees
+  - name: Jury Assignment (P5.3)
+    description: Assign additional jury members to committees
+  - name: Group Assignment (P5.4)
+    description: Assign student groups/projects to committees
+  - name: Validation Rules (P5.5)
+    description: Validate assignment rules and schedule conflicts
+  - name: View Assignments (P5.6)
+    description: View and query committee assignments
+  - name: Notifications (P5.7)
+    description: Send and manage committee member notifications
+  - name: Audit & Logging (P5.8)
+    description: Access audit logs and system logs
+
+paths:
+  /committees:
+    post:
+      tags:
+        - Committee Management (P5.1)
+      summary: Create a new committee
+      description: |
+        Process 5.1 - Create Committee
+        Input: committeeData (committeeName, description)
+        Output: committeeRecord → D5 (Committees)
+      operationId: createCommittee
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          description: Coordinator ID performing the action
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommitteeCreateRequest"
+      responses:
+        "200":
+          description: Committee created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitteeResponse"
+        "400":
+          description: Invalid committee data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - View Assignments (P5.6)
+      summary: Get all committees
+      description: |
+        Process 5.6 - View Committee Assignments
+        Output: committeeAssignmentList (all committees with their details)
+      operationId: getAllCommittees
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of all committees retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitteeListResponse"
+        "401":
+          description: Unauthorized - Missing X-User-Id header
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /committees/{committeeId}:
+    get:
+      tags:
+        - View Assignments (P5.6)
+      summary: Get committee details with all assignments
+      description: |
+        Process 5.6 - View Committee Assignments
+        Returns complete committee information including advisors, jury members, and assigned groups
+        Output: committeeAssignmentList with full details from D1, D3, D5
+      operationId: getCommitteeById
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          description: Committee ID
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Committee details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitteeResponse"
+        "404":
+          description: Committee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags:
+        - Committee Management (P5.1)
+      summary: Update committee information
+      description: |
+        Process 5.1 - Update Committee
+        Input: committeeData (update fields)
+        Output: committeeRecord → D5 (updated)
+      operationId: updateCommittee
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommitteeUpdateRequest"
+      responses:
+        "200":
+          description: Committee updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitteeResponse"
+        "400":
+          description: Invalid update data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - Committee Management (P5.1)
+      summary: Delete a committee
+      description: |
+        Process 5.1 - Delete Committee
+        Output: auditEvent → D9 (deletion logged)
+      operationId: deleteCommittee
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Committee deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "404":
+          description: Committee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /committees/status/{status}:
+    get:
+      tags:
+        - View Assignments (P5.6)
+      summary: Get committees filtered by status
+      description: |
+        Process 5.6 - Filter committees by status (ACTIVE, INACTIVE, COMPLETED)
+      operationId: getCommitteesByStatus
+      parameters:
+        - name: status
+          in: path
+          required: true
+          description: Committee status filter
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - INACTIVE
+              - COMPLETED
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Filtered committees retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitteeListResponse"
+
+  /committees/coordinator/{coordinatorId}:
+    get:
+      tags:
+        - View Assignments (P5.6)
+      summary: Get committees created by a coordinator
+      description: |
+        Process 5.6 - View coordinator's committees
+      operationId: getCommitteesByCoordinator
+      parameters:
+        - name: coordinatorId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Coordinator committees retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitteeListResponse"
+
+  /committees/{committeeId}/advisors:
+    post:
+      tags:
+        - Advisor Assignment (P5.2)
+      summary: Assign advisor to committee
+      description: |
+        Process 5.2 - Assign Advisors to Committee
+        Input: advisorAssignmentData (committeeId, advisorId, role)
+        Output: committeeAdvisorAssignment → D5 (Committees)
+        Validation: Process 5.5 embedded
+        Notification: Process 5.7 triggered
+      operationId: assignAdvisor
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdvisorAssignmentRequest"
+      responses:
+        "200":
+          description: Advisor assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdvisorAssignmentResponse"
+        "400":
+          description: Invalid advisor assignment data (P5.5 validation failed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Advisor already assigned to this committee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - Advisor Assignment (P5.2)
+      summary: Get all advisors assigned to a committee
+      description: |
+        Process 5.2 - View advisors from D5 (Committees) and D1 (Users)
+      operationId: getAdvisorsByCommittee
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Advisors retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdvisorListResponse"
+
+  /committees/advisors/{advisorId}/committees:
+    get:
+      tags:
+        - Advisor Assignment (P5.2)
+      summary: Get all committees for an advisor
+      description: |
+        Process 5.2 - View committees from advisor's perspective
+      operationId: getCommitteesByAdvisor
+      parameters:
+        - name: advisorId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Committees for advisor retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdvisorCommitteeListResponse"
+
+  /committees/{committeeId}/advisors/{committeeAdvisorId}:
+    delete:
+      tags:
+        - Advisor Assignment (P5.2)
+      summary: Remove advisor from committee
+      description: |
+        Process 5.2 - Remove Advisor Assignment
+        Output: auditEvent → D9 (deletion logged)
+      operationId: removeAdvisor
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: committeeAdvisorId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Advisor removed from committee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  /committees/{committeeId}/jury:
+    post:
+      tags:
+        - Jury Assignment (P5.3)
+      summary: Assign jury member to committee
+      description: |
+        Process 5.3 - Assign Additional Jury Members
+        Input: juryAssignmentData (committeeId, juryMemberId, juryType)
+        Output: additionalJuryAssignment → D5 (Committees)
+        Validation: Process 5.5 embedded
+        Notification: Process 5.7 triggered
+      operationId: assignJuryMember
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JuryAssignmentRequest"
+      responses:
+        "200":
+          description: Jury member assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JuryMemberResponse"
+        "400":
+          description: Invalid jury assignment data (P5.5 validation failed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Jury member already assigned to this committee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - Jury Assignment (P5.3)
+      summary: Get all jury members assigned to a committee
+      description: |
+        Process 5.3 - View jury members from D5 (Committees) and D1 (Users)
+      operationId: getJuryByCommittee
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Jury members retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JuryListResponse"
+
+  /committees/jury/{juryMemberId}/committees:
+    get:
+      tags:
+        - Jury Assignment (P5.3)
+      summary: Get all committees for a jury member
+      description: |
+        Process 5.3 - View committees from jury member's perspective
+      operationId: getCommitteesByJuryMember
+      parameters:
+        - name: juryMemberId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Committees for jury member retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JuryCommitteeListResponse"
+
+  /committees/{committeeId}/jury/{juryMemberId}:
+    delete:
+      tags:
+        - Jury Assignment (P5.3)
+      summary: Remove jury member from committee
+      description: |
+        Process 5.3 - Remove Jury Member Assignment
+        Output: auditEvent → D9 (deletion logged)
+      operationId: removeJuryMember
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: juryMemberId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Jury member removed from committee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  /committees/{committeeId}/groups:
+    post:
+      tags:
+        - Group Assignment (P5.4)
+      summary: Assign student group to committee
+      description: |
+        Process 5.4 - Assign Groups to Committee
+        Input: groupCommitteeAssignmentData (committeeId, groupId, examDate)
+        Output: groupCommitteeAssignment → D3 (Groups) & D5 (Committees)
+        Validation: Process 5.5 embedded (schedule conflict check)
+        Notification: Process 5.7 triggered
+      operationId: assignGroupToCommittee
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupCommitteeAssignmentRequest"
+      responses:
+        "200":
+          description: Group assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupAssignmentResponse"
+        "400":
+          description: Invalid group assignment data (P5.5 validation failed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Group already assigned to this committee or schedule conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - Group Assignment (P5.4)
+      summary: Get all groups assigned to a committee
+      description: |
+        Process 5.4 - View group assignments from D3 (Groups) and D5 (Committees)
+      operationId: getGroupsByCommittee
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Groups retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupListResponse"
+
+  /committees/groups/{groupId}/committees:
+    get:
+      tags:
+        - Group Assignment (P5.4)
+      summary: Get all committees for a student group
+      description: |
+        Process 5.4 - View committees from group's perspective (D11 Schedule data)
+      operationId: getCommitteesByGroup
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Committees for group retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupCommitteeListResponse"
+
+  /committees/{committeeId}/groups/{assignmentId}/status:
+    patch:
+      tags:
+        - Group Assignment (P5.4)
+      summary: Update group assignment status
+      description: |
+        Process 5.4 - Update Group Assignment Status
+        Status transitions: ASSIGNED → SCHEDULED → COMPLETED
+        Output: auditEvent → D9 (status change logged)
+      operationId: updateGroupAssignmentStatus
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - ASSIGNED
+              - SCHEDULED
+              - COMPLETED
+              - CANCELLED
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupAssignmentResponse"
+
+  /committees/{committeeId}/groups/{assignmentId}:
+    delete:
+      tags:
+        - Group Assignment (P5.4)
+      summary: Remove group assignment from committee
+      description: |
+        Process 5.4 - Remove Group Assignment
+        Output: auditEvent → D9 (deletion logged)
+      operationId: removeGroupAssignment
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Group assignment removed from committee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  /committees/{committeeId}/validate/all:
+    post:
+      tags:
+        - Validation Rules (P5.5)
+      summary: Validate all assignments for a committee
+      description: |
+        Process 5.5 - Validate Assignment Rules & Schedule
+        Validates: Committee composition, advisor qualifications, schedule conflicts
+        Input: committeeId
+        Output: validationResult → D9 (System Logs)
+      operationId: validateAllAssignments
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          description: Committee ID to validate
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Validation passed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationResultResponse"
+        "400":
+          description: Validation failed - rules not met
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "404":
+          description: Committee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /committees/{committeeId}/validate/assignments:
+    post:
+      tags:
+        - Validation Rules (P5.5)
+      summary: Validate advisor and jury assignments
+      description: |
+        Process 5.5 - Validate Assignment Rules (Advisor/Jury qualification check)
+        Checks: Minimum committee members, advisor conflicts, jury member qualifications
+        Input: committeeId
+        Output: validationResult with advisor/jury validation details
+      operationId: validateAssignments
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          description: Committee ID to validate
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Assignment validation successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentValidationResponse"
+        "400":
+          description: Assignment validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+
+  /committees/{committeeId}/validate/schedule:
+    post:
+      tags:
+        - Validation Rules (P5.5)
+      summary: Validate schedule conflicts for group assignments
+      description: |
+        Process 5.5 - Validate Schedule (check for conflicts in D11 Schedule data)
+        Checks: Exam date availability, committee member availability, room/resource conflicts
+        Input: committeeId, groupAssignmentData (examDate)
+        Output: validationResult with schedule validation details
+      operationId: validateSchedule
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          description: Committee ID to validate
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleValidationRequest"
+      responses:
+        "200":
+          description: Schedule validation successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleValidationResponse"
+        "400":
+          description: Schedule validation failed - conflicts detected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+
+  /committees/{committeeId}/validation-rules:
+    get:
+      tags:
+        - Validation Rules (P5.5)
+      summary: Get validation rules for committee assignments
+      description: |
+        Process 5.5 - Get Assignment Rules
+        Returns: Validation rules, constraints, and requirements for committee assignments
+      operationId: getValidationRules
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          description: Committee ID
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Validation rules retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationRulesResponse"
+        "404":
+          description: Committee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /committees/{committeeId}/audit-logs:
+    get:
+      tags:
+        - Audit & Logging (P5.8)
+      summary: Get audit logs for a committee
+      description: |
+        Process 5.8 - Logging & Audit Trail
+        Output: auditLogRecord from D9 (System Logs)
+        Tracks: CREATE, UPDATE, DELETE, ASSIGN, REMOVE operations
+      operationId: getCommitteeAuditLogs
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogListResponse"
+
+  /committees/{committeeId}/notify:
+    post:
+      tags:
+        - Notifications (P5.7)
+      summary: Send notification to committee members
+      description: |
+        Process 5.7 - Notify Committee Members
+        Input: notificationData (message, recipients)
+        Output: notificationRecord → D10 (Notifications)
+      operationId: sendNotification
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          description: Committee ID
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendNotificationRequest"
+      responses:
+        "200":
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationResponse"
+        "400":
+          description: Invalid notification data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Committee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /committees/{committeeId}/notifications:
+    get:
+      tags:
+        - Notifications (P5.7)
+      summary: Get notifications for a committee
+      description: |
+        Process 5.7 - View Committee Notifications
+        Returns all notifications related to a committee from D10 (Notifications)
+      operationId: getCommitteeNotifications
+      parameters:
+        - name: committeeId
+          in: path
+          required: true
+          description: Committee ID
+          schema:
+            type: integer
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Committee notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationListResponse"
+        "404":
+          description: Committee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /committees/notifications:
+    get:
+      tags:
+        - Notifications (P5.7)
+      summary: Get all system notifications
+      description: |
+        Process 5.7 - Get all notifications from D10 (Notifications)
+      operationId: getAllNotifications
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationListResponse"
+
+  /committees/audit-logs:
+    get:
+      tags:
+        - Audit & Logging (P5.8)
+      summary: Get all system audit logs
+      description: |
+        Process 5.8 - Get all audit logs from D9 (System Logs)
+      operationId: getAllAuditLogs
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All audit logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogListResponse"
+
+components:
+  schemas:
+    CommitteeCreateRequest:
+      type: object
+      required:
+        - committeeName
+        - status
+      properties:
+        committeeName:
+          type: string
+          example: "Bilgisayar Mühendisliği Bitirme Komitesi"
+        description:
+          type: string
+          nullable: true
+          example: "2024-2025 Bitirme Projesi Sınav Komitesi"
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+            - COMPLETED
+          example: "ACTIVE"
+
+    CommitteeUpdateRequest:
+      type: object
+      properties:
+        committeeName:
+          type: string
+          example: "Bilgisayar Mühendisliği Bitirme Komitesi (Güncellendi)"
+        description:
+          type: string
+          example: "Yeni açıklama"
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+            - COMPLETED
+
+    AdvisorAssignmentRequest:
+      type: object
+      required:
+        - committeeId
+        - advisorId
+        - role
+      properties:
+        committeeId:
+          type: integer
+          example: 1
+        advisorId:
+          type: integer
+          example: 5
+        role:
+          type: string
+          enum:
+            - PRESIDENT
+            - VICE_PRESIDENT
+            - MEMBER
+          example: "PRESIDENT"
+
+    JuryAssignmentRequest:
+      type: object
+      required:
+        - committeeId
+        - juryMemberId
+        - juryType
+      properties:
+        committeeId:
+          type: integer
+          example: 1
+        juryMemberId:
+          type: integer
+          example: 6
+        juryType:
+          type: string
+          enum:
+            - INTERNAL
+            - EXTERNAL
+            - ADDITIONAL
+          example: "EXTERNAL"
+
+    GroupCommitteeAssignmentRequest:
+      type: object
+      required:
+        - committeeId
+        - groupId
+        - status
+      properties:
+        committeeId:
+          type: integer
+          example: 1
+        groupId:
+          type: integer
+          example: 100
+        status:
+          type: string
+          enum:
+            - ASSIGNED
+            - SCHEDULED
+          example: "SCHEDULED"
+        examDate:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-06-15T14:00:00Z"
+
+    CommitteeResponse:
+      type: object
+      properties:
+        committeeId:
+          type: integer
+          example: 1
+        committeeName:
+          type: string
+          example: "Bilgisayar Mühendisliği Bitirme Komitesi"
+        description:
+          type: string
+          example: "2024-2025 Bitirme Projesi Sınav Komitesi"
+        status:
+          type: string
+          example: "ACTIVE"
+        createdBy:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-04-13T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-04-13T10:00:00Z"
+        advisors:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdvisorAssignmentResponse"
+        juryMembers:
+          type: array
+          items:
+            $ref: "#/components/schemas/JuryMemberResponse"
+        groupAssignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupAssignmentResponse"
+
+    CommitteeListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Committees retrieved successfully"
+        count:
+          type: integer
+          example: 5
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommitteeResponse"
+
+    AdvisorAssignmentResponse:
+      type: object
+      properties:
+        committeeAdvisorId:
+          type: integer
+          example: 10
+        committeeId:
+          type: integer
+          example: 1
+        advisorId:
+          type: integer
+          example: 5
+        advisorName:
+          type: string
+          example: "Dr. Ahmet Yılmaz"
+        advisorEmail:
+          type: string
+          format: email
+          example: "ayilmaz@university.edu.tr"
+        role:
+          type: string
+          example: "PRESIDENT"
+        assignedAt:
+          type: string
+          format: date-time
+          example: "2025-04-13T10:15:00Z"
+
+    AdvisorListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Advisors retrieved successfully"
+        count:
+          type: integer
+          example: 3
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdvisorAssignmentResponse"
+
+    AdvisorCommitteeListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Committees for advisor retrieved successfully"
+        count:
+          type: integer
+          example: 2
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdvisorAssignmentResponse"
+
+    JuryMemberResponse:
+      type: object
+      properties:
+        juryMemberId:
+          type: integer
+          example: 20
+        committeeId:
+          type: integer
+          example: 1
+        juryMemberId2:
+          type: integer
+          example: 6
+        juryMemberName:
+          type: string
+          example: "Prof. Fatma Kaya"
+        juryMemberEmail:
+          type: string
+          format: email
+          example: "fkaya@university.edu.tr"
+        juryType:
+          type: string
+          example: "EXTERNAL"
+        assignedAt:
+          type: string
+          format: date-time
+          example: "2025-04-13T10:20:00Z"
+
+    JuryListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Jury members retrieved successfully"
+        count:
+          type: integer
+          example: 3
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/JuryMemberResponse"
+
+    JuryCommitteeListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Committees for jury member retrieved successfully"
+        count:
+          type: integer
+          example: 2
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/JuryMemberResponse"
+
+    GroupAssignmentResponse:
+      type: object
+      properties:
+        assignmentId:
+          type: integer
+          example: 50
+        committeeId:
+          type: integer
+          example: 1
+        groupId:
+          type: integer
+          example: 100
+        status:
+          type: string
+          enum:
+            - ASSIGNED
+            - SCHEDULED
+            - COMPLETED
+            - CANCELLED
+          example: "SCHEDULED"
+        examDate:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-06-15T14:00:00Z"
+        assignedAt:
+          type: string
+          format: date-time
+          example: "2025-04-13T10:25:00Z"
+
+    GroupListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Groups retrieved successfully"
+        count:
+          type: integer
+          example: 4
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupAssignmentResponse"
+
+    GroupCommitteeListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Committees for group retrieved successfully"
+        count:
+          type: integer
+          example: 1
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupAssignmentResponse"
+
+    AuditLogResponse:
+      type: object
+      properties:
+        logId:
+          type: integer
+          example: 1
+        userId:
+          type: integer
+          example: 1
+        action:
+          type: string
+          enum:
+            - CREATE
+            - UPDATE
+            - DELETE
+            - ASSIGN
+            - REMOVE
+          example: "CREATE"
+        entityType:
+          type: string
+          enum:
+            - COMMITTEE
+            - ADVISOR
+            - JURY
+            - GROUP_ASSIGNMENT
+          example: "COMMITTEE"
+        entityId:
+          type: integer
+          example: 1
+        description:
+          type: string
+          example: "Committee created: Bilgisayar Mühendisliği Bitirme Komitesi"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-04-13T10:00:00Z"
+
+    AuditLogListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Audit logs retrieved successfully"
+        count:
+          type: integer
+          example: 15
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogResponse"
+
+    DeleteResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Resource deleted successfully"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Committee not found or invalid input"
+        code:
+          type: string
+          example: "COMMITTEE_NOT_FOUND"
+
+    ValidationResultResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "All validations passed successfully"
+        isValid:
+          type: boolean
+          example: true
+        validatedAt:
+          type: string
+          format: date-time
+          example: "2025-04-13T10:30:00Z"
+        details:
+          type: object
+          properties:
+            assignmentRulesValid:
+              type: boolean
+              example: true
+            scheduleValid:
+              type: boolean
+              example: true
+            allChecksValid:
+              type: boolean
+              example: true
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Validation Failed"
+        message:
+          type: string
+          example: "Committee does not meet minimum member requirements"
+        code:
+          type: string
+          example: "VALIDATION_FAILED"
+        validationErrors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: "advisors"
+              rule:
+                type: string
+                example: "MINIMUM_COMMITTEE_SIZE"
+              message:
+                type: string
+                example: "Committee must have at least 3 advisors"
+
+    AssignmentValidationResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Assignment validation passed"
+        isValid:
+          type: boolean
+          example: true
+        advisorChecksPassed:
+          type: boolean
+          example: true
+        juryChecksPassed:
+          type: boolean
+          example: true
+        committeeCompositionValid:
+          type: boolean
+          example: true
+        details:
+          type: object
+          properties:
+            totalAdvisors:
+              type: integer
+              example: 3
+            totalJuryMembers:
+              type: integer
+              example: 2
+            committeeSizeRequirement:
+              type: string
+              example: "Minimum 3 advisors, 1-2 jury members"
+            duplicateChecksPassed:
+              type: boolean
+              example: true
+
+    ScheduleValidationRequest:
+      type: object
+      required:
+        - examDate
+      properties:
+        examDate:
+          type: string
+          format: date-time
+          description: Proposed exam date for group assignment
+          example: "2025-06-15T14:00:00Z"
+        groupId:
+          type: integer
+          nullable: true
+          description: Optional - validate for specific group
+          example: 100
+
+    ScheduleValidationResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Schedule validation passed - no conflicts detected"
+        isValid:
+          type: boolean
+          example: true
+        examDateAvailable:
+          type: boolean
+          example: true
+        committeeAvailable:
+          type: boolean
+          example: true
+        roomAvailable:
+          type: boolean
+          example: true
+        details:
+          type: object
+          properties:
+            proposedExamDate:
+              type: string
+              format: date-time
+              example: "2025-06-15T14:00:00Z"
+            conflictingAssignments:
+              type: array
+              items:
+                type: object
+                properties:
+                  assignmentId:
+                    type: integer
+                  groupId:
+                    type: integer
+                  conflictingDate:
+                    type: string
+                    format: date-time
+            conflictCount:
+              type: integer
+              example: 0
+
+    ValidationRulesResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Validation rules retrieved successfully"
+        rules:
+          type: object
+          properties:
+            committeeSizeRules:
+              type: object
+              properties:
+                minimumAdvisors:
+                  type: integer
+                  example: 3
+                maximumAdvisors:
+                  type: integer
+                  example: 5
+                minimumJuryMembers:
+                  type: integer
+                  example: 1
+                maximumJuryMembers:
+                  type: integer
+                  example: 2
+            advisorQualificationRules:
+              type: array
+              items:
+                type: string
+              example:
+                - "Advisor must have faculty status"
+                - "No duplicate advisors in committee"
+                - "Advisor cannot hold multiple roles"
+            scheduleRules:
+              type: array
+              items:
+                type: string
+              example:
+                - "Exam date must be in future"
+                - "Committee members must be available"
+                - "No overlapping exam times"
+                - "Minimum 1 week notice for exam scheduling"
+            groupAssignmentRules:
+              type: array
+              items:
+                type: string
+              example:
+                - "Each group assigned to exactly one committee"
+                - "Group status must be ACTIVE or READY_FOR_EXAM"
+                - "Committee must be ACTIVE"
+        validationVersion:
+          type: string
+          example: "1.0.0"
+        lastUpdated:
+          type: string
+          format: date-time
+          example: "2025-04-13T09:00:00Z"
+
+    SendNotificationRequest:
+      type: object
+      required:
+        - message
+        - notificationType
+      properties:
+        message:
+          type: string
+          description: Notification message content
+          example: "Committee assignment completed - meeting scheduled for June 15, 2025"
+        notificationType:
+          type: string
+          description: Type of notification
+          enum:
+            - ADVISOR_ASSIGNMENT
+            - JURY_ASSIGNMENT
+            - GROUP_ASSIGNMENT
+            - SCHEDULE_CHANGE
+            - MEETING_REMINDER
+            - GENERAL
+          example: "ADVISOR_ASSIGNMENT"
+        recipients:
+          type: array
+          items:
+            type: integer
+          description: Optional - specific user IDs to notify. If omitted, all committee members are notified
+          example: [5, 6, 7]
+
+    NotificationResponse:
+      type: object
+      properties:
+        notificationId:
+          type: integer
+          example: 1
+        committeeId:
+          type: integer
+          example: 1
+        message:
+          type: string
+          example: "Committee assignment completed - meeting scheduled for June 15, 2025"
+        notificationType:
+          type: string
+          example: "ADVISOR_ASSIGNMENT"
+        sentBy:
+          type: integer
+          description: User ID who sent the notification
+          example: 1
+        recipientCount:
+          type: integer
+          description: Number of recipients who received this notification
+          example: 3
+        sentAt:
+          type: string
+          format: date-time
+          example: "2025-04-13T10:35:00Z"
+
+    NotificationListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Notifications retrieved successfully"
+        count:
+          type: integer
+          example: 5
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationResponse" 

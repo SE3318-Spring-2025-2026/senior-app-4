@@ -1,4 +1,5 @@
 import { getToken } from "@/lib/auth";
+import { UserRole } from "@/types/enums";
 
 export type ProfessorDirectoryItem = {
     userId: number;
@@ -49,7 +50,7 @@ function getAuthHeaders() {
 export async function fetchProfessors(): Promise<ProfessorDirectoryItem[]> {
     // TODO(#80): replace the generic professor directory with a dedicated
     // "available professors" endpoint once backend filtering/availability data lands.
-    const res = await fetch(`${API_BASE}/users?role=professor`, {
+    const res = await fetch(`${API_BASE}/users?role=${UserRole.PROFESSOR}`, {
         method: "GET",
         headers: {
             Authorization: getAuthHeaders().Authorization,
@@ -90,7 +91,7 @@ export async function createAdvisorRequest(groupId: number, professorId: number)
     const res = await fetch(`${API_BASE}/advisor-requests`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ teamId: String(groupId), professorId }),
+        body: JSON.stringify({ teamId: groupId, professorId }),
     });
 
     if (!res.ok) {

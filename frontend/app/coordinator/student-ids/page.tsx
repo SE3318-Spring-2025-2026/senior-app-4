@@ -281,7 +281,10 @@ function StudentList() {
         headers,
         });
 
-        if (!res.ok) throw new Error("Failed to fetch users");
+        if (!res.ok) {
+          console.warn(`Failed to fetch users: ${res.status}`);
+          return;
+        }
 
         const data = await res.json();
         

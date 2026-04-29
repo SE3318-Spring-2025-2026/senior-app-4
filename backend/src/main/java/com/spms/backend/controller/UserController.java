@@ -8,7 +8,9 @@ import com.spms.backend.dto.response.UserCreateResponse;
 import com.spms.backend.dto.response.UserListResponse;
 import com.spms.backend.dto.response.UserResponse;
 import com.spms.backend.exception.BadRequestException;
+import com.spms.backend.model.GroupMember;
 import com.spms.backend.model.User;
+import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.StudentRegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,11 +19,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Tag(name = "User Store")
@@ -33,11 +37,14 @@ public class UserController {
 
     private final StudentRegistrationService studentRegistrationService;
     private final UserRepository userRepository;
+    private final GroupMemberRepository groupMemberRepository;
 
     public UserController(StudentRegistrationService studentRegistrationService,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          GroupMemberRepository groupMemberRepository) {
         this.studentRegistrationService = studentRegistrationService;
         this.userRepository = userRepository;
+        this.groupMemberRepository = groupMemberRepository;
     }
 
     @Operation(summary = "Get the currently authenticated user's profile")
@@ -64,22 +71,29 @@ public class UserController {
 
     @Operation(summary = "List all users, optionally filtered by role")
     @GetMapping
+    @Transactional(readOnly = true)
     public ResponseEntity<UserListResponse> getAllUsers(
             @RequestParam(required = false) String role
     ) {
         List<User> users;
         if (StringUtils.hasText(role)) {
-            users = userRepository.findAllByRole(role);
+            users = userRepository.findAllByRoleIgnoreCase(role);
         } else {
             users = userRepository.findAll();
         }
 
         List<UserResponse.UserData> data = users.stream()
-                .map(u -> new UserResponse.UserData(
-                        u.getUserId(), u.getFullName(), u.getEmail(),
-                        u.getStudentId(), u.getGithubUsername(), u.getRole(),
-                        u.getCreatedAt() != null ? u.getCreatedAt().toString() : null
-                ))
+                .map(u -> {
+                    Optional<GroupMember> membership = groupMemberRepository.findTopByUser_UserId(u.getUserId());
+                    Long groupId = membership.map(m -> m.getGroup().getId()).orElse(null);
+                    String groupName = membership.map(m -> m.getGroup().getGroupName()).orElse(null);
+                    return new UserResponse.UserData(
+                            u.getUserId(), u.getFullName(), u.getEmail(),
+                            u.getStudentId(), u.getGithubUsername(), u.getRole(),
+                            u.getCreatedAt() != null ? u.getCreatedAt().toString() : null,
+                            groupId, groupName
+                    );
+                })
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(new UserListResponse(

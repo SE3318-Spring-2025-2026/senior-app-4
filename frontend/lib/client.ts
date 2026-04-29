@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { showToast } from '../components/toast/ToastContext';
+import { getToken } from './auth';
 
 // Create API Client with Base URL
 const apiClient = axios.create({
@@ -8,6 +9,20 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Add Authorization Header to Requests
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // Configure Global Error Handling Interceptor
 apiClient.interceptors.response.use(
@@ -21,8 +36,8 @@ apiClient.interceptors.response.use(
 
       switch (status) {
         case 401:
-          // Redirect to /login
-          window.location.href = '/login';
+          // Redirect to /auth/login
+          window.location.href = '/auth/login';
           break;
         case 403:
           showToast("You don't have permission", 'error');

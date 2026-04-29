@@ -10,8 +10,10 @@ import org.springframework.stereotype.Repository;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupStatus;
 
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
 @Repository
-public interface GroupRepository extends JpaRepository<Group, Long> {
+public interface GroupRepository extends JpaRepository<Group, Long>, JpaSpecificationExecutor<Group> {
 
     // --- Takım arkadaşlarının eski metotları (Korundu) ---
     java.util.List<Group> findByStatus(com.spms.backend.model.GroupStatus status);

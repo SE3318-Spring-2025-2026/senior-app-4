@@ -3,6 +3,7 @@ package com.spms.backend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.dto.request.StudentUserCreateRequest;
 import com.spms.backend.exception.GlobalExceptionHandler;
+import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.InMemoryUserRepository;
 import com.spms.backend.repository.InMemoryValidStudentIdRepository;
 import com.spms.backend.service.StudentRegistrationService;
@@ -13,6 +14,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
+import java.util.Optional;
+
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,11 +35,17 @@ class UserControllerTest {
         validator.afterPropertiesSet();
 
         InMemoryUserRepository userRepository = new InMemoryUserRepository();
+
+        // Mock GroupMemberRepository — always returns empty (no group membership needed for these tests)
+        GroupMemberRepository groupMemberRepository = mock(GroupMemberRepository.class);
+        when(groupMemberRepository.findTopByUser_UserId(anyLong())).thenReturn(Optional.empty());
+
         UserController userController = new UserController(
                 new StudentRegistrationService(
                         userRepository,
                         new InMemoryValidStudentIdRepository()),
-                userRepository
+                userRepository,
+                groupMemberRepository
         );
 
         mockMvc = MockMvcBuilders.standaloneSetup(userController)

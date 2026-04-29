@@ -194,6 +194,48 @@ class AdvisorAssignmentServiceImplTest {
                     .sorted(Comparator.comparing(Group::getId))
                     .toList();
         }
+
+        @Override
+        public <S extends Group, R> R findBy(
+                org.springframework.data.jpa.domain.Specification<Group> spec,
+                java.util.function.Function<org.springframework.data.repository.query.FluentQuery.FetchableFluentQuery<S>, R> queryFunction) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Page<Group> findAll(org.springframework.data.jpa.domain.Specification<Group> spec, Pageable pageable) {
+            return Page.empty(pageable);
+        }
+
+        @Override
+        public List<Group> findAll(org.springframework.data.jpa.domain.Specification<Group> spec) {
+            return List.of();
+        }
+
+        @Override
+        public List<Group> findAll(org.springframework.data.jpa.domain.Specification<Group> spec, org.springframework.data.domain.Sort sort) {
+            return List.of();
+        }
+
+        @Override
+        public Optional<Group> findOne(org.springframework.data.jpa.domain.Specification<Group> spec) {
+            return Optional.empty();
+        }
+
+        @Override
+        public long count(org.springframework.data.jpa.domain.Specification<Group> spec) {
+            return 0;
+        }
+
+        @Override
+        public boolean exists(org.springframework.data.jpa.domain.Specification<Group> spec) {
+            return false;
+        }
+
+        @Override
+        public long delete(org.springframework.data.jpa.domain.Specification<Group> spec) {
+            return 0;
+        }
     }
 
     static class StubAuditLogRepository

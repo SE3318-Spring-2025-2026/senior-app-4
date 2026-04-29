@@ -92,7 +92,7 @@ public class InMemoryUserRepository extends AbstractStubJpaRepository<User, Long
     }
 
     @Override
-    public List<User> findAllByRole(String role) {
+    public List<User> findAllByRoleIgnoreCase(String role) {
         return usersById.values().stream()
                 .filter(u -> role.equalsIgnoreCase(u.getRole()))
                 .map(User::new)

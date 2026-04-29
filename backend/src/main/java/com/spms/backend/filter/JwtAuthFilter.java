@@ -78,8 +78,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         // Claims'i request attribute olarak sakla (controller'lardan erişilebilir)
         request.setAttribute("jwt_claims", claims);
-        request.setAttribute("jwt_userId", claims.get("userId"));
-        request.setAttribute("jwt_role", claims.get("role"));
+
+        // Rol kontrolü — null/boş rol varsa token hatalı sayılır
+        Object userId = claims.get("userId");
+        Object role   = claims.get("role");
+        if (userId == null || role == null || role.toString().isBlank()) {
+            sendUnauthorized(response, "Token is missing required claims (userId or role).");
+            return;
+        }
+
+        request.setAttribute("jwt_userId", userId);
+        request.setAttribute("jwt_role", role);
 
         filterChain.doFilter(request, response);
     }

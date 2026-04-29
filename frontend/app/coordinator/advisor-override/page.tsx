@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getToken, getUser } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
+import { UserRole } from "@/types/enums";
 import {
     fetchAdvisorAssignments,
     overrideAdvisorAssignment,
@@ -98,7 +99,7 @@ function OverridePanel() {
         const token = getToken();
         Promise.all([
             fetchAdvisorAssignments(),
-            fetch(`${API_BASE}/users?role=professor`, {
+            fetch(`${API_BASE}/users?role=${UserRole.PROFESSOR}`, {
                 headers: { Authorization: `Bearer ${token ?? ""}` },
             }).then((r) => r.ok ? r.json() : { data: [] }),
         ]).then(([assignmentData, userData]) => {
