@@ -120,7 +120,7 @@ class GroupWorkflowControllerTest {
                 1L, "Existing Group", 1L, null, "FORMING", 1, Instant.now());
         Page<GroupResponseDto> page = new PageImpl<>(List.of(dto), PageRequest.of(0, 20), 1);
 
-        when(groupService.getGroups(any(Pageable.class), eq(1L), eq("student")))
+        when(groupService.getGroups(any(Pageable.class), eq(1L), eq("student"), any(), any(), any()))
                 .thenReturn(page);
 
         mockMvc.perform(get("/api/v1/groups")
