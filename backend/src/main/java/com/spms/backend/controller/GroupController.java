@@ -77,14 +77,17 @@ public class GroupController {
 
     @GetMapping
     public ResponseEntity<Page<GroupResponseDto>> getGroups(
-            @ParameterObject Pageable pageable,  // <-- SADECE BURAYA @ParameterObject EKLENDİ
+            @ParameterObject Pageable pageable,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String advisorAssigned,
+            @RequestParam(required = false) String groupName,
             @RequestAttribute("jwt_userId") Object userId,
             @RequestAttribute("jwt_role") Object role) {
 
         Long requesterId = Long.valueOf(userId.toString());
         String requesterRole = role.toString();
 
-        return ResponseEntity.ok(groupService.getGroups(pageable, requesterId, requesterRole));
+        return ResponseEntity.ok(groupService.getGroups(pageable, requesterId, requesterRole, status, advisorAssigned, groupName));
     }
 
     
@@ -148,12 +151,20 @@ public class GroupController {
     }
 
     @DeleteMapping("/{groupId}/members/{studentId}")
-        public ResponseEntity<Void> removeMember(
+    public ResponseEntity<Void> removeMember(
         @PathVariable Long groupId,
         @PathVariable String studentId) {
         groupService.removeMember(groupId, studentId);
         return ResponseEntity.noContent().build();
-}
+    }
+
+    @PostMapping("/{groupId}/members/{studentId}")
+    public ResponseEntity<Void> addMember(
+        @PathVariable Long groupId,
+        @PathVariable String studentId) {
+        groupService.addMember(groupId, studentId);
+        return ResponseEntity.ok().build();
+    }
     @DeleteMapping("/{groupId}")
     public ResponseEntity<?> disbandGroup(
             @PathVariable Long groupId,

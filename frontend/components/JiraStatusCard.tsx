@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDate } from "@/lib/format-utils";
+
 type JiraIntegrationData = {
     status: string;
     jiraSpaceUrl: string | null;
@@ -14,14 +16,6 @@ type Props = {
 
 export default function JiraStatusCard({ integration }: Props) {
     const isConnected = integration?.status === "active";
-
-    const formatDate = (date?: string | null) => {
-        if (!date) return "-";
-        return new Date(date).toLocaleString("en-US", {
-            dateStyle: "medium",
-            timeStyle: "short",
-        });
-    };
 
     return (
         <div className="bg-gray-900/80 border border-white/10 rounded-2xl p-6 shadow-lg">

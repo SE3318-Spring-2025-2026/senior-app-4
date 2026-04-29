@@ -2,7 +2,9 @@ package com.spms.backend.model;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import org.hibernate.annotations.BatchSize;
 
+@BatchSize(size = 50)
 @Entity
 @Table(name = "users")
 public class User {

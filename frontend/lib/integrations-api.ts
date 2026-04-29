@@ -1,4 +1,5 @@
 import { getToken } from "@/lib/auth";
+import { API_BASE, parseError } from "@/lib/api-utils";
 
 export type GithubIntegrationApiResponse = {
     success: boolean;
@@ -21,17 +22,6 @@ export type JiraIntegrationApiResponse = {
     };
 };
 
-const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
-
-async function parseError(res: Response) {
-    try {
-        const data = await res.json();
-        return data?.message || data?.error || "Request failed.";
-    } catch {
-        return "Request failed.";
-    }
-}
 
 export async function fetchGithubIntegration(
     groupId: number

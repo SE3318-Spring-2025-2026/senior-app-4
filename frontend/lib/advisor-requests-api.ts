@@ -1,7 +1,4 @@
-import { getToken } from "@/lib/auth";
-
-const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+import { API_BASE, buildHeaders, parseError } from "@/lib/api-utils";
 
 export type AdvisorRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "WITHDRAWN";
 
@@ -38,21 +35,6 @@ export type AdvisorDecisionResponse = {
     };
 };
 
-function buildHeaders(): Record<string, string> {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const token = getToken();
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    return headers;
-}
-
-async function parseError(res: Response): Promise<string> {
-    try {
-        const data = await res.json();
-        return data?.message || data?.error || "Request failed.";
-    } catch {
-        return "Request failed.";
-    }
-}
 
 export async function fetchPendingRequests(): Promise<AdvisorRequestSummary[]> {
     const res = await fetch(`${API_BASE}/advisor-requests?status=PENDING`, {

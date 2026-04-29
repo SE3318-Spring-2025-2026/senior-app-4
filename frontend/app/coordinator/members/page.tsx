@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { getToken, getUser } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import apiClient from "@/lib/client";
+import { UserRole } from "@/types/enums";
 
 // Types based on likely API responses
 type Student = {
-    id: number;
+    userId: number;
+    studentId: string;
     fullName: string;
     email: string;
     groupId?: number | null;
@@ -22,24 +23,9 @@ type Group = {
 };
 
 export default function CoordinatorMembersPage() {
-    const router = useRouter();
-    const [role, setRole] = useState<string | null>(null);
+    const authStatus = useAuthGuard("coordinator");
 
-    useEffect(() => {
-        const token = getToken();
-        const user = getUser();
-        if (!token || !user) {
-            router.replace("/auth/login");
-            return;
-        }
-        if (user.requiresPasswordChange) {
-            router.replace("/auth/change-password");
-            return;
-        }
-        setRole(user.role);
-    }, [router]);
-
-    if (role === null) return (
+    if (authStatus === "loading") return (
         <div className="min-h-screen bg-gray-950 flex items-center justify-center">
             <svg className="w-6 h-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -48,7 +34,7 @@ export default function CoordinatorMembersPage() {
         </div>
     );
 
-    if (role !== "coordinator") return <AccessDenied />;
+    if (authStatus === "denied") return <AccessDenied />;
     return <DashboardLayout />;
 }
 
@@ -78,57 +64,49 @@ function DashboardLayout() {
     const [selectedGroups, setSelectedGroups] = useState<Record<number, string>>({});
 
     useEffect(() => {
-        // Fetch all groups for the assignment dropdown
-        apiClient.get('/groups?size=1000')
-            .then(res => {
-                if (res.data && res.data.content) {
-                    setGroups(res.data.content.map((g: any) => ({ id: g.id, groupName: g.groupName })));
+        setLoading(true);
+        Promise.all([
+            apiClient.get(`/users?role=${UserRole.STUDENT}`),
+            apiClient.get('/groups?size=1000&page=0'),
+        ])
+            .then(([studentsRes, groupsRes]) => {
+                const data = Array.isArray(studentsRes.data) ? studentsRes.data : studentsRes.data.data || [];
+                setStudents(data);
+                if (groupsRes.data?.content) {
+                    setGroups(groupsRes.data.content.map((g: any) => ({ id: g.id, groupName: g.groupName })));
                 }
             })
-            .catch(() => console.error("Failed to load groups"));
+            .catch((error) => console.error(error))
+            .finally(() => setLoading(false));
     }, []);
 
-    const handleSearch = async () => {
-        if (!search.trim()) {
-            setStudents([]);
-            return;
-        }
+    const filteredStudents = students.filter(student => {
+        if (!search.trim()) return true;
+        const query = search.toLowerCase();
+        const idStr = student.studentId ? String(student.studentId).toLowerCase() : "";
+        const nameStr = student.fullName ? student.fullName.toLowerCase() : "";
+        const emailStr = student.email ? student.email.toLowerCase() : "";
+        return nameStr.includes(query) || idStr.includes(query) || emailStr.includes(query);
+    });
 
-        setLoading(true);
-        try {
-            // Using /users endpoint since it's commonly available, filtering for students
-            const res = await apiClient.get(`/users?role=STUDENT&search=${encodeURIComponent(search)}`);
-            // Adapt to the actual response structure. Assume it's an array or has a content array.
-            const data = Array.isArray(res.data) ? res.data : res.data.content || [];
-            
-            // For robust UI, let's also fetch students directly if /users fails or returns empty
-            if (data.length === 0) {
-                const altRes = await apiClient.get(`/students?search=${encodeURIComponent(search)}`).catch(() => null);
-                if (altRes && Array.isArray(altRes.data)) {
-                    setStudents(altRes.data);
-                    return;
-                }
-            }
-            setStudents(data);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleAssign = async (studentId: number) => {
-        const groupId = selectedGroups[studentId];
+    const handleAssign = async (userId: number, studentId: string) => {
+        const groupId = selectedGroups[userId];
         if (!groupId) {
             toast.error("Please select a group first.");
             return;
         }
 
-        setActionLoading(studentId);
+        setActionLoading(userId);
         try {
-            await apiClient.post(`/groups/${groupId}/members`, { studentId });
+            await apiClient.post(`/groups/${groupId}/members/${studentId}`);
             toast.success("Student successfully assigned to group.");
-            handleSearch(); // Refresh list
+            const assignedGroup = groups.find(g => String(g.id) === String(groupId));
+            setStudents(prev => prev.map(s =>
+                s.userId === userId
+                    ? { ...s, groupId: Number(groupId), groupName: assignedGroup?.groupName ?? null }
+                    : s
+            ));
+            setSelectedGroups(prev => { const next = { ...prev }; delete next[userId]; return next; });
         } catch (error) {
             console.error(error);
         } finally {
@@ -136,14 +114,16 @@ function DashboardLayout() {
         }
     };
 
-    const handleRemove = async (studentId: number, groupId: number) => {
+    const handleRemove = async (userId: number, studentId: string, groupId: number) => {
         if (!confirm("Are you sure you want to remove this student from their group?")) return;
 
-        setActionLoading(studentId);
+        setActionLoading(userId);
         try {
             await apiClient.delete(`/groups/${groupId}/members/${studentId}`);
             toast.success("Student successfully removed from group.");
-            handleSearch(); // Refresh list
+            setStudents(prev => prev.map(s =>
+                s.userId === userId ? { ...s, groupId: null, groupName: null } : s
+            ));
         } catch (error) {
             console.error(error);
         } finally {
@@ -153,7 +133,7 @@ function DashboardLayout() {
 
     return (
         <div className="min-h-screen bg-gray-950 flex">
-            <Sidebar activePage="student-ids" />
+            <Sidebar activePage="members" />
 
             <main className="flex-1 flex flex-col min-w-0">
                 <div className="border-b border-white/5 px-8 py-4 flex items-center justify-between">
@@ -174,15 +154,8 @@ function DashboardLayout() {
                                     placeholder="Search by name, email, or ID..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                                     className="flex-1 bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none"
                                 />
-                                <button
-                                    onClick={handleSearch}
-                                    className="bg-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-blue-500 transition-colors"
-                                >
-                                    Search
-                                </button>
                             </div>
                         </div>
 
@@ -193,7 +166,7 @@ function DashboardLayout() {
                             </div>
                         )}
 
-                        {!loading && students.length > 0 && (
+                        {!loading && filteredStudents.length > 0 && (
                             <div className="bg-gray-900 border border-white/10 rounded-2xl overflow-hidden shadow-xl shadow-black/20">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
@@ -205,10 +178,10 @@ function DashboardLayout() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
-                                        {students.map((student) => (
-                                            <tr key={student.id} className="hover:bg-white/5 transition-colors">
+                                        {filteredStudents.map((student) => (
+                                            <tr key={student.userId} className="hover:bg-white/5 transition-colors">
                                                 <td className="px-6 py-4">
-                                                    <div className="text-sm font-medium text-white">{student.fullName || `Student #${student.id}`}</div>
+                                                    <div className="text-sm font-medium text-white">{student.fullName || `Student #${student.studentId || student.userId}`}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="text-sm text-gray-400">{student.email || 'N/A'}</div>
@@ -225,17 +198,17 @@ function DashboardLayout() {
                                                 <td className="px-6 py-4 text-right">
                                                     {student.groupId ? (
                                                         <button
-                                                            onClick={() => handleRemove(student.id, student.groupId!)}
-                                                            disabled={actionLoading === student.id}
+                                                            onClick={() => handleRemove(student.userId, student.studentId, student.groupId!)}
+                                                            disabled={actionLoading === student.userId}
                                                             className="text-sm bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1.5 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
                                                         >
-                                                            {actionLoading === student.id ? 'Removing...' : 'Remove'}
+                                                            {actionLoading === student.userId ? 'Removing...' : 'Remove'}
                                                         </button>
                                                     ) : (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <select
-                                                                value={selectedGroups[student.id] || ""}
-                                                                onChange={(e) => setSelectedGroups(prev => ({ ...prev, [student.id]: e.target.value }))}
+                                                                value={selectedGroups[student.userId] || ""}
+                                                                onChange={(e) => setSelectedGroups(prev => ({ ...prev, [student.userId]: e.target.value }))}
                                                                 className="bg-black/40 border border-white/10 text-sm text-white rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-blue-500 outline-none max-w-[150px]"
                                                             >
                                                                 <option value="">Select Group...</option>
@@ -244,11 +217,11 @@ function DashboardLayout() {
                                                                 ))}
                                                             </select>
                                                             <button
-                                                                onClick={() => handleAssign(student.id)}
-                                                                disabled={actionLoading === student.id || !selectedGroups[student.id]}
+                                                                onClick={() => handleAssign(student.userId, student.studentId)}
+                                                                disabled={actionLoading === student.userId || !selectedGroups[student.userId]}
                                                                 className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                             >
-                                                                {actionLoading === student.id ? 'Assigning...' : 'Assign'}
+                                                                {actionLoading === student.userId ? 'Assigning...' : 'Assign'}
                                                             </button>
                                                         </div>
                                                     )}
@@ -260,7 +233,7 @@ function DashboardLayout() {
                             </div>
                         )}
 
-                        {!loading && search && students.length === 0 && (
+                        {!loading && search && filteredStudents.length === 0 && (
                             <div className="text-center py-10 bg-gray-900 border border-dashed border-white/10 rounded-2xl">
                                 <p className="text-gray-400">No students found matching your search.</p>
                             </div>

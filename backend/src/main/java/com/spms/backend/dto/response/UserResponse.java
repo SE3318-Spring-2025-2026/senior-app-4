@@ -13,7 +13,9 @@ public record UserResponse(
             String studentId,
             String githubUsername,
             String role,
-            String createdAt
+            String createdAt,
+            Long groupId,
+            String groupName
     ) {}
 
     public static UserResponse from(String message, User user) {
@@ -24,7 +26,9 @@ public record UserResponse(
                 user.getStudentId(),
                 user.getGithubUsername(),
                 user.getRole(),
-                user.getCreatedAt() != null ? user.getCreatedAt().toString() : null
+                user.getCreatedAt() != null ? user.getCreatedAt().toString() : null,
+                null,
+                null
         ));
     }
 }

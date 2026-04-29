@@ -108,7 +108,7 @@ class SubmissionServiceTest {
             s.setId(500L);
             return s;
         });
-        when(userRepository.findAllByRole("COORDINATOR")).thenReturn(Collections.emptyList());
+        when(userRepository.findAllByRoleIgnoreCase("COORDINATOR")).thenReturn(Collections.emptyList());
         when(fileStorageService.store(any())).thenReturn("/api/v1/files/test.pdf");
 
         MockMultipartFile file = new MockMultipartFile("file", "file.pdf", "application/pdf", new byte[0]);
@@ -194,7 +194,7 @@ class SubmissionServiceTest {
         when(submissionRepository.findWithFilters(null, null, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(submission)));
 
-        SubmissionListResponse response = submissionService.listSubmissions(1L, "COORDINATOR", null, null, null, null, pageable);
+        SubmissionListResponse response = submissionService.listSubmissions(1L, "COORDINATOR", null, null, null, null, null, pageable);
 
         assertEquals("success", response.status());
         assertEquals(1, response.data().size());
@@ -214,7 +214,7 @@ class SubmissionServiceTest {
         when(submissionRepository.findWithFilters(25L, null, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(submission)));
 
-        SubmissionListResponse response = submissionService.listSubmissions(55L, "STUDENT", null, null, null, null, pageable);
+        SubmissionListResponse response = submissionService.listSubmissions(55L, "STUDENT", null, null, null, null, null, pageable);
 
         assertEquals(1, response.data().size());
         assertEquals(25L, response.data().get(0).teamId());
@@ -227,14 +227,14 @@ class SubmissionServiceTest {
 
         assertThrows(
                 ForbiddenException.class,
-                () -> submissionService.listSubmissions(55L, "STUDENT", null, null, null, null, pageable));
+                () -> submissionService.listSubmissions(55L, "STUDENT", null, null, null, null, null, pageable));
     }
 
     @Test
     void listSubmissionsThrowsForbiddenForUnauthorizedRole() {
         assertThrows(
                 ForbiddenException.class,
-                () -> submissionService.listSubmissions(77L, "ADMIN", null, null, null, null, pageable));
+                () -> submissionService.listSubmissions(77L, "ADMIN", null, null, null, null, null, pageable));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -270,7 +270,7 @@ class SubmissionServiceTest {
             if (s.getId() == null) s.setId(201L);
             return s;
         });
-        when(userRepository.findAllByRole("COORDINATOR")).thenReturn(Collections.emptyList());
+        when(userRepository.findAllByRoleIgnoreCase("COORDINATOR")).thenReturn(Collections.emptyList());
         when(fileStorageService.store(any())).thenReturn("/api/v1/files/revision.pdf");
 
         MockMultipartFile revFile = new MockMultipartFile("file", "revision.pdf", "application/pdf", new byte[0]);

@@ -17,6 +17,7 @@ public interface SubmissionService {
     SubmissionListResponse listSubmissions(Long userId, String role,
                                            Long teamId, String status,
                                            Long committeeId, String deliverableType,
+                                           String deadlineStatus,
                                            Pageable pageable);
 
     SubmissionDetailResponse getSubmission(Long submissionId, Long userId, String role);

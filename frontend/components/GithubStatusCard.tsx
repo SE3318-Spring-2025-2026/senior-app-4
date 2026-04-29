@@ -1,6 +1,7 @@
 "use client";
 
 import { GithubIntegration } from "@/lib/github-types";
+import { formatDate } from "@/lib/format-utils";
 
 type Props = {
     integration?: {
@@ -18,14 +19,6 @@ export default function GithubStatusCard({ integration }: Props) {
         !!integration.organizationName &&
         status !== "inactive" &&
         status !== "error";
-
-    const formatDate = (date?: string | null) => {
-        if (!date) return "-";
-        return new Date(date).toLocaleString("en-US", {
-            dateStyle: "medium",
-            timeStyle: "short",
-        });
-    };
 
     return (
         <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">

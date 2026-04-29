@@ -189,7 +189,7 @@ public class ScheduleValidatorService {
     // ── Koordinatörün ID'sini bul ─────────────────────────────────────────
 
     private Long findCoordinatorId() {
-        return userRepository.findAllByRole("coordinator")
+        return userRepository.findAllByRoleIgnoreCase("coordinator")
                 .stream()
                 .findFirst()
                 .map(u -> u.getUserId())

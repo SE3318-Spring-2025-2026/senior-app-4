@@ -14,6 +14,7 @@ import com.spms.backend.model.Committee;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupCommitteeAssignment;
 import com.spms.backend.model.GroupMember;
+import com.spms.backend.model.Schedule;
 import com.spms.backend.model.Submission;
 import com.spms.backend.model.enums.DeliverableType;
 import com.spms.backend.model.enums.SubmissionStatus;
@@ -33,6 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -130,7 +132,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                     notificationService.createSystemAlert(jury.getJuryMember().getUserId(), notificationMsg,
                             "SUBMISSION_ALERT", "submissionId:" + savedSubmission.getId()));
         }
-        userRepository.findAllByRole("COORDINATOR").forEach(coordinator ->
+        userRepository.findAllByRoleIgnoreCase("COORDINATOR").forEach(coordinator ->
                 notificationService.createSystemAlert(coordinator.getUserId(), notificationMsg,
                         "SUBMISSION_ALERT", "submissionId:" + savedSubmission.getId()));
 
@@ -150,6 +152,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     public SubmissionListResponse listSubmissions(Long userId, String role,
                                                    Long teamId, String statusParam,
                                                    Long committeeId, String deliverableTypeParam,
+                                                   String deadlineStatus,
                                                    Pageable pageable) {
         // C-13: parse enums from params
         SubmissionStatus statusFilter = parseStatus(statusParam);
@@ -181,9 +184,14 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw new ForbiddenException("Role '" + role + "' is not authorized to list submissions.");
         }
 
+        Schedule schedule = scheduleRepository.findTopByOrderByIdDesc().orElse(null);
+
         List<SubmissionSummary> items = page.getContent().stream()
                 .map(s -> {
                     String teamName = resolveTeamName(s.getGroupId());
+                    LocalDateTime dl = resolveDeadline(s.getDeliverableType(), schedule);
+                    Boolean overdue = (dl != null && s.getCreatedAt() != null)
+                            ? s.getCreatedAt().isAfter(dl) : null;
                     return new SubmissionSummary(
                             s.getId(),
                             s.getGroupId(),
@@ -192,9 +200,26 @@ public class SubmissionServiceImpl implements SubmissionService {
                             s.getStatus() != null ? s.getStatus().name() : null,
                             s.getCommitteeId(),
                             s.getVersion(),
-                            s.getCreatedAt());
+                            s.getCreatedAt(),
+                            dl,
+                            overdue);
                 })
                 .toList();
+
+        // Apply deadline filter on in-memory mapped items (deadline is computed, not stored)
+        List<SubmissionSummary> filtered = items;
+        if (deadlineStatus != null && !deadlineStatus.isBlank()) {
+            if ("OVERDUE".equalsIgnoreCase(deadlineStatus)) {
+                filtered = items.stream()
+                        .filter(s -> Boolean.TRUE.equals(s.isOverdue()))
+                        .toList();
+            } else if ("APPROACHING".equalsIgnoreCase(deadlineStatus)) {
+                // APPROACHING: deadline exists, not yet passed, submission not overdue
+                filtered = items.stream()
+                        .filter(s -> s.deadline() != null && !Boolean.TRUE.equals(s.isOverdue()))
+                        .toList();
+            }
+        }
 
         PaginationMeta meta = new PaginationMeta(
                 (int) page.getTotalElements(),
@@ -202,7 +227,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                 page.getNumber(),
                 page.getSize());
 
-        return new SubmissionListResponse("success", items, meta);
+        return new SubmissionListResponse("success", filtered, meta);
     }
 
     @Override
@@ -305,7 +330,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                     notificationService.createSystemAlert(jury.getJuryMember().getUserId(), notificationMsg,
                             "REVISION_ALERT", "submissionId:" + saved.getId()));
         }
-        userRepository.findAllByRole("COORDINATOR").forEach(coord ->
+        userRepository.findAllByRoleIgnoreCase("COORDINATOR").forEach(coord ->
                 notificationService.createSystemAlert(coord.getUserId(), notificationMsg,
                         "REVISION_ALERT", "submissionId:" + saved.getId()));
 
@@ -404,5 +429,29 @@ public class SubmissionServiceImpl implements SubmissionService {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    /**
+     * Maps a deliverable type to the relevant Schedule deadline.
+     * PROPOSAL / REVISED_PROPOSAL → proposalRevisionDeadline
+     * STATEMENT_OF_WORK / DEMONSTRATION → gradingDeadline
+     */
+    private LocalDateTime resolveDeadline(DeliverableType type, Schedule schedule) {
+        if (type == null || schedule == null) return null;
+        java.time.Instant instant;
+        switch (type) {
+            case PROPOSAL:
+            case REVISED_PROPOSAL:
+                instant = schedule.getProposalRevisionDeadline();
+                break;
+            case STATEMENT_OF_WORK:
+            case DEMONSTRATION:
+                instant = schedule.getGradingDeadline();
+                break;
+            default:
+                return null;
+        }
+        if (instant == null) return null;
+        return LocalDateTime.ofInstant(instant, java.time.ZoneId.systemDefault());
     }
 }

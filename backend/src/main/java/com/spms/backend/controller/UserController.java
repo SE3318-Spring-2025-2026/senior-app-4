@@ -8,7 +8,9 @@ import com.spms.backend.dto.response.UserCreateResponse;
 import com.spms.backend.dto.response.UserListResponse;
 import com.spms.backend.dto.response.UserResponse;
 import com.spms.backend.exception.BadRequestException;
+import com.spms.backend.model.GroupMember;
 import com.spms.backend.model.User;
+import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.StudentRegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,11 +19,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Tag(name = "User Store")
@@ -33,15 +38,19 @@ public class UserController {
 
     private final StudentRegistrationService studentRegistrationService;
     private final UserRepository userRepository;
+    private final GroupMemberRepository groupMemberRepository;
 
     public UserController(StudentRegistrationService studentRegistrationService,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          GroupMemberRepository groupMemberRepository) {
         this.studentRegistrationService = studentRegistrationService;
         this.userRepository = userRepository;
+        this.groupMemberRepository = groupMemberRepository;
     }
 
     @Operation(summary = "Get the currently authenticated user's profile")
     @GetMapping("/me")
+    @Transactional(readOnly = true)
     public ResponseEntity<UserResponse> getMe(HttpServletRequest request) {
         Object userIdAttr = request.getAttribute("jwt_userId");
         if (userIdAttr == null) {
@@ -50,7 +59,18 @@ public class UserController {
         Long userId = ((Number) userIdAttr).longValue();
         User user = userRepository.findByUserId(userId)
                 .orElseThrow(() -> new BadRequestException(USER_NOT_FOUND));
-        return ResponseEntity.ok(UserResponse.from("Profile retrieved successfully.", user));
+
+        Optional<GroupMember> membership = groupMemberRepository.findTopByUser_UserId(userId);
+        Long groupId = membership.map(m -> m.getGroup().getId()).orElse(null);
+        String groupName = membership.map(m -> m.getGroup().getGroupName()).orElse(null);
+
+        UserResponse.UserData userData = new UserResponse.UserData(
+                user.getUserId(), user.getFullName(), user.getEmail(),
+                user.getStudentId(), user.getGithubUsername(), user.getRole(),
+                user.getCreatedAt() != null ? user.getCreatedAt().toString() : null,
+                groupId, groupName
+        );
+        return ResponseEntity.ok(new UserResponse("Profile retrieved successfully.", userData));
     }
 
     @Operation(summary = "Register a student user after GitHub OAuth")
@@ -64,22 +84,37 @@ public class UserController {
 
     @Operation(summary = "List all users, optionally filtered by role")
     @GetMapping
+    @Transactional(readOnly = true)
     public ResponseEntity<UserListResponse> getAllUsers(
             @RequestParam(required = false) String role
     ) {
         List<User> users;
         if (StringUtils.hasText(role)) {
-            users = userRepository.findAllByRole(role);
+            users = userRepository.findAllByRoleIgnoreCase(role);
         } else {
             users = userRepository.findAll();
         }
 
+        Map<Long, GroupMember> membershipMap = groupMemberRepository.findAllWithUserAndGroup()
+                .stream()
+                .collect(Collectors.toMap(
+                        gm -> gm.getUser().getUserId(),
+                        gm -> gm,
+                        (a, b) -> a
+                ));
+
         List<UserResponse.UserData> data = users.stream()
-                .map(u -> new UserResponse.UserData(
-                        u.getUserId(), u.getFullName(), u.getEmail(),
-                        u.getStudentId(), u.getGithubUsername(), u.getRole(),
-                        u.getCreatedAt() != null ? u.getCreatedAt().toString() : null
-                ))
+                .map(u -> {
+                    GroupMember membership = membershipMap.get(u.getUserId());
+                    Long groupId = membership != null ? membership.getGroup().getId() : null;
+                    String groupName = membership != null ? membership.getGroup().getGroupName() : null;
+                    return new UserResponse.UserData(
+                            u.getUserId(), u.getFullName(), u.getEmail(),
+                            u.getStudentId(), u.getGithubUsername(), u.getRole(),
+                            u.getCreatedAt() != null ? u.getCreatedAt().toString() : null,
+                            groupId, groupName
+                    );
+                })
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(new UserListResponse(
