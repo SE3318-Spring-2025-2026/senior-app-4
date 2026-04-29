@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, startTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { getToken, getUser } from "@/lib/auth";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import Sidebar from "@/components/Sidebar";
 import {
   fetchSubmissions,
@@ -19,21 +18,9 @@ import {
 // ─── Auth shell ──────────────────────────────────────────────────────────────
 
 export default function CoordinatorSubmissionsPage() {
-  const router = useRouter();
-  const [role, setRole] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = getToken();
-    const user = getUser();
-    if (!token || !user) { router.replace("/auth/login"); return; }
-    if (user.requiresPasswordChange) { router.replace("/auth/change-password"); return; }
-    startTransition(() => {
-      setRole(user.role === "coordinator" ? user.role : "denied");
-    });
-  }, [router]);
-
-  if (role === null) return <Spinner />;
-  if (role === "denied") return <AccessDenied />;
+  const authStatus = useAuthGuard("coordinator");
+  if (authStatus === "loading") return <Spinner />;
+  if (authStatus === "denied") return <AccessDenied />;
   return <SubmissionsDashboard />;
 }
 

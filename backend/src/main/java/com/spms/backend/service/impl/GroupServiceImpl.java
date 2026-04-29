@@ -176,15 +176,6 @@ public class GroupServiceImpl implements GroupService {
         } else {
             Specification<Group> spec = GroupSpecification.filterGroups(status, advisorAssigned, groupName, role, requesterId);
             groupsPage = groupRepository.findAll(spec, pageable);
-
-            if ("coordinator".equals(role) && !hasFilters) {
-                try {
-                    List<Object[]> counts = groupRepository.countGroupsByStatus();
-                    counts.forEach(result -> log.info("Coordinator Summary - Status: {} Count: {}", result[0], result[1]));
-                } catch (Exception e) {
-                    log.error("Status summary count failed", e);
-                }
-            }
         }
 
         if (groupsPage == null) {
@@ -379,7 +370,7 @@ public class GroupServiceImpl implements GroupService {
                 group.getLeader().getUserId(),
                 group.getAdvisor() != null ? group.getAdvisor().getUserId() : null,
                 group.getStatus().name(),
-                group.getMembers().size(),
+                group.getMemberCount(),
                 group.getCreatedAt());
     }
 

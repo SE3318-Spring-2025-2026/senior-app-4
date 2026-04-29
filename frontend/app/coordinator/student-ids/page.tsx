@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { getToken, getUser } from "@/lib/auth";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import Sidebar from "@/components/Sidebar";
 
 interface UploadResponse {
@@ -16,24 +15,9 @@ interface UploadResponse {
 type UploadStatus = "idle" | "dragging" | "uploading" | "success" | "error";
 
 export default function StudentIdUploadPage() {
-  const router = useRouter();
-  const [role, setRole] = useState<string | null>(null);
+  const authStatus = useAuthGuard("coordinator");
 
-  useEffect(() => {
-    const token = getToken();
-    const user = getUser();
-    if (!token || !user) {
-      router.replace("/auth/login");
-      return;
-    }
-    if (user.requiresPasswordChange) {
-      router.replace("/auth/change-password");
-      return;
-    }
-    setRole(user.role);
-  }, [router]);
-
-  if (role === null) return (
+  if (authStatus === "loading") return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center">
       <svg className="w-6 h-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -41,7 +25,7 @@ export default function StudentIdUploadPage() {
       </svg>
     </div>
   );
-  if (role !== "coordinator") return <AccessDenied />;
+  if (authStatus === "denied") return <AccessDenied />;
   return <DashboardLayout />;
 }
 

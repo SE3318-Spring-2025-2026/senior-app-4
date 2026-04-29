@@ -310,3 +310,265 @@ Backend `GroupController.java` içinden `@PostMapping("/{groupId}/members/{stude
 
 **Sonuç:**
 Tüm backend testleri (özellikle `SubmissionServiceTest` ve `UserControllerTest`) şu an Java 25 üzerinde hatasız ve stabil şekilde çalışmaktadır. Görsel IDE uyarıları ve gerçek çalışma hataları tamamen giderilmiştir.
+
+---
+
+## 19. Performans: Groups Sayfasında N+1 API Döngüsünün Kaldırılması
+**Tarih:** 29 Nisan 2026
+**Dosyalar:**
+- `frontend/app/groups/page.tsx`
+- `frontend/lib/groups-api.ts`
+- `backend/.../controller/UserController.java`
+
+**Sorun:**
+Öğrenci rolüyle gruplar sayfası açıldığında, sayfadaki 6 grup için arka arkaya (sıralı, paralel değil) `GET /groups/{id}` isteği gönderiliyordu. Bu istek, öğrencinin kendi grubunu tespit etmek için yapılıyordu. Worst-case: 6 × ~150ms = **~900ms ekstra gecikme**. Filtreler her değiştiğinde bu döngü yeniden başlıyordu.
+
+**Neden Yapıldı:**
+6 sıralı HTTP isteği yerine tek bir `GET /api/v1/users/me` isteğiyle öğrencinin `groupId`'si doğrudan alınabilir. Backend zaten `UserResponse.UserData`'ya `groupId` alanını eklemiş durumdaydı — sadece `getMe()` endpoint'i bu alanı `null` gönderiyordu.
+
+**Ne Değişti:**
+1. **Backend `UserController.getMe()`:** Artık `GroupMemberRepository.findTopByUser_UserId()` ile öğrencinin grubu sorgulanıp `groupId` ve `groupName` dolu olarak dönüyor. `@Transactional(readOnly = true)` eklendi (lazy loading için gerekli).
+2. **`groups-api.ts`:** `fetchCurrentUserGroupId()` adlı yeni yardımcı fonksiyon eklendi. Tek bir `/users/me` isteği atar, `data.groupId`'yi döndürür.
+3. **`groups/page.tsx`:**
+   - `fetchGroupDetail` içeren `for` döngüsü tamamen kaldırıldı.
+   - `fetchCurrentUserGroupId()` tek satırla çağrılıyor.
+   - `decodeToken`, `getToken`, `currentUserId` artık kullanılmadığından kaldırıldı.
+   - `useEffect` bağımlılık dizisinden `currentUserId` kaldırıldı.
+
+**Sonuç:**
+`6 sıralı GET /groups/{id}` isteği → `1 adet GET /users/me` isteği.
+
+**Nasıl Geri Alınır:**
+`groups/page.tsx` içine eski `for` döngüsünü geri koy ve `fetchGroupDetail` import'unu ekle. `groups-api.ts`'den `fetchCurrentUserGroupId()` fonksiyonunu sil. `UserController.getMe()`'deki membership lookup kodunu ve `@Transactional` annotasyonunu kaldır.
+
+---
+
+## 20. Performans: Backend N+1 SQL Sorgusu — `mapToSimpleDto`
+**Tarih:** 29 Nisan 2026
+**Dosyalar:**
+- `backend/.../model/Group.java`
+- `backend/.../model/User.java`
+- `backend/.../service/impl/GroupServiceImpl.java`
+
+**Sorun:**
+`getGroups()` endpoint'i 6 grup döndürürken `mapToSimpleDto()` metodu her grup için ayrı ayrı SQL sorgusu tetikliyordu:
+- `group.getLeader().getUserId()` → leader lazy load → 1 SQL
+- `group.getAdvisor().getUserId()` → advisor lazy load → 1 SQL
+- `group.getMembers().size()` → members koleksiyonu lazy load → 1 SQL
+
+6 grup için = **6×3 = 18 ekstra SQL sorgusu** her istekte.
+
+**Neden Yapıldı:**
+Her grubun üye sayısı için tüm `group_members` koleksiyonunu bellekte yüklemek ve leader/advisor'ı ayrı sorgularla çekmek yerine daha verimli yaklaşımlar mevcut.
+
+**Ne Değişti:**
+
+1. **`Group.java` — `@Formula` ile `memberCount`:**
+   - `@Formula("(SELECT COUNT(*) FROM group_members gm WHERE gm.group_id = id)")` alanı eklendi.
+   - Hibernate bu alt sorguyu ana SQL'e dahil eder → ayrı bir `SELECT members` sorgusu **hiç atılmaz**.
+   - `getMemberCount()` getter'ı eklendi.
+
+2. **`User.java` — `@BatchSize(size = 50)`:**
+   - Sınıfa `@BatchSize(size = 50)` annotasyonu eklendi.
+   - Hibernate, `leader` ve `advisor` lazy load'larını artık tek tek değil **toplu** (batch IN sorgusu) çeker.
+   - 6 grup için: 6×2 = 12 ayrı SQL yerine → **2 toplu SQL** (`SELECT ... WHERE id IN (...)`)
+
+3. **`GroupServiceImpl.mapToSimpleDto()`:**
+   - `group.getMembers().size()` → `group.getMemberCount()` olarak değiştirildi.
+   - Artık members koleksiyonu bu yoldan hiç yüklenmez.
+
+**Sonuç:**
+6 grup için yaklaşık 18 SQL sorgusu → yaklaşık 3 SQL sorgusu (1 ana sorgu + 2 batch User sorgusu).
+
+**Nasıl Geri Alınır:**
+- `Group.java`'dan `@Formula` alanını ve `getMemberCount()` getter'ını sil, `import org.hibernate.annotations.Formula;` satırını kaldır.
+- `User.java`'dan `@BatchSize(size = 50)` ve `import org.hibernate.annotations.BatchSize;` satırlarını kaldır.
+- `GroupServiceImpl.mapToSimpleDto()`'da `group.getMemberCount()` → `group.getMembers().size()` olarak geri al.
+
+---
+
+## 21. Performans: `findAllWithStudentGroupFirst` Pagination Bug — Duplicate Rows
+**Tarih:** 29 Nisan 2026
+**Dosya:** `backend/.../repository/GroupRepository.java`
+
+**Sorun:**
+Öğrenci rolüyle filtre uygulanmadan gruplar listelendiğinde kullanılan `findAllWithStudentGroupFirst` sorgusu `LEFT JOIN g.members m` içeriyordu. Bu JOIN, her grup için `group_members` tablosundaki kadar satır üretiyordu (örneğin 3 üyeli bir grup sonuç setinde 3 kez tekrar ediyordu).
+
+Spring Data JPA'nın `Pageable` pagination'ı (LIMIT/OFFSET) bu ham SQL satırlarına uygulandığı için:
+- `size=6` ile istenen sayfa sadece 2-3 grup döndürebiliyordu (satır limitine göre).
+- `totalPages` yanlış hesaplanıyordu (toplam satır / 6, gerçek grup sayısı / 6 değil).
+- Hibernate bu durumda `HHH90003004` uyarısı loglar ve pagination'ı bellekte yapar — tüm tabloyu RAM'e çeker.
+
+**Neden Yapıldı:**
+Öğrencinin kendi grubunu sıralamada öne almak için JOIN yerine EXISTS alt sorgusu kullanılabilir. Alt sorgu sadece koşulu kontrol eder, satır çoğaltmaz.
+
+**Ne Değişti:**
+`GroupRepository.java` içindeki `findAllWithStudentGroupFirst` sorgusu:
+
+Eski (hatalı):
+```java
+@Query("SELECT g FROM Group g LEFT JOIN g.members m " +
+       "ORDER BY CASE WHEN m.user.userId = :studentId THEN 0 ELSE 1 END, g.id ASC")
+```
+
+Yeni (doğru):
+```java
+@Query("SELECT g FROM Group g " +
+       "ORDER BY CASE WHEN EXISTS " +
+       "(SELECT 1 FROM GroupMember m WHERE m.group = g AND m.user.userId = :studentId) " +
+       "THEN 0 ELSE 1 END, g.id ASC")
+```
+
+**Teknik Fark:**
+- `LEFT JOIN g.members m` → her üye için ayrı satır → N üyeli grup N kez gelir → pagination bozulur
+- `EXISTS (SELECT 1 FROM GroupMember ...)` → sadece boolean kontrol → her grup tam olarak 1 kez gelir → pagination doğru çalışır
+
+**Sonuç:**
+Sayfa başına gerçekten 6 grup gelir. `totalPages` doğru hesaplanır. Hibernate bellekte filtreleme yapmaz.
+
+**Nasıl Geri Alınır:**
+`GroupRepository.java`'da `findAllWithStudentGroupFirst` sorgusunu eski haliyle (`LEFT JOIN g.members m`) değiştir.
+
+---
+
+## 22. Performans: `getAllUsers` N+1 SQL — Toplu Membership Sorgusu
+**Tarih:** 29 Nisan 2026
+**Dosyalar:**
+- `backend/.../repository/GroupMemberRepository.java`
+- `backend/.../controller/UserController.java`
+
+**Sorun:**
+`GET /api/v1/users` endpoint'i her kullanıcı için ayrı ayrı `findTopByUser_UserId(userId)` çağırıyordu. 50 kullanıcı → 50 ek SQL sorgusu. Koordinatör sayfası her açıldığında bu istek gönderildiğinden ciddi gecikmeye neden oluyordu.
+
+**Neden Yapıldı:**
+Tüm `GroupMember` kayıtlarını tek bir sorguda çekip `userId → GroupMember` map'i kurarsak, kullanıcı başına SQL atma ihtiyacı ortadan kalkar.
+
+**Ne Değişti:**
+
+1. **`GroupMemberRepository.java` — yeni sorgu eklendi:**
+```java
+@Query("SELECT gm FROM GroupMember gm JOIN FETCH gm.user JOIN FETCH gm.group")
+List<GroupMember> findAllWithUserAndGroup();
+```
+`JOIN FETCH` ile hem `user` hem `group` ilişkisi tek sorguda eager yüklenir — ayrıca lazy load SQL atılmaz.
+
+2. **`UserController.getAllUsers()` — N+1 döngüsü kaldırıldı:**
+
+Eski (N+1):
+```java
+// her kullanıcı için ayrı SQL
+Optional<GroupMember> membership = groupMemberRepository.findTopByUser_UserId(u.getUserId());
+```
+
+Yeni (1 sorgu):
+```java
+// 1 sorgu: tüm üyelikler
+Map<Long, GroupMember> membershipMap = groupMemberRepository.findAllWithUserAndGroup()
+    .stream()
+    .collect(Collectors.toMap(gm -> gm.getUser().getUserId(), gm -> gm, (a, b) -> a));
+
+// döngüde map lookup — SQL yok
+GroupMember membership = membershipMap.get(u.getUserId());
+```
+
+`(a, b) -> a` merge fonksiyonu: aynı kullanıcıya ait birden fazla üyelik kaydı varsa ilkini korur (tutarlılık için).
+
+**Sonuç:**
+N kullanıcı için N+1 SQL → **2 SQL** (1 kullanıcı listesi + 1 toplu üyelik sorgusu).
+
+**Nasıl Geri Alınır:**
+- `GroupMemberRepository.java`'dan `findAllWithUserAndGroup()` metodunu sil.
+- `UserController.getAllUsers()`'daki `membershipMap` bloğunu kaldır, eski `findTopByUser_UserId` çağrısına dön.
+- `UserController.java`'dan `import java.util.Map;` satırını kaldır.
+
+---
+
+## 23. Performans: Koordinatör İsteklerinde Gereksiz `countGroupsByStatus()` Sorgusunun Kaldırılması
+**Tarih:** 29 Nisan 2026
+**Dosya:** `backend/.../service/impl/GroupServiceImpl.java`
+
+**Sorun:**
+Koordinatör rolüyle filtre uygulanmadan gruplar her listelendiğinde (`GET /groups` — filtre yok), `getGroups()` metodu ana sorgunun yanına bir de şunu atıyordu:
+
+```java
+List<Object[]> counts = groupRepository.countGroupsByStatus();
+counts.forEach(result -> log.info("Coordinator Summary - Status: {} Count: {}", result[0], result[1]));
+```
+
+Bu `SELECT g.status, COUNT(g) FROM Group g GROUP BY g.status` sorgusu sadece **server log'una** yazmak için atılıyordu. Kullanıcıya hiçbir şey dönmüyor, frontend hiçbir şekilde bu veriyi kullanmıyordu.
+
+**Neden Yapıldı:**
+Koordinatör gruplar sayfasını her açtığında ekstra bir `GROUP BY` SQL sorgusu tetikleniyordu. Üretim ortamında gruplar tablosu büyüdükçe bu sorgu yavaşlar; üstelik sağladığı değer sıfır (sadece log).
+
+**Ne Değişti:**
+`GroupServiceImpl.getGroups()` içindeki `if ("coordinator".equals(role) && !hasFilters)` bloğunun tamamı kaldırıldı. `countGroupsByStatus()` metodu `GroupRepository`'de bırakıldı (başka yerden kullanılıyor olabilir).
+
+**Sonuç:**
+Koordinatör her gruplar sayfasını açtığında atılan 1 gereksiz `GROUP BY` SQL kaldırıldı.
+
+**Nasıl Geri Alınır:**
+`GroupServiceImpl.getGroups()` içinde `groupRepository.findAll(spec, pageable);` satırının hemen ardına şu bloğu geri ekle:
+```java
+if ("coordinator".equals(role) && !hasFilters) {
+    try {
+        List<Object[]> counts = groupRepository.countGroupsByStatus();
+        counts.forEach(result -> log.info("Coordinator Summary - Status: {} Count: {}", result[0], result[1]));
+    } catch (Exception e) {
+        log.error("Status summary count failed", e);
+    }
+}
+```
+
+---
+
+## 24. Performans: Members Sayfasında Sıralı API İstekleri ve Gereksiz Liste Yenileme
+**Tarih:** 29 Nisan 2026
+**Dosya:** `frontend/app/coordinator/members/page.tsx`
+
+**Sorunlar:**
+
+**Sorun 1 — Sayfa açılışında sıralı (sequential) API istekleri:**
+`useEffect` içinde önce `/users?role=student`, ardından `/groups?size=1000` isteği atılıyordu. Bu iki istek birbirinin sonucuna bağlı olmadığı halde sırayla bekliyordu. Toplam yükleme süresi: `t(users) + t(groups)`. Paralel yapılsaydı sadece `max(t(users), t(groups))` olurdu.
+
+**Sorun 2 — Her Assign/Remove işlemi sonrası tüm liste yeniden yükleniyordu:**
+`handleAssign` ve `handleRemove` başarıyla tamamlandığında `fetchStudents()` çağrılıyordu. Bu, tüm öğrenci listesini sunucudan baştan çekiyordu (yüzlerce öğrenci varsa yüzlerce satır). Oysa sadece o tek öğrencinin satırını güncellemek yeterliydi.
+
+**Ne Değişti:**
+
+1. **Paralel istek — `Promise.all`:**
+```typescript
+// Eski: sıralı
+apiClient.get('/groups...').then(...)   // bekle...
+fetchStudents();                        // sonra bu
+
+// Yeni: paralel
+Promise.all([
+    apiClient.get(`/users?role=student`),
+    apiClient.get('/groups?size=1000&page=0'),
+]).then(([studentsRes, groupsRes]) => { ... })
+```
+
+2. **Local state güncelleme:**
+```typescript
+// Eski: tüm listeyi yeniden çek
+fetchStudents();
+
+// Yeni — Assign sonrası: sadece o öğrencinin satırını güncelle
+setStudents(prev => prev.map(s =>
+    s.userId === userId
+        ? { ...s, groupId: Number(groupId), groupName: assignedGroup?.groupName }
+        : s
+));
+
+// Yeni — Remove sonrası:
+setStudents(prev => prev.map(s =>
+    s.userId === userId ? { ...s, groupId: null, groupName: null } : s
+));
+```
+
+**Sonuç:**
+- Sayfa açılış süresi: `t(users) + t(groups)` → `max(t(users), t(groups))` (yaklaşık yarıya indi)
+- Her assign/remove sonrası: 1 tam liste isteği → 0 istek (anlık UI güncellemesi)
+
+**Nasıl Geri Alınır:**
+`useEffect`'i eski `fetchStudents()` + ayrı groups isteği şeklinde ayır. `handleAssign` ve `handleRemove`'daki `setStudents(...)` bloklarını kaldırıp `fetchStudents()` çağrılarını geri ekle.

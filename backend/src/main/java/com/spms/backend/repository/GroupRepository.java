@@ -25,8 +25,10 @@ public interface GroupRepository extends JpaRepository<Group, Long>, JpaSpecific
     @Query("SELECT g.status, COUNT(g) FROM Group g GROUP BY g.status")
     List<Object[]> countGroupsByStatus();
 
-    @Query("SELECT g FROM Group g LEFT JOIN g.members m "
-            + "ORDER BY CASE WHEN m.user.userId = :studentId THEN 0 ELSE 1 END, g.id ASC")
+    @Query("SELECT g FROM Group g " +
+            "ORDER BY CASE WHEN EXISTS " +
+            "(SELECT 1 FROM GroupMember m WHERE m.group = g AND m.user.userId = :studentId) " +
+            "THEN 0 ELSE 1 END, g.id ASC")
     Page<Group> findAllWithStudentGroupFirst(@Param("studentId") Long studentId, Pageable pageable);
 
     /** All non-disbanded groups with advisor and leader loaded (P4-ASSIGN-1 list). */

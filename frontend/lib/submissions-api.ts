@@ -1,6 +1,5 @@
 import { getToken } from "@/lib/auth";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+import { API_BASE, buildHeaders, parseError } from "@/lib/api-utils";
 
 export type DeliverableType = "PROPOSAL" | "REVISED_PROPOSAL" | "STATEMENT_OF_WORK" | "DEMONSTRATION";
 export type SubmissionStatus =
@@ -156,21 +155,6 @@ export interface SubmissionFilters {
   size?: number;
 }
 
-function buildHeaders(): Record<string, string> {
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  const token = getToken();
-  if (token) h["Authorization"] = `Bearer ${token}`;
-  return h;
-}
-
-async function parseError(res: Response): Promise<string> {
-  try {
-    const data = await res.json();
-    return data?.message || data?.error || `Request failed (${res.status})`;
-  } catch {
-    return `Request failed (${res.status})`;
-  }
-}
 
 export async function fetchSubmissions(filters: SubmissionFilters = {}): Promise<SubmissionsListResponse> {
   const params = new URLSearchParams();

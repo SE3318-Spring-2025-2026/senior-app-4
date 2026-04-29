@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { getToken, getUser } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import apiClient from "@/lib/client";
 import { UserRole } from "@/types/enums";
 
@@ -24,24 +23,9 @@ type Group = {
 };
 
 export default function CoordinatorMembersPage() {
-    const router = useRouter();
-    const [role, setRole] = useState<string | null>(null);
+    const authStatus = useAuthGuard("coordinator");
 
-    useEffect(() => {
-        const token = getToken();
-        const user = getUser();
-        if (!token || !user) {
-            router.replace("/auth/login");
-            return;
-        }
-        if (user.requiresPasswordChange) {
-            router.replace("/auth/change-password");
-            return;
-        }
-        setRole(user.role);
-    }, [router]);
-
-    if (role === null) return (
+    if (authStatus === "loading") return (
         <div className="min-h-screen bg-gray-950 flex items-center justify-center">
             <svg className="w-6 h-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -50,7 +34,7 @@ export default function CoordinatorMembersPage() {
         </div>
     );
 
-    if (role !== "coordinator") return <AccessDenied />;
+    if (authStatus === "denied") return <AccessDenied />;
     return <DashboardLayout />;
 }
 
@@ -79,30 +63,21 @@ function DashboardLayout() {
 
     const [selectedGroups, setSelectedGroups] = useState<Record<number, string>>({});
 
-    const fetchStudents = async () => {
-        setLoading(true);
-        try {
-            const res = await apiClient.get(`/users?role=${UserRole.STUDENT}`);
-            const data = Array.isArray(res.data) ? res.data : res.data.data || [];
-            setStudents(data);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
-        // Fetch all groups for the assignment dropdown
-        apiClient.get('/groups?size=1000&page=0')
-            .then(res => {
-                if (res.data && res.data.content) {
-                    setGroups(res.data.content.map((g: any) => ({ id: g.id, groupName: g.groupName })));
+        setLoading(true);
+        Promise.all([
+            apiClient.get(`/users?role=${UserRole.STUDENT}`),
+            apiClient.get('/groups?size=1000&page=0'),
+        ])
+            .then(([studentsRes, groupsRes]) => {
+                const data = Array.isArray(studentsRes.data) ? studentsRes.data : studentsRes.data.data || [];
+                setStudents(data);
+                if (groupsRes.data?.content) {
+                    setGroups(groupsRes.data.content.map((g: any) => ({ id: g.id, groupName: g.groupName })));
                 }
             })
-            .catch(() => console.error("Failed to load groups"));
-
-        fetchStudents();
+            .catch((error) => console.error(error))
+            .finally(() => setLoading(false));
     }, []);
 
     const filteredStudents = students.filter(student => {
@@ -125,7 +100,13 @@ function DashboardLayout() {
         try {
             await apiClient.post(`/groups/${groupId}/members/${studentId}`);
             toast.success("Student successfully assigned to group.");
-            fetchStudents(); // Refresh list
+            const assignedGroup = groups.find(g => String(g.id) === String(groupId));
+            setStudents(prev => prev.map(s =>
+                s.userId === userId
+                    ? { ...s, groupId: Number(groupId), groupName: assignedGroup?.groupName ?? null }
+                    : s
+            ));
+            setSelectedGroups(prev => { const next = { ...prev }; delete next[userId]; return next; });
         } catch (error) {
             console.error(error);
         } finally {
@@ -140,7 +121,9 @@ function DashboardLayout() {
         try {
             await apiClient.delete(`/groups/${groupId}/members/${studentId}`);
             toast.success("Student successfully removed from group.");
-            fetchStudents(); // Refresh list
+            setStudents(prev => prev.map(s =>
+                s.userId === userId ? { ...s, groupId: null, groupName: null } : s
+            ));
         } catch (error) {
             console.error(error);
         } finally {

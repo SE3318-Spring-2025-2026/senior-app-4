@@ -74,6 +74,23 @@ async function parseError(res: Response) {
     }
 }
 
+/* ===================== CURRENT USER ===================== */
+
+export async function fetchCurrentUserGroupId(): Promise<number | null> {
+    const token = getToken();
+    try {
+        const res = await fetch(`${API_BASE}/users/me`, {
+            headers: { Authorization: `Bearer ${token ?? ""}` },
+            cache: "no-store",
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.data?.groupId ?? null;
+    } catch {
+        return null;
+    }
+}
+
 /* ===================== GET ===================== */
 
 export async function fetchGroups(

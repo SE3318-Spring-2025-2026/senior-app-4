@@ -7,12 +7,12 @@ import GroupCardSkeleton from "@/components/GroupCardSkeleton";
 import { useNotifications } from "@/components/NotificationProvider";
 import {
     fetchGroups,
-    fetchGroupDetail,
+    fetchCurrentUserGroupId,
     createGroupApi,
     ApiGroupListItem,
 } from "@/lib/groups-api";
 import { Group } from "@/lib/group-types";
-import { getUser, getToken, decodeToken } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { showToast } from "@/components/toast/ToastContext";
 
 function mapApiGroupToUiGroup(apiGroup: ApiGroupListItem): Group {
@@ -60,16 +60,6 @@ export default function GroupsPage() {
     const pageSize = 6;
     const currentUser = getUser();
 
-    const token = getToken();
-    const decoded = token ? decodeToken(token) : null;
-
-    const currentUserId = Number(
-        decoded?.userId ??
-        decoded?.jwt_userId ??
-        decoded?.user_id ??
-        decoded?.id ??
-        decoded?.sub
-    );
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -109,30 +99,11 @@ export default function GroupsPage() {
                 setGroups(mappedGroups);
                 setTotalPages(Math.max(response.totalPages, 1));
 
-                if (currentUser?.role === "student" && Number.isFinite(currentUserId)) {
-                    let detectedOwnGroupId: number | null = null;
-
-                    for (const groupItem of mappedGroups) {
-                        try {
-                            const detail = await fetchGroupDetail(groupItem.groupId);
-                            const isMember = detail.members?.some(
-                                (member) => Number(member.userId) === currentUserId
-                            );
-
-                            if (isMember) {
-                                detectedOwnGroupId = groupItem.groupId;
-                                break;
-                            }
-                        } catch {
-                            // ignore detail lookup failures for own-group detection
-                        }
-                    }
-
-                    if (!cancelled) {
-                        setOwnGroupId(detectedOwnGroupId);
-                    }
+                if (currentUser?.role === "student") {
+                    const groupId = await fetchCurrentUserGroupId();
+                    if (!cancelled) setOwnGroupId(groupId);
                 } else {
-                    setOwnGroupId(null);
+                    if (!cancelled) setOwnGroupId(null);
                 }
             } catch (err) {
                 if (cancelled) return;
@@ -152,7 +123,7 @@ export default function GroupsPage() {
         return () => {
             cancelled = true;
         };
-    }, [page, statusFilter, searchQuery, advisorFilter, currentUser?.role, currentUserId]);
+    }, [page, statusFilter, searchQuery, advisorFilter, currentUser?.role]);
 
     const displayGroups = useMemo(() => {
         if (currentUser?.role !== "student") {

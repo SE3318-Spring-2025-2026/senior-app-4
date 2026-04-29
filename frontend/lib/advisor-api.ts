@@ -1,5 +1,5 @@
-import { getToken } from "@/lib/auth";
 import { UserRole } from "@/types/enums";
+import { API_BASE, buildHeaders as getAuthHeaders, parseError } from "@/lib/api-utils";
 
 export type ProfessorDirectoryItem = {
     userId: number;
@@ -10,7 +10,7 @@ export type ProfessorDirectoryItem = {
     createdAt: string | null;
 };
 
-export type AdvisorRequestStatus = {
+export type AdvisorRequestInfo = {
     requestId: number;
     professorName: string;
     status: string;
@@ -21,31 +21,6 @@ type UserListResponse = {
     count: number;
     data: ProfessorDirectoryItem[];
 };
-
-type ErrorPayload = {
-    error?: string;
-    message?: string;
-};
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
-
-async function parseError(res: Response) {
-    try {
-        const data = (await res.json()) as ErrorPayload;
-        return data.message || data.error || "Request failed.";
-    } catch {
-        return "Request failed.";
-    }
-}
-
-function getAuthHeaders() {
-    const token = getToken();
-
-    return {
-        Authorization: `Bearer ${token ?? ""}`,
-        "Content-Type": "application/json",
-    };
-}
 
 export async function fetchProfessors(): Promise<ProfessorDirectoryItem[]> {
     // TODO(#80): replace the generic professor directory with a dedicated
@@ -66,7 +41,7 @@ export async function fetchProfessors(): Promise<ProfessorDirectoryItem[]> {
     return payload.data ?? [];
 }
 
-export async function fetchAdvisorRequestStatus(groupId: number): Promise<AdvisorRequestStatus | null> {
+export async function fetchAdvisorRequestInfo(groupId: number): Promise<AdvisorRequestInfo | null> {
     const res = await fetch(`${API_BASE}/groups/${groupId}/advisor-request`, {
         method: "GET",
         headers: {

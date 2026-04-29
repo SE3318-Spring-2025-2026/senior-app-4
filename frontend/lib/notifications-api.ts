@@ -1,24 +1,4 @@
-import { getToken } from "@/lib/auth";
-
-const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
-
-async function parseError(res: Response): Promise<string> {
-    try {
-        const data = await res.json();
-        return data?.message || data?.error || "Request failed.";
-    } catch {
-        return "Request failed.";
-    }
-}
-
-function authHeaders(): HeadersInit {
-    const token = getToken();
-    return {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token ?? ""}`,
-    };
-}
+import { API_BASE, buildHeaders as authHeaders, parseError } from "@/lib/api-utils";
 
 // ------------------------------------------------------------------ Types
 

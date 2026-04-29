@@ -5,9 +5,9 @@ import { toast } from "sonner";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { decodeToken, getToken, getUser } from "@/lib/auth";
 import {
-    AdvisorRequestStatus,
+    AdvisorRequestInfo,
     createAdvisorRequest,
-    fetchAdvisorRequestStatus,
+    fetchAdvisorRequestInfo,
     fetchProfessors,
     ProfessorDirectoryItem,
     withdrawAdvisorRequest,
@@ -49,7 +49,7 @@ export default function AdvisorRequestPanel({
     advisorId,
 }: Props) {
     const [professors, setProfessors] = useState<ProfessorDirectoryItem[]>([]);
-    const [activeRequest, setActiveRequest] = useState<AdvisorRequestStatus | null>(null);
+    const [activeRequest, setActiveRequest] = useState<AdvisorRequestInfo | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [requestingProfessorId, setRequestingProfessorId] = useState<number | null>(null);
@@ -73,7 +73,7 @@ export default function AdvisorRequestPanel({
 
                 const [professorData, requestStatus] = await Promise.all([
                     fetchProfessors(),
-                    fetchAdvisorRequestStatus(groupId),
+                    fetchAdvisorRequestInfo(groupId),
                 ]);
 
                 if (cancelled) return;
@@ -113,7 +113,7 @@ export default function AdvisorRequestPanel({
     const requestButtonsDisabled = Boolean(activeRequest) || Boolean(advisorId) || !isLeader;
 
     async function refreshRequestStatus() {
-        const requestStatus = await fetchAdvisorRequestStatus(groupId);
+        const requestStatus = await fetchAdvisorRequestInfo(groupId);
         setActiveRequest(requestStatus);
     }
 

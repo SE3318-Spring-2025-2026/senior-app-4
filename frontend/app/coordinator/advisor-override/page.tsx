@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { getToken, getUser } from "@/lib/auth";
+import { getToken } from "@/lib/auth";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import Sidebar from "@/components/Sidebar";
 import { UserRole } from "@/types/enums";
 import {
@@ -17,20 +17,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v
 type Professor = { userId: number; fullName: string; email: string };
 
 export default function AdvisorOverridePage() {
-    const router = useRouter();
-    const [role, setRole] = useState<string | null>(null);
-
-    useEffect(() => {
-        const token = getToken();
-        const user = getUser();
-        if (!token || !user) { router.replace("/auth/login"); return; }
-        if (user.requiresPasswordChange) { router.replace("/auth/change-password"); return; }
-        if (user.role !== "coordinator") { setRole("denied"); return; }
-        setRole(user.role);
-    }, [router]);
-
-    if (role === null) return <Spinner />;
-    if (role === "denied") return <AccessDenied />;
+    const authStatus = useAuthGuard("coordinator");
+    if (authStatus === "loading") return <Spinner />;
+    if (authStatus === "denied") return <AccessDenied />;
     return <AdvisorOverrideLayout />;
 }
 

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { getToken, getUser } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
+import { buildHeaders } from "@/lib/api-utils";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -25,30 +25,12 @@ interface CriterionRow {
     weight: string;
 }
 
-function buildHeaders(): Record<string, string> {
-    const h: Record<string, string> = { "Content-Type": "application/json" };
-    const token = getToken();
-    if (token) h["Authorization"] = `Bearer ${token}`;
-    return h;
-}
-
 // ─── Page shell (auth guard) ─────────────────────────────────────────────────
 
 export default function RubricsPage() {
-    const router = useRouter();
-    const [role, setRole] = useState<string | null>(null);
-
-    useEffect(() => {
-        const token = getToken();
-        const user = getUser();
-        if (!token || !user) { router.replace("/auth/login"); return; }
-        if (user.requiresPasswordChange) { router.replace("/auth/change-password"); return; }
-        if (user.role !== "coordinator") { setRole("denied"); return; }
-        setRole(user.role);
-    }, [router]);
-
-    if (role === null) return <Spinner />;
-    if (role === "denied") return <AccessDenied />;
+    const authStatus = useAuthGuard("coordinator");
+    if (authStatus === "loading") return <Spinner />;
+    if (authStatus === "denied") return <AccessDenied />;
     return <RubricsLayout />;
 }
 
