@@ -47,6 +47,7 @@ export default function CoordinatorCommitteesPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const pathname = usePathname();
+    const editId = searchParams.get("edit");
 
     const initialStatus = searchParams.get("status") || "ALL";
     const initialSearch = searchParams.get("search") || "";
@@ -108,6 +109,22 @@ export default function CoordinatorCommitteesPage() {
         return () => clearTimeout(timeout);
     }, [searchInput]);
 
+    useEffect(() => {
+        if (!editId) return;
+
+        const committeeToEdit = committees.find(
+            (c) => c.committeeId === Number(editId)
+        );
+
+        if (committeeToEdit) {
+            setEditingCommittee(committeeToEdit);
+            setShowCreate(false);
+            setApiError("");
+
+            router.replace(pathname);
+        }
+    }, [editId, committees]);
+
     async function handleCreate(values: CommitteeFormValues) {
         setSubmitting(true);
         setApiError("");
@@ -132,6 +149,7 @@ export default function CoordinatorCommitteesPage() {
 
         setSubmitting(true);
         setApiError("");
+
 
         try {
             await updateCommittee(editingCommittee.committeeId, values);
@@ -201,7 +219,7 @@ export default function CoordinatorCommitteesPage() {
                         </button>
                     </div>
 
-                    {showCreate && (
+                    {showCreate && !editingCommittee && (
                         <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6">
                             <h2 className="mb-4 text-xl font-semibold">Create Committee</h2>
                             <CommitteeForm
