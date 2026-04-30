@@ -94,6 +94,13 @@ export default function Sidebar({ activePage }: { activePage: string }) {
               }
               badge
             />
+            <NavItem
+              label="Committees"
+              active={activePage === "committees"}
+              href="/committees"
+              icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" /></svg>}
+
+            />
           </>
         )}
         {user.role === "coordinator" && (
@@ -181,18 +188,29 @@ export default function Sidebar({ activePage }: { activePage: string }) {
               href="/professor/my-advisees"
               icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197" /></svg>}
             />
+            <NavItem
+              label="Committees"
+              active={activePage === "committees"}
+              href="/committees"
+              icon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18" />
+                </svg>
+              }
+            />
           </>
         )}
 
         {(user.role === "coordinator" || user.role === "professor") && (
           <>
-             <p className="text-xs font-medium text-gray-600 px-3 mt-4 mb-2 uppercase tracking-widest">Personnel</p>
-             <NavItem
-               label="Register Personnel"
-               active={activePage === "register"}
-               href="/admin/register"
-               icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" /></svg>}
-             />
+            <p className="text-xs font-medium text-gray-600 px-3 mt-4 mb-2 uppercase tracking-widest">Personnel</p>
+            <NavItem
+              label="Register Personnel"
+              active={activePage === "register"}
+              href="/admin/register"
+              icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" /></svg>}
+            />
           </>
         )}
       </nav>
