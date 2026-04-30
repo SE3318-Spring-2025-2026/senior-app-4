@@ -520,6 +520,9 @@ function SubmissionStatusBadge({ status }: { status: SubmissionStatus }) {
     REVISION_REQUESTED: "bg-orange-500/15 text-orange-400 border-orange-500/20",
     APPROVED: "bg-green-500/15 text-green-400 border-green-500/20",
     GRADED: "bg-purple-500/15 text-purple-400 border-purple-500/20",
+    REJECTED: "bg-red-500/15 text-red-400 border-red-500/20",
+    SUBMITTED: "bg-gray-500/15 text-gray-400 border-gray-500/20",
+    SUPERSEDED: "bg-gray-700/15 text-gray-500 border-gray-700/20",
   };
   const labels: Record<SubmissionStatus, string> = {
     PENDING_REVIEW: "Pending Review",
@@ -527,6 +530,9 @@ function SubmissionStatusBadge({ status }: { status: SubmissionStatus }) {
     REVISION_REQUESTED: "Revision Requested",
     APPROVED: "Approved",
     GRADED: "Graded",
+    REJECTED: "Rejected",
+    SUBMITTED: "Submitted",
+    SUPERSEDED: "Superseded",
   };
 
   return (
@@ -537,7 +543,7 @@ function SubmissionStatusBadge({ status }: { status: SubmissionStatus }) {
 }
 
 function DeliverableTypeBadge({ type }: { type: DeliverableType }) {
-  const labels: Record<DeliverableType, string> = {
+  const labels: Record<string, string> = {
     PROPOSAL: "Proposal",
     REVISED_PROPOSAL: "Revised Proposal",
     STATEMENT_OF_WORK: "SoW",

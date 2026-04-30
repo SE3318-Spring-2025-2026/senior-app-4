@@ -1,0 +1,86 @@
+package com.spms.backend.service.impl;
+
+import com.spms.backend.dto.request.CommitteeCreateRequest;
+import com.spms.backend.exception.NotFoundException;
+import com.spms.backend.model.ActionType;
+import com.spms.backend.model.AuditLog;
+import com.spms.backend.model.Committee;
+import com.spms.backend.repository.AuditLogRepository;
+import com.spms.backend.repository.CommitteeRepository;
+import com.spms.backend.service.CommitteeService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+
+@Service
+@Transactional
+public class CommitteeServiceImpl implements CommitteeService {
+
+    private final CommitteeRepository committeeRepository;
+    private final AuditLogRepository auditLogRepository;
+
+    public CommitteeServiceImpl(CommitteeRepository committeeRepository, AuditLogRepository auditLogRepository) {
+        this.committeeRepository = committeeRepository;
+        this.auditLogRepository = auditLogRepository;
+    }
+
+    @Override
+    public Committee createCommittee(CommitteeCreateRequest request, Long coordinatorId) {
+        Committee committee = new Committee(
+                request.getCommitteeName(),
+                request.getDescription(),
+                "ACTIVE",
+                coordinatorId
+        );
+
+        Committee saved = committeeRepository.save(committee);
+
+        logAction(ActionType.COMMITTEE_CREATED, coordinatorId, saved.getCommitteeId(), "Committee created");
+
+        return saved;
+    }
+
+    @Override
+    public Committee updateCommittee(Long id, CommitteeCreateRequest request, Long coordinatorId) {
+        Committee committee = getCommitteeById(id);
+        committee.setCommitteeName(request.getCommitteeName());
+        committee.setDescription(request.getDescription());
+        committee.setUpdatedAt(Instant.now());
+
+        Committee saved = committeeRepository.save(committee);
+
+        logAction(ActionType.COMMITTEE_UPDATED, coordinatorId, saved.getCommitteeId(), "Committee updated");
+
+        return saved;
+    }
+
+    @Override
+    public void deleteCommittee(Long id, Long coordinatorId) {
+        Committee committee = getCommitteeById(id);
+        committeeRepository.delete(committee);
+
+        logAction(ActionType.COMMITTEE_DELETED, coordinatorId, id, "Committee deleted");
+    }
+
+    @Override
+    public Committee getCommitteeById(Long id) {
+        return committeeRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Committee not found with id " + id));
+    }
+
+    @Override
+    public List<Committee> getAllCommittees() {
+        return committeeRepository.findAll();
+    }
+
+    private void logAction(ActionType actionType, Long userId, Long committeeId, String details) {
+        AuditLog log = new AuditLog();
+        log.setActionType(actionType);
+        log.setUserId(userId);
+        log.setEventDetails(details + " (Committee ID: " + committeeId + ")");
+        // Notice we don't set GroupId because this is a committee action.
+        auditLogRepository.save(log);
+    }
+}

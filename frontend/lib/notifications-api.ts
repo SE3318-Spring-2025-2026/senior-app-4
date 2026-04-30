@@ -7,6 +7,7 @@ export type ApiNotification = {
     type: string;
     message: string;
     status: string;
+    readStatus: boolean;
     fromUserId: number | null;
     fromUserName: string | null;
     toUserId: number | null;
