@@ -35,7 +35,7 @@
 ## Prerequisites
 
 - Node.js 18+ and npm
-- Java 17+
+- Java 17
 - Maven 3.x
 
 ## Frontend Setup
