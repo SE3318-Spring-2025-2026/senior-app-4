@@ -11,9 +11,15 @@ import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.User;
 import com.spms.backend.repository.AuditLogRepository;
+import com.spms.backend.repository.CommitteeRepository;
+import com.spms.backend.repository.CommitteeAdvisorRepository;
 import com.spms.backend.repository.GroupRepository;
+import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.AdvisorAssignmentService;
+import com.spms.backend.service.CommitteeNotificationService;
 import com.spms.backend.service.NotificationService;
+import com.spms.backend.model.Committee;
+import com.spms.backend.model.CommitteeAdvisor;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -34,14 +40,26 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
     private final GroupRepository groupRepository;
     private final AuditLogRepository auditLogRepository;
     private final NotificationService notificationService;
+    private final CommitteeRepository committeeRepository;
+    private final UserRepository userRepository;
+    private final CommitteeAdvisorRepository committeeAdvisorRepository;
+    private final CommitteeNotificationService committeeNotificationService;
 
     public AdvisorAssignmentServiceImpl(
             GroupRepository groupRepository,
             AuditLogRepository auditLogRepository,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            CommitteeRepository committeeRepository,
+            UserRepository userRepository,
+            CommitteeAdvisorRepository committeeAdvisorRepository,
+            CommitteeNotificationService committeeNotificationService) {
         this.groupRepository = groupRepository;
         this.auditLogRepository = auditLogRepository;
         this.notificationService = notificationService;
+        this.committeeRepository = committeeRepository;
+        this.userRepository = userRepository;
+        this.committeeAdvisorRepository = committeeAdvisorRepository;
+        this.committeeNotificationService = committeeNotificationService;
     }
 
     @Override
@@ -178,5 +196,66 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
                 log.warn("Failed to send release notification for group {}: {}", groupId, exception.getMessage());
             }
         }
+    }
+
+    @Override
+    @Transactional
+    public void assignAdvisor(Long committeeId, Long advisorId, String role, Long assignedBy) {
+        Committee committee = committeeRepository.findById(committeeId)
+                .orElseThrow(() -> new NotFoundException("Committee not found"));
+
+        User advisor = userRepository.findById(advisorId)
+                .orElseThrow(() -> new NotFoundException("Advisor not found"));
+
+        if (!"PROFESSOR".equalsIgnoreCase(advisor.getRole())) {
+            throw new BadRequestException("Only professors can be assigned as advisors");
+        }
+
+        boolean alreadyAssigned = committee.getAdvisors().stream()
+                .anyMatch(ca -> ca.getAdvisor().getUserId().equals(advisorId));
+        if (alreadyAssigned) {
+            throw new BadRequestException("Advisor already assigned to this committee");
+        }
+
+        CommitteeAdvisor committeeAdvisor = new CommitteeAdvisor(committee, advisor, role, assignedBy);
+        committee.getAdvisors().add(committeeAdvisor);
+        committeeRepository.save(committee);
+
+        AuditLog log = new AuditLog();
+        log.setActionType(ActionType.ADVISOR_ASSIGNED);
+        log.setUserId(assignedBy);
+        log.setEventDetails("Assigned advisor " + advisorId + " to committee " + committeeId + " with role " + role);
+        auditLogRepository.save(log);
+
+        try {
+            committeeNotificationService.notifyAdvisorAssignment(committeeId, advisorId, assignedBy);
+        } catch (Exception e) {
+            // Ignore notification failure
+        }
+    }
+
+    @Override
+    @Transactional
+    public void removeAdvisor(Long committeeId, Long advisorId) {
+        Committee committee = committeeRepository.findById(committeeId)
+                .orElseThrow(() -> new NotFoundException("Committee not found"));
+
+        CommitteeAdvisor assignment = committee.getAdvisors().stream()
+                .filter(ca -> ca.getAdvisor().getUserId().equals(advisorId))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Advisor is not assigned to this committee"));
+
+        committee.getAdvisors().remove(assignment);
+        committeeAdvisorRepository.delete(assignment);
+        committeeRepository.save(committee);
+
+        // Assume assignedBy is the current context user, but since we don't pass it, we can just log a system event or skip.
+        // The issue specifies AuditLogging, but removeAdvisor interface doesn't have `removedBy`. 
+        // We'll log it without a specific `userId` or default to 1L (system) or the advisorId itself.
+        AuditLog auditLog = new AuditLog();
+        auditLog.setActionType(ActionType.MEMBER_REMOVED);
+        auditLog.setUserId(1L); // Defaulting to system
+        auditLog.setEventDetails("Removed advisor " + advisorId + " from committee " + committeeId);
+        auditLogRepository.save(auditLog);
     }
 }
