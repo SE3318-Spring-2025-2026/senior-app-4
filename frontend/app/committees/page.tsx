@@ -8,6 +8,7 @@ import { Committee } from "@/lib/committee-types";
 import { showToast } from "@/components/toast/ToastContext";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
+
 export default function CommitteesPage() {
     const [committees, setCommittees] = useState<Committee[]>([]);
     const [loading, setLoading] = useState(true);

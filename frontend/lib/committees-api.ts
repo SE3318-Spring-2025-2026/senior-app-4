@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 import apiClient from './client';
 
 export interface CommitteeAdvisor {
@@ -53,13 +53,15 @@ export const assignAdvisor = async (committeeId: number, advisorId: number, role
 export const removeAdvisor = async (committeeId: number, advisorId: number): Promise<void> => {
     await apiClient.delete(`/committees/${committeeId}/advisors/${advisorId}`);
 };
-=======
+
 import { getToken } from "@/lib/auth";
 import {
     Committee,
+    CommitteeAuditLog,
+    CommitteeAuditLogPageResponse,
+    CommitteeDetail,
     CommitteeFormValues,
     CommitteePageResponse,
-    CommitteeStatus,
 } from "@/lib/committee-types";
 
 const API_BASE =
@@ -91,6 +93,178 @@ let mockCommittees: Committee[] = [
         groupCount: 3,
         createdAt: "2026-04-22T10:00:00Z",
         updatedAt: "2026-04-22T10:00:00Z",
+    },
+];
+
+const mockCommitteeDetails: Record<number, Omit<CommitteeDetail, keyof Committee>> = {
+    1: {
+        advisors: [
+            {
+                id: 1,
+                name: "Prof. Ali Mert",
+                email: "alimert@example.com",
+                role: "ADVISOR",
+                assignedAt: "2026-04-21T09:30:00Z",
+            },
+            {
+                id: 2,
+                name: "Prof. Advisor",
+                email: "prof@spms-test.com",
+                role: "ADVISOR",
+                assignedAt: "2026-04-22T11:00:00Z",
+            },
+        ],
+        jury: [
+            {
+                id: 3,
+                name: "Professor One",
+                email: "prof.one@spms-test.com",
+                role: "JURY",
+                assignedAt: "2026-04-23T12:00:00Z",
+            },
+            {
+                id: 4,
+                name: "Professor Two",
+                email: "prof.two@spms-test.com",
+                role: "JURY",
+                assignedAt: "2026-04-23T12:15:00Z",
+            },
+            {
+                id: 5,
+                name: "Professor Three",
+                email: "prof.three@spms-test.com",
+                role: "JURY",
+                assignedAt: "2026-04-23T12:30:00Z",
+            },
+        ],
+        groups: [
+            {
+                groupId: 101,
+                groupName: "Group 1",
+                membersCount: 4,
+                status: "ADVISED",
+                examDate: "2026-05-10T10:00:00Z",
+            },
+            {
+                groupId: 102,
+                groupName: "Group 2",
+                membersCount: 5,
+                status: "ADVISED",
+                examDate: "2026-05-10T11:00:00Z",
+            },
+        ],
+        recentAuditLogs: [
+            {
+                id: 1,
+                timestamp: "2026-04-24T14:00:00Z",
+                userName: "Coordinator",
+                action: "COMMITTEE_UPDATED",
+                entityType: "COMMITTEE",
+                description: "Updated committee status to ACTIVE.",
+            },
+            {
+                id: 2,
+                timestamp: "2026-04-23T12:30:00Z",
+                userName: "Coordinator",
+                action: "JURY_ASSIGNED",
+                entityType: "COMMITTEE_ASSIGNMENT",
+                description: "Assigned jury members to committee.",
+            },
+        ],
+    },
+    2: {
+        advisors: [
+            {
+                id: 6,
+                name: "Prof. Proposal Advisor",
+                email: "proposal.advisor@spms-test.com",
+                role: "ADVISOR",
+                assignedAt: "2026-04-24T09:00:00Z",
+            },
+        ],
+        jury: [
+            {
+                id: 7,
+                name: "Proposal Jury One",
+                email: "jury.one@spms-test.com",
+                role: "JURY",
+                assignedAt: "2026-04-24T09:15:00Z",
+            },
+            {
+                id: 8,
+                name: "Proposal Jury Two",
+                email: "jury.two@spms-test.com",
+                role: "JURY",
+                assignedAt: "2026-04-24T09:30:00Z",
+            },
+        ],
+        groups: [
+            {
+                groupId: 201,
+                groupName: "Proposal Group A",
+                membersCount: 3,
+                status: "FORMING",
+                examDate: null,
+            },
+            {
+                groupId: 202,
+                groupName: "Proposal Group B",
+                membersCount: 4,
+                status: "FORMING",
+                examDate: null,
+            },
+            {
+                groupId: 203,
+                groupName: "Proposal Group C",
+                membersCount: 4,
+                status: "FORMING",
+                examDate: null,
+            },
+        ],
+        recentAuditLogs: [
+            {
+                id: 3,
+                timestamp: "2026-04-24T09:30:00Z",
+                userName: "Coordinator",
+                action: "COMMITTEE_CREATED",
+                entityType: "COMMITTEE",
+                description: "Created proposal review committee.",
+            },
+        ],
+    },
+};
+const mockAuditLogs: CommitteeAuditLog[] = [
+    {
+        id: 1,
+        timestamp: "2026-04-24T14:00:00Z",
+        userName: "Coordinator",
+        action: "COMMITTEE_UPDATED",
+        entityType: "COMMITTEE",
+        description: "Updated committee status to ACTIVE.",
+    },
+    {
+        id: 2,
+        timestamp: "2026-04-23T12:30:00Z",
+        userName: "Coordinator",
+        action: "JURY_ASSIGNED",
+        entityType: "COMMITTEE_ASSIGNMENT",
+        description: "Assigned jury members to committee.",
+    },
+    {
+        id: 3,
+        timestamp: "2026-04-22T10:15:00Z",
+        userName: "Coordinator",
+        action: "COMMITTEE_CREATED",
+        entityType: "COMMITTEE",
+        description: "Created Senior Project Committee A.",
+    },
+    {
+        id: 4,
+        timestamp: "2026-04-21T09:45:00Z",
+        userName: "Professor",
+        action: "GRADE_SUBMITTED",
+        entityType: "SUBMISSION",
+        description: "Submitted committee grade for Group 1.",
     },
 ];
 
@@ -293,7 +467,7 @@ export async function deleteCommittee(committeeId: number) {
 }
 export async function fetchCommitteeById(
     committeeId: number
-): Promise<Committee> {
+): Promise<CommitteeDetail> {
     if (USE_MOCK) {
         const committee = mockCommittees.find(
             (item) => item.committeeId === committeeId
@@ -303,7 +477,17 @@ export async function fetchCommitteeById(
             throw new Error("Committee not found.");
         }
 
-        return committee;
+        const nested = mockCommitteeDetails[committeeId] ?? {
+            advisors: [],
+            jury: [],
+            groups: [],
+            recentAuditLogs: [],
+        };
+
+        return {
+            ...committee,
+            ...nested,
+        };
     }
 
     const token = getToken();
@@ -321,4 +505,78 @@ export async function fetchCommitteeById(
 
     return res.json();
 }
->>>>>>> 534d052 (feat: committee management frontend with filters, search, sort, pagination)
+
+export async function fetchCommitteeAuditLogs(
+    page = 0,
+    size = 20,
+    action = "ALL",
+    entityType = "ALL",
+    fromDate = "",
+    toDate = ""
+): Promise<CommitteeAuditLogPageResponse> {
+    if (USE_MOCK) {
+        let result = [...mockAuditLogs];
+
+        if (action !== "ALL") {
+            result = result.filter((log) => log.action === action);
+        }
+
+        if (entityType !== "ALL") {
+            result = result.filter((log) => log.entityType === entityType);
+        }
+
+        if (fromDate) {
+            result = result.filter(
+                (log) => new Date(log.timestamp) >= new Date(fromDate)
+            );
+        }
+
+        if (toDate) {
+            result = result.filter(
+                (log) => new Date(log.timestamp) <= new Date(toDate)
+            );
+        }
+
+        result.sort(
+            (a, b) =>
+                new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+
+        const totalElements = result.length;
+        const totalPages = Math.max(Math.ceil(totalElements / size), 1);
+        const start = page * size;
+
+        return {
+            content: result.slice(start, start + size),
+            totalPages,
+            totalElements,
+        };
+    }
+
+    const token = getToken();
+    const params = new URLSearchParams({
+        page: String(page),
+        size: String(size),
+    });
+
+    if (action !== "ALL") params.set("action", action);
+    if (entityType !== "ALL") params.set("entityType", entityType);
+    if (fromDate) params.set("fromDate", fromDate);
+    if (toDate) params.set("toDate", toDate);
+
+    const res = await fetch(
+        `${API_BASE}/committees/audit-logs?${params.toString()}`,
+        {
+            headers: {
+                Authorization: `Bearer ${token ?? ""}`,
+            },
+            cache: "no-store",
+        }
+    );
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
