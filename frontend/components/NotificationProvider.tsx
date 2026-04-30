@@ -10,15 +10,19 @@ import {
     ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import { Client, IMessage } from "@stomp/stompjs";
+import SockJS from "sockjs-client";
 import {
-    fetchNotifications,
+    fetchMyCommitteeNotifications,
     respondNotification,
     clearNotificationApi,
 } from "@/lib/notifications-api";
+import { getToken } from "@/lib/auth";
 import {
     Notification,
     NotificationDecision,
 } from "@/lib/notification-types";
+import { API_BASE } from "@/lib/api-utils";
 
 // ------------------------------------------------------------------ Types
 
@@ -37,27 +41,35 @@ const NotificationContext = createContext<NotificationContextType | undefined>(
 
 // ------------------------------------------------------------------ Helpers
 
-function mapApiNotification(n: {
+type ApiNotification = {
     id: number;
     type: string;
     message: string;
     status: string;
+    readStatus: boolean;
     fromUserId: number | null;
     fromUserName: string | null;
     toUserId: number | null;
     groupId: number | null;
     createdAt: string;
-}): Notification {
+};
+
+function mapApiNotification(n: ApiNotification): Notification {
     return {
         id: n.id,
-        type: String(n.type).trim().toLowerCase() as Notification["type"],
+        type: String(n.type).trim() as Notification["type"],
         message: n.message,
         status: String(n.status).trim().toLowerCase() as Notification["status"],
+        readStatus: Boolean(n.readStatus),
         fromUserId: n.fromUserId,
         fromUserName: n.fromUserName ?? null,
         groupId: n.groupId,
         createdAt: n.createdAt,
     };
+}
+
+function getWebSocketUrl(): string {
+    return `${API_BASE.replace(/\/api\/v1$/, "")}/ws`;
 }
 
 // ------------------------------------------------------------------ Provider
@@ -75,9 +87,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         async function load() {
             try {
                 setLoading(true);
-                const page = await fetchNotifications(0, 50);
+                const data = await fetchMyCommitteeNotifications();
                 if (cancelled) return;
-                setNotifications(page.content.map(mapApiNotification));
+                const mapped = data.map(mapApiNotification);
+                mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                setNotifications(mapped);
             } catch {
                 // Silently fail — notifications are non-critical
             } finally {
@@ -86,15 +100,90 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }
 
         load();
-        return () => { cancelled = true; };
+        return () => {
+            cancelled = true;
+        };
     }, [tick]);
 
     const refresh = useCallback(() => setTick((t) => t + 1), []);
+    const [socketConnected, setSocketConnected] = useState(false);
 
     const unreadOrPendingCount = useMemo(
-        () => notifications.filter((n) => n.status === "pending").length,
+        () => notifications.filter((n) => !n.readStatus || n.status === "pending").length,
         [notifications]
     );
+
+    useEffect(() => {
+        let client: Client | null = null;
+        let pollingId: number | null = null;
+        const wsUrl = getWebSocketUrl();
+
+        function startPolling() {
+            if (pollingId !== null) return;
+            pollingId = window.setInterval(() => {
+                refresh();
+            }, 20000);
+        }
+
+        function stopPolling() {
+            if (pollingId !== null) {
+                window.clearInterval(pollingId);
+                pollingId = null;
+            }
+        }
+
+        function handlePush(message: IMessage) {
+            if (!message.body) return;
+            try {
+                const payload = JSON.parse(message.body) as ApiNotification;
+                const notification = mapApiNotification(payload);
+                setNotifications((prev) => [notification, ...prev.filter((item) => item.id !== notification.id)]);
+            } catch {
+                // Ignore malformed payloads
+            }
+        }
+
+        function connectWebSocket() {
+            const token = getToken();
+            client = new Client({
+                webSocketFactory: () => new SockJS(wsUrl),
+                connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+                debug: () => {},
+                reconnectDelay: 5000,
+                onConnect: () => {
+                    setSocketConnected(true);
+                    stopPolling();
+                    if (client) {
+                        client.subscribe("/user/queue/notifications", handlePush);
+                    }
+                },
+                onStompError: () => {
+                    setSocketConnected(false);
+                    startPolling();
+                },
+                onWebSocketError: () => {
+                    setSocketConnected(false);
+                    startPolling();
+                },
+                onWebSocketClose: () => {
+                    setSocketConnected(false);
+                    startPolling();
+                },
+            });
+
+            client.activate();
+            startPolling();
+        }
+
+        connectWebSocket();
+
+        return () => {
+            if (client) {
+                client.deactivate();
+            }
+            stopPolling();
+        };
+    }, [refresh]);
 
     // ---------------------------------------------------------------- respond
     async function respondToNotification(
