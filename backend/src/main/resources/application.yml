@@ -6,7 +6,7 @@ spring:
     name: spms-backend
 
   datasource:
-    url: ${DB_URL}
+    url: ${db.url}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 2
@@ -25,10 +25,10 @@ springdoc:
   paths-to-exclude: /ws/**
 
 github:
-  client-id: ${GITHUB_CLIENT_ID}
-  client-secret: ${GITHUB_CLIENT_SECRET}
-  redirect-uri: ${GITHUB_REDIRECT_URI}
+  client-id: ${github.client-id}
+  client-secret: ${github.client-secret}
+  redirect-uri: ${github.redirect-uri}
 
 token:
-  secret: ${TOKEN_SECRET}
-  expiration-seconds: ${TOKEN_EXPIRATION_SECONDS:3600}
+  secret: ${token.secret}
+  expiration-seconds: 3600

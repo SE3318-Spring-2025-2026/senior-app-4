@@ -7,13 +7,32 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "group_committee_assignments")
+@Table(
+        name = "group_committee_assignments",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_committee_group",
+                        columnNames = {"committee_id", "group_id"})
+        },
+        indexes = {
+                @Index(name = "idx_gca_committee", columnList = "committee_id"),
+                @Index(name = "idx_gca_group", columnList = "group_id"),
+                @Index(name = "idx_gca_exam_date", columnList = "exam_date")
+        }
+)
 public class GroupCommitteeAssignment {
+
+    public static final String STATUS_ASSIGNED = "ASSIGNED";
+    public static final String STATUS_SCHEDULED = "SCHEDULED";
+    public static final String STATUS_COMPLETED = "COMPLETED";
+    public static final String STATUS_CANCELLED = "CANCELLED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,22 +43,25 @@ public class GroupCommitteeAssignment {
     @JoinColumn(name = "committee_id", nullable = false)
     private Committee committee;
 
+    @ManyToOne
+    @JoinColumn(name = "group_id", nullable = false, insertable = false, updatable = false)
+    private Group group;
+
     @Column(name = "group_id", nullable = false)
     private Long groupId;
 
-    @Column(name = "status")
-    private String status; // ASSIGNED, SCHEDULED, COMPLETED, CANCELLED
+    @Column(name = "status", nullable = false)
+    private String status;
 
     @Column(name = "exam_date")
     private Instant examDate;
 
-    @Column(name = "assigned_at")
+    @Column(name = "assigned_at", nullable = false, updatable = false)
     private Instant assignedAt;
 
     @Column(name = "assigned_by")
     private Long assignedBy;
 
-    // Constructors
     public GroupCommitteeAssignment() {
     }
 
@@ -51,7 +73,6 @@ public class GroupCommitteeAssignment {
         this.assignedAt = Instant.now();
     }
 
-    // Getters and Setters
     public Long getAssignmentId() {
         return assignmentId;
     }
@@ -66,6 +87,14 @@ public class GroupCommitteeAssignment {
 
     public void setCommittee(Committee committee) {
         this.committee = committee;
+    }
+
+    public Group getGroup() {
+        return group;
+    }
+
+    public void setGroup(Group group) {
+        this.group = group;
     }
 
     public Long getGroupId() {
