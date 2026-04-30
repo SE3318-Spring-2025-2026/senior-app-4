@@ -36,4 +36,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByTypeOrderByCreatedAtDesc(NotificationType type);
 
     List<Notification> findByGroupIdAndTypeOrderByCreatedAtDesc(Long groupId, NotificationType type);
+
+    List<Notification> findByCommitteeIdOrderByCreatedAtDesc(Long committeeId);
+
+    List<Notification> findByToUser_UserIdAndCommitteeIdIsNotNullOrderByCreatedAtDesc(Long userId);
 }
