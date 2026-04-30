@@ -9,31 +9,46 @@ type Props = {
     onClear: (id: number) => void;
 };
 
-function getIcon(type: string) {
-    const cleanType = type
+function normalizeType(value: string) {
+    return String(value ?? "")
         .normalize("NFKC")
         .replace(/[\s\u200B-\u200D\uFEFF]/g, "")
-        .toLowerCase()
         .replace(/ı/g, "i")
-        .replace(/İ/g, "i");
+        .replace(/İ/g, "i")
+        .toUpperCase();
+}
 
-    switch (cleanType) {
-        case "membership_invite":
-            return "📩";
-        case "advisor_request":
-        case "advisor_decision":
-            return "👨‍🏫";
-        case "system_alert":
-            return "⚠️";
-        case "group_disbanded":
-            return "🚫";
+function getTypeMeta(value: string) {
+    const key = normalizeType(value);
+    switch (key) {
+        case "ADVISOR_ASSIGNMENT":
+            return { icon: "🧑‍🏫", label: "Advisor Assignment", color: "bg-blue-500/15 text-blue-300" };
+        case "JURY_ASSIGNMENT":
+            return { icon: "🧑‍⚖️", label: "Jury Assignment", color: "bg-purple-500/15 text-purple-300" };
+        case "GROUP_ASSIGNMENT":
+            return { icon: "👥", label: "Group Assignment", color: "bg-emerald-500/15 text-emerald-300" };
+        case "SCHEDULE_CHANGE":
+            return { icon: "🗓️", label: "Schedule Change", color: "bg-orange-500/15 text-orange-300" };
+        case "MEETING_REMINDER":
+            return { icon: "⏰", label: "Meeting Reminder", color: "bg-red-500/15 text-red-300" };
+        case "GENERAL":
+            return { icon: "ℹ️", label: "General", color: "bg-slate-500/15 text-slate-300" };
+        case "MEMBERSHIP_INVITE":
+            return { icon: "📩", label: "Membership Invite", color: "bg-sky-500/15 text-sky-300" };
+        case "ADVISOR_REQUEST":
+        case "ADVISOR_DECISION":
+            return { icon: "👨‍🏫", label: "Advisor Notification", color: "bg-slate-500/15 text-slate-300" };
+        case "SYSTEM_ALERT":
+            return { icon: "⚠️", label: "System Alert", color: "bg-yellow-500/15 text-yellow-300" };
+        case "GROUP_DISBANDED":
+            return { icon: "🚫", label: "Group Disbanded", color: "bg-rose-500/15 text-rose-300" };
         default:
-            return "🔔";
+            return { icon: "🔔", label: "Notification", color: "bg-white/10 text-gray-300" };
     }
 }
 
 function formatDate(date: string) {
-    return new Date(date).toLocaleString("en-US", {
+    return new Date(date).toLocaleString(undefined, {
         day: "numeric",
         month: "short",
         hour: "2-digit",
@@ -49,10 +64,7 @@ function StatusBadge({ status }: { status: Notification["status"] }) {
         cleared: "bg-white/10 text-gray-400",
     };
     return (
-        <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${classes[status] ?? "bg-white/10 text-gray-400"
-                }`}
-        >
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${classes[status] ?? "bg-white/10 text-gray-400"}`}>
             {status}
         </span>
     );
@@ -60,32 +72,8 @@ function StatusBadge({ status }: { status: Notification["status"] }) {
 
 export default function NotificationItem({ notification, onRespond, onClear }: Props) {
     const [responding, setResponding] = useState(false);
-
-    // 🔥 KRİTİK FIX BURADA
-    function clean(value: string) {
-        return String(value ?? "")
-            .normalize("NFKC")
-            .replace(/[\s\u200B-\u200D\uFEFF]/g, "")
-            .toLowerCase();
-    }
-
-    function fixTurkishChars(str: string) {
-        return str
-            .replace(/ı/g, "i")
-            .replace(/İ/g, "i");
-    }
-
-    const safeType = fixTurkishChars(clean(notification.type));
-    const safeStatus = fixTurkishChars(clean(notification.status));
-
-    const isInvite =
-        safeType === "membership_invite" &&
-        safeStatus === "pending";
-
-    const isProcessed =
-        safeStatus === "accepted" ||
-        safeStatus === "rejected" ||
-        safeStatus === "cleared";
+    const meta = getTypeMeta(notification.type);
+    const isInvite = normalizeType(notification.type) === "MEMBERSHIP_INVITE" && notification.status === "pending";
 
     async function handleRespond(decision: NotificationDecision) {
         setResponding(true);
@@ -99,64 +87,59 @@ export default function NotificationItem({ notification, onRespond, onClear }: P
     return (
         <div className="rounded-xl border border-white/10 bg-gray-900/70 p-5 shadow-md backdrop-blur transition-all">
             <div className="flex flex-col gap-4">
-
-                {/* ÜST KISIM */}
                 <div className="flex gap-3">
-                    <div className="text-xl flex-shrink-0">
-                        {getIcon(notification.type)}
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${meta.color}`}>
+                        <span className="text-xl">{meta.icon}</span>
                     </div>
 
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs uppercase tracking-[0.18em] text-gray-400">{meta.label}</span>
+                            {!notification.readStatus && (
+                                <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-200">
+                                    New
+                                </span>
+                            )}
+                        </div>
+
                         {notification.fromUserName && (
-                            <p className="text-xs text-blue-400 font-medium mb-1">
-                                From: {notification.fromUserName}
-                            </p>
+                            <p className="mt-2 text-xs text-blue-400 font-medium">From: {notification.fromUserName}</p>
                         )}
 
-                        <p className="text-sm text-white leading-relaxed">
-                            {notification.message}
-                        </p>
+                        <p className="mt-2 text-sm text-white leading-relaxed">{notification.message}</p>
 
-                        <div className="flex items-center gap-3 mt-2">
-                            <p className="text-xs text-gray-500">
-                                {formatDate(notification.createdAt)}
-                            </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                            <span>{formatDate(notification.createdAt)}</span>
                             <StatusBadge status={notification.status} />
                         </div>
                     </div>
                 </div>
 
-                {/* 🔥 BUTONLARI ALTA ALDIK (KESİN GÖRÜNSÜN DİYE) */}
-                <div className="flex gap-2 flex-wrap">
-
+                <div className="flex flex-wrap gap-2">
                     {isInvite && (
                         <>
                             <button
                                 onClick={() => handleRespond("accept")}
                                 disabled={responding}
-                                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {responding ? "…" : "Accept"}
                             </button>
-
                             <button
                                 onClick={() => handleRespond("reject")}
                                 disabled={responding}
-                                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {responding ? "…" : "Reject"}
                             </button>
                         </>
                     )}
-
-                    {isProcessed && (
-                        <button
-                            onClick={() => onClear(notification.id)}
-                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 transition-colors"
-                        >
-                            Clear
-                        </button>
-                    )}
+                    <button
+                        onClick={() => onClear(notification.id)}
+                        className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-gray-300 transition hover:bg-white/20"
+                    >
+                        Delete
+                    </button>
                 </div>
             </div>
         </div>

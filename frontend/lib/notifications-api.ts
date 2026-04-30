@@ -48,6 +48,23 @@ export async function fetchNotifications(
 }
 
 /**
+ * P5.11 — Fetch the current user's committee notifications.
+ */
+export async function fetchMyCommitteeNotifications(): Promise<ApiNotification[]> {
+    const res = await fetch(`${API_BASE}/committees/notifications`, {
+        method: "GET",
+        headers: authHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
+
+/**
  * P2-API-19: Student responds to a notification (accept or reject).
  */
 export async function respondNotification(
