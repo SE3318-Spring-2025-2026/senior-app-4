@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@stomp/stompjs": "^7.3.0",
     "@supabase/supabase-js": "^2.102.1",
     "axios": "^1.15.0",
     "lucide-react": "^1.8.0",
@@ -16,6 +17,7 @@
     "next-auth": "^4.24.13",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "sockjs-client": "^1.6.1",
     "sonner": "^2.0.7"
   },
   "devDependencies": {
@@ -23,6 +25,7 @@
     "@types/node": "^20.19.39",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sockjs-client": "^1.5.4",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "tailwindcss": "^4",

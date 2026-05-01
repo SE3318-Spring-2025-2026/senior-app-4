@@ -51,12 +51,14 @@ public class AuditLogAspect {
         }
 
         Long groupId = extractGroupId(joinPoint, result);
+        Long committeeId = extractCommitteeId(joinPoint, result);
 
         AuditLog log = new AuditLog();
         log.setActionType(actionType);
         log.setUserId(userId);
         log.setIpAddress(ipAddress);
         log.setGroupId(groupId);
+        log.setCommitteeId(committeeId);
 
         if (eventDetails == null || eventDetails.isEmpty()) {
             log.setEventDetails(actionType.name() + " operation performed by User ID: " + userId);
@@ -97,6 +99,43 @@ public class AuditLogAspect {
             if (parameterNames != null && args != null) {
                 for (int i = 0; i < parameterNames.length; i++) {
                     if ("groupId".equals(parameterNames[i]) && args[i] instanceof Long) {
+                        return (Long) args[i];
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private Long extractCommitteeId(JoinPoint joinPoint, Object result) {
+        // Try returning DTO first (e.g. createCommittee)
+        if (result != null) {
+            try {
+                Method getIdMethod = result.getClass().getMethod("committeeId");
+                Object idObj = getIdMethod.invoke(result);
+                if (idObj instanceof Long) {
+                    return (Long) idObj;
+                }
+            } catch (Exception ignored) {}
+
+            try {
+                Method getIdMethod = result.getClass().getMethod("getCommitteeId");
+                Object idObj = getIdMethod.invoke(result);
+                if (idObj instanceof Long) {
+                    return (Long) idObj;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // Check method args
+        if (joinPoint.getSignature() instanceof MethodSignature) {
+            MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+            String[] parameterNames = signature.getParameterNames();
+            Object[] args = joinPoint.getArgs();
+
+            if (parameterNames != null && args != null) {
+                for (int i = 0; i < parameterNames.length; i++) {
+                    if ("committeeId".equals(parameterNames[i]) && args[i] instanceof Long) {
                         return (Long) args[i];
                     }
                 }

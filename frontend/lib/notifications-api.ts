@@ -7,6 +7,7 @@ export type ApiNotification = {
     type: string;
     message: string;
     status: string;
+    readStatus: boolean;
     fromUserId: number | null;
     fromUserName: string | null;
     toUserId: number | null;
@@ -39,6 +40,23 @@ export async function fetchNotifications(
             cache: "no-store",
         }
     );
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
+
+/**
+ * P5.11 — Fetch the current user's committee notifications.
+ */
+export async function fetchMyCommitteeNotifications(): Promise<ApiNotification[]> {
+    const res = await fetch(`${API_BASE}/committees/notifications`, {
+        method: "GET",
+        headers: authHeaders(),
+        cache: "no-store",
+    });
 
     if (!res.ok) {
         throw new Error(await parseError(res));

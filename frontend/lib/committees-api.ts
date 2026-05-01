@@ -265,3 +265,44 @@ export async function fetchCommitteeById(
 
     return res.json();
 }
+
+export async function assignAdvisor(
+    committeeId: number,
+    advisorId: number,
+    role: string
+): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/committees/${committeeId}/advisors`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({
+            advisorId,
+            role,
+        }),
+    });
+
+    if (!res.ok) throw new Error(await parseError(res));
+}
+
+export async function removeAdvisor(
+    committeeId: number,
+    advisorId: number
+): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(
+        `${API_BASE}/committees/${committeeId}/advisors/${advisorId}`,
+        {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${token ?? ""}`,
+            },
+        }
+    );
+
+    if (!res.ok) throw new Error(await parseError(res));
+}

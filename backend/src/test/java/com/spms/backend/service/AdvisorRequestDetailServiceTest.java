@@ -227,6 +227,8 @@ class AdvisorRequestDetailServiceTest {
         @Override public List<Notification> findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(Long groupId, NotificationType type, com.spms.backend.model.notification.NotificationStatus status, Long excludedUserId) { return List.of(); }
         @Override public List<Notification> findByTypeOrderByCreatedAtDesc(NotificationType type) { return List.of(); }
         @Override public List<Notification> findByGroupIdAndTypeOrderByCreatedAtDesc(Long groupId, NotificationType type) { return List.of(); }
+        @Override public List<Notification> findByCommitteeIdOrderByCreatedAtDesc(Long committeeId) { return List.of(); }
+        @Override public List<Notification> findByToUser_UserIdAndCommitteeIdIsNotNullOrderByCreatedAtDesc(Long userId) { return List.of(); }
     }
 
     static class StubGroupRepository

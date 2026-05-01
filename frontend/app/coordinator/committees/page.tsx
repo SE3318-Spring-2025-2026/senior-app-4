@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import Sidebar from "@/components/Sidebar";
 import CommitteeForm from "@/components/committee/CommitteeForm";
 import { showToast } from "@/components/toast/ToastContext";
@@ -15,6 +16,10 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 export default function CoordinatorCommitteesPage() {
+    const authStatus = useAuthGuard("coordinator");
+
+    if (authStatus === "loading") return null;
+    if (authStatus === "denied") return null;
     const [committees, setCommittees] = useState<Committee[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);

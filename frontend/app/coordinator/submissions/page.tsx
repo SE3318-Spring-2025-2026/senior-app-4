@@ -276,14 +276,14 @@ function SubmissionRow({ submission: s }: { submission: SubmissionSummary }) {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SubmissionStatusBadge({ status }: { status: SubmissionStatus }) {
-  const styles: Record<SubmissionStatus, string> = {
+  const styles: Record<string, string> = {
     PENDING_REVIEW:     "bg-yellow-500/15 text-yellow-400 border-yellow-500/20",
     UNDER_REVIEW:       "bg-blue-500/15 text-blue-400 border-blue-500/20",
     REVISION_REQUESTED: "bg-orange-500/15 text-orange-400 border-orange-500/20",
     APPROVED:           "bg-green-500/15 text-green-400 border-green-500/20",
     GRADED:             "bg-purple-500/15 text-purple-400 border-purple-500/20",
   };
-  const labels: Record<SubmissionStatus, string> = {
+  const labels: Record<string, string> = {
     PENDING_REVIEW:     "Pending Review",
     UNDER_REVIEW:       "Under Review",
     REVISION_REQUESTED: "Revision Requested",
@@ -298,7 +298,7 @@ function SubmissionStatusBadge({ status }: { status: SubmissionStatus }) {
 }
 
 function DeliverableTypeBadge({ type }: { type: DeliverableType }) {
-  const labels: Record<DeliverableType, string> = {
+  const labels: Record<string, string> = {
     PROPOSAL:           "Proposal",
     REVISED_PROPOSAL:   "Revised Proposal",
     STATEMENT_OF_WORK:  "SoW",

@@ -8,6 +8,7 @@ CLAUDE.md
 .env.local
 .env.production
 backend/application.properties
+backend/application.yml
 
 # IDE
 .idea/
@@ -18,6 +19,7 @@ backend/application.properties
 Thumbs.db
 
 application-local.properties
+application.properties
 
 # Log files
 *.log
