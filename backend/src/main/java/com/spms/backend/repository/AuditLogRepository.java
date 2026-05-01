@@ -10,10 +10,14 @@ import org.springframework.data.domain.Pageable;
 
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
-    
+
     Page<AuditLog> findByActionType(ActionType actionType, Pageable pageable);
-    
+
     Page<AuditLog> findByGroupId(Long groupId, Pageable pageable);
 
     java.util.Optional<AuditLog> findTopByGroupIdAndActionTypeOrderByCreatedAtDesc(Long groupId, ActionType actionType);
+
+    Page<AuditLog> findByCommitteeIdOrderByCreatedAtDesc(Long committeeId, Pageable pageable);
+
+    Page<AuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }
