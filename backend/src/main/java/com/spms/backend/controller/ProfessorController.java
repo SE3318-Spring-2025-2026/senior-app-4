@@ -18,7 +18,6 @@ import com.spms.backend.dto.response.AdvisorRequestResponseDto;
 import com.spms.backend.dto.request.AdvisorRequestDecisionDto;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import java.util.List;
 
@@ -38,8 +37,7 @@ public class ProfessorController {
     @Operation(summary = "Register a new professor or coordinator")
     @PostMapping("/register")
     public ResponseEntity<ProfessorRegisterResponse> registerProfessor(
-            @Valid @RequestBody ProfessorRegisterRequest request
-    ) {
+            @Valid @RequestBody ProfessorRegisterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(professorRegistrationService.registerProfessor(request));
     }

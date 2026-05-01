@@ -15,6 +15,8 @@ public interface GroupCommitteeAssignmentRepository extends JpaRepository<GroupC
 
     Optional<GroupCommitteeAssignment> findTopByGroupIdAndStatusOrderByAssignedAtDesc(Long groupId, String status);
 
+    List<GroupCommitteeAssignment> findByStatus(String status);
+
     Optional<GroupCommitteeAssignment> findByCommittee_CommitteeIdAndGroupId(Long committeeId, Long groupId);
 
     List<GroupCommitteeAssignment> findByCommittee_CommitteeId(Long committeeId);
