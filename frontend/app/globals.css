@@ -12,17 +12,22 @@
   --color-primary-200: #bfdbfe;
   --color-primary-300: #93c5fd;
   --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
+  --color-primary-500: #007BFF; /* Issue 320 AC */
+  --color-primary-600: #0069d9;
   --color-primary-700: #1d4ed8;
   --color-primary-800: #1e40af;
   --color-primary-900: #1e3a8a;
 
-  /* ── Semantic ── */
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-danger:  #ef4444;
-  --color-info:    #3b82f6;
+  /* ── Semantic & Badges (Issue 320) ── */
+  --color-secondary: #6C757D;
+  --color-success:   #28A745;
+  --color-warning:   #FFC107;
+  --color-danger:    #ef4444;
+  --color-info:      #007BFF;
+  
+  --badge-active:    #28A745;
+  --badge-inactive:  #6C757D;
+  --badge-completed: #FFC107;
 
   /* ── Background ── */
   --bg-page:       #f8fafc;
@@ -60,19 +65,23 @@
   --radius-lg:  14px;
   --radius-xl:  20px;
 
-  /* ── Typography ── */
+  /* ── Typography (Issue 320) ── */
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), monospace;
-  --font-size-xs:   0.75rem;   /* 12px */
-  --font-size-sm:   0.875rem;  /* 14px */
-  --font-size-base: 1rem;      /* 16px */
-  --font-size-lg:   1.125rem;  /* 18px */
-  --font-size-xl:   1.25rem;   /* 20px */
-  --font-size-2xl:  1.5rem;    /* 24px */
+  --font-size-small: 14px;
+  --font-size-body:  16px;
+  --font-size-h3:    24px;
+  --font-size-h2:    28px;
+  --font-size-h1:    36px;
 
-  /* ── Spacing ── */
-  --space-page-x: 2rem;        
-  --space-page-y: 2rem;        
+  /* ── Spacing (Issue 320 Grid) ── */
+  --spacing-1: 8px;
+  --spacing-2: 16px;
+  --spacing-3: 24px;
+  --spacing-4: 32px;
+  
+  --space-page-x: var(--spacing-4);        
+  --space-page-y: var(--spacing-4);        
 
   /* ── Transition ── */
   --transition-fast:   150ms ease;
