@@ -1,59 +1,3 @@
-
-import apiClient from './client';
-
-export interface CommitteeAdvisor {
-    committeeAdvisorId: number;
-    role: string;
-    advisor: {
-        userId: number;
-        fullName: string;
-        email: string;
-    };
-}
-
-export interface Committee {
-    committeeId: number;
-    committeeName: string;
-    description: string;
-    status: string;
-    advisors: CommitteeAdvisor[];
-}
-
-export const fetchCommittees = async (): Promise<Committee[]> => {
-    const response = await apiClient.get('/committees');
-    const data = response.data;
-    if (Array.isArray(data)) return data;
-    if (data && Array.isArray(data.data)) return data.data;
-    if (data && Array.isArray(data.content)) return data.content;
-    return [];
-};
-
-export const fetchCommitteeById = async (id: number): Promise<Committee> => {
-    const response = await apiClient.get(`/committees/${id}`);
-    const data = response.data;
-    return data?.data || data;
-};
-
-export const createCommittee = async (data: { committeeName: string; description: string }): Promise<Committee> => {
-    const response = await apiClient.post('/committees', data);
-    return response.data;
-};
-
-export const deleteCommittee = async (id: number): Promise<void> => {
-    await apiClient.delete(`/committees/${id}`);
-};
-
-export const assignAdvisor = async (committeeId: number, advisorId: number, role: string): Promise<void> => {
-    await apiClient.post(`/committees/${committeeId}/advisors`, {
-        advisorId,
-        role
-    });
-};
-
-export const removeAdvisor = async (committeeId: number, advisorId: number): Promise<void> => {
-    await apiClient.delete(`/committees/${committeeId}/advisors/${advisorId}`);
-};
-
 import { getToken } from "@/lib/auth";
 import {
     Committee,
@@ -67,7 +11,7 @@ import {
 const API_BASE =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
 
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 let mockCommittees: Committee[] = [
     {
@@ -86,7 +30,7 @@ let mockCommittees: Committee[] = [
         committeeId: 2,
         committeeName: "Proposal Review Committee",
         description: "Reviews proposal submissions.",
-        status: "FORMING",
+        status: "ACTIVE",
         createdBy: 1,
         advisorCount: 1,
         juryCount: 2,
@@ -277,6 +221,93 @@ async function parseError(res: Response) {
     }
 }
 
+function normalizeCommitteeDetail(data: any): CommitteeDetail {
+    const advisors = (data.advisors ?? []).map((advisor: any) => ({
+        id: advisor.id ?? advisor.committeeAdvisorId ?? advisor.userId,
+        name:
+            advisor.name ??
+            advisor.fullName ??
+            advisor.advisorName ??
+            `User #${advisor.userId ?? "-"}`,
+        email: advisor.email ?? advisor.advisorEmail ?? "",
+        role: advisor.role ?? "ADVISOR",
+        assignedAt: advisor.assignedAt ?? null,
+    }));
+
+    const jury = (data.jury ?? data.juryMembers ?? []).map((member: any) => ({
+        id: member.id ?? member.juryMemberId,
+        name: member.name ?? member.fullName ?? member.juryMemberName,
+        email: member.email ?? member.juryMemberEmail ?? "",
+        role: member.role ?? member.juryType ?? "JURY",
+        assignedAt: member.assignedAt,
+    }));
+
+    const groups = (data.groups ?? data.groupAssignments ?? []).map((group: any) => ({
+        groupId: group.groupId,
+        groupName: group.groupName ?? `Group #${group.groupId}`,
+        membersCount: group.membersCount ?? 0,
+        status: group.status,
+        examDate: group.examDate,
+    }));
+
+    return {
+        ...data,
+        advisors,
+        jury,
+        groups,
+
+        advisorCount: advisors.length,
+        juryCount: jury.length,
+        groupCount: groups.length,
+
+        recentAuditLogs: data.recentAuditLogs ?? [],
+    };
+}
+
+function getAuthHeaders() {
+    const token = getToken();
+
+    return {
+        Authorization: `Bearer ${token ?? ""}`,
+        "Content-Type": "application/json",
+    };
+}
+
+function normalizeCommitteePage(data: any): CommitteePageResponse {
+    const committees = data?.content ?? data?.data ?? [];
+
+    return {
+        content: committees,
+        totalPages: data?.totalPages ?? data?.pagination?.totalPages ?? 1,
+        totalElements:
+            data?.totalElements ??
+            data?.pagination?.totalElements ??
+            data?.count ??
+            committees.length,
+    };
+}
+
+function normalizeAuditLogPage(data: any): CommitteeAuditLogPageResponse {
+    const logs = data?.content ?? data?.data ?? [];
+
+    return {
+        content: logs.map((log: any) => ({
+            id: log.id ?? log.logId,
+            timestamp: log.timestamp ?? log.createdAt,
+            userName: log.userName ?? `User #${log.userId ?? "-"}`,
+            action: log.action ?? log.actionType,
+            entityType: log.entityType,
+            description: log.description,
+        })),
+        totalPages: data?.totalPages ?? data?.pagination?.totalPages ?? 1,
+        totalElements:
+            data?.totalElements ??
+            data?.pagination?.totalElements ??
+            data?.count ??
+            logs.length,
+    };
+}
+
 function filterSortPaginate(
     committees: Committee[],
     page: number,
@@ -332,10 +363,15 @@ export async function fetchCommittees(
     }
 
     const token = getToken();
+    const backendSort =
+        sort === "name_asc" || sort === "name_desc"
+            ? "committeeName"
+            : "createdAt";
+
     const params = new URLSearchParams({
         page: String(page),
         size: String(size),
-        sort,
+        sort: backendSort,
     });
 
     if (status !== "ALL") params.set("status", status);
@@ -347,7 +383,7 @@ export async function fetchCommittees(
     });
 
     if (!res.ok) throw new Error(await parseError(res));
-    return res.json();
+    return normalizeCommitteePage(await res.json());
 }
 
 export async function fetchCoordinatorCommittees(
@@ -363,25 +399,26 @@ export async function fetchCoordinatorCommittees(
     }
 
     const token = getToken();
+    const sortField = sort.startsWith("name") ? "committeeName" : "createdAt";
+    const sortDir = sort.endsWith("desc") ? "desc" : "asc";
+
     const params = new URLSearchParams({
         page: String(page),
         size: String(size),
-        sort,
+        sort: sortField,
+        dir: sortDir
     });
 
     if (status !== "ALL") params.set("status", status);
     if (search) params.set("search", search);
 
-    const res = await fetch(
-        `${API_BASE}/committees/coordinator/${coordinatorId}?${params.toString()}`,
-        {
-            headers: { Authorization: `Bearer ${token ?? ""}` },
-            cache: "no-store",
-        }
-    );
+    const res = await fetch(`${API_BASE}/committees?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token ?? ""}` },
+        cache: "no-store",
+    });
 
     if (!res.ok) throw new Error(await parseError(res));
-    return res.json();
+    return normalizeCommitteePage(await res.json());
 }
 
 export async function createCommittee(values: CommitteeFormValues) {
@@ -503,7 +540,7 @@ export async function fetchCommitteeById(
         throw new Error(await parseError(res));
     }
 
-    return res.json();
+    return normalizeCommitteeDetail(await res.json());
 }
 
 export async function fetchCommitteeAuditLogs(
@@ -559,13 +596,13 @@ export async function fetchCommitteeAuditLogs(
         size: String(size),
     });
 
-    if (action !== "ALL") params.set("action", action);
+    if (action !== "ALL") params.set("actionType", action);
     if (entityType !== "ALL") params.set("entityType", entityType);
-    if (fromDate) params.set("fromDate", fromDate);
-    if (toDate) params.set("toDate", toDate);
+    if (fromDate) params.set("startDate", `${fromDate}T00:00:00Z`);
+    if (toDate) params.set("endDate", `${toDate}T23:59:59Z`);
 
     const res = await fetch(
-        `${API_BASE}/committees/audit-logs?${params.toString()}`,
+        `${API_BASE}/audit-logs?${params.toString()}`,
         {
             headers: {
                 Authorization: `Bearer ${token ?? ""}`,
@@ -579,4 +616,39 @@ export async function fetchCommitteeAuditLogs(
     }
 
     return res.json();
+}
+
+export async function assignAdvisor(
+    committeeId: number,
+    advisorId: number,
+    role: string
+): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/committees/${committeeId}/advisors`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({ advisorId, role }),
+    });
+
+    if (!res.ok) throw new Error(await parseError(res));
+}
+
+export async function removeAdvisor(
+    committeeId: number,
+    advisorId: number
+): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/committees/${committeeId}/advisors/${advisorId}`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) throw new Error(await parseError(res));
 }

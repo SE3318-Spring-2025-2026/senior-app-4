@@ -140,7 +140,6 @@ export default function CommitteesPage() {
                                 <option value="ACTIVE">ACTIVE</option>
                                 <option value="INACTIVE">INACTIVE</option>
                                 <option value="COMPLETED">COMPLETED</option>
-                                <option value="FORMING">FORMING</option>
                             </select>
 
                             <select
