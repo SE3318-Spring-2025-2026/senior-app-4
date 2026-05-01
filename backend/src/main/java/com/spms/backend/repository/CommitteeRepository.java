@@ -23,11 +23,19 @@ public interface CommitteeRepository extends JpaRepository<Committee, Long> {
     
     List<Committee> findByCreatedBy(Long coordinatorId); // For testing
 
-    @EntityGraph(attributePaths = {"advisors", "juryMembers"})
+    @EntityGraph(attributePaths = {"advisors", "juryMembers", "groupAssignments"})
     @Query("SELECT c FROM Committee c WHERE c.committeeId = :committeeId")
-    Optional<Committee> findWithAdvisorsAndJury(@Param("committeeId") Long committeeId);
-    
-    @EntityGraph(attributePaths = {"advisors", "juryMembers"})
+    Optional<Committee> findWithFullDetails(@Param("committeeId") Long committeeId);
+
+    @EntityGraph(attributePaths = {"advisors", "juryMembers", "groupAssignments"})
     @Query("SELECT c FROM Committee c")
-    List<Committee> findAllWithDetails();
+    Page<Committee> findAllWithDetails(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"advisors", "juryMembers", "groupAssignments"})
+    @Query("SELECT c FROM Committee c WHERE c.status = :status")
+    Page<Committee> findByStatusWithDetails(@Param("status") CommitteeStatus status, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"advisors", "juryMembers", "groupAssignments"})
+    @Query("SELECT c FROM Committee c WHERE c.createdBy = :coordinatorId")
+    Page<Committee> findByCreatedByWithDetails(@Param("coordinatorId") Long coordinatorId, Pageable pageable);
 }
