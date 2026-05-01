@@ -1,5 +1,6 @@
 package com.spms.backend.model;
 
+import com.spms.backend.converter.EncryptionConverter;
 import jakarta.persistence.*;
 
 import java.time.Instant;
@@ -19,6 +20,7 @@ public class JiraIntegration {
     @Column(name = "jira_space_url", nullable = false)
     private String jiraSpaceUrl;
 
+    @Convert(converter = EncryptionConverter.class)
     @Column(name = "api_key")
     private String apiKey;
 
