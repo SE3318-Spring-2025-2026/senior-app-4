@@ -28,6 +28,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             "/api/v1/professors/register"
     );
 
+    private static final Set<String> PUBLIC_PREFIXES_PATHS = Set.of(
+            "/api/v1/integrations"
+    );
+
     private static final Set<String> PUBLIC_PREFIXES = Set.of(
             "/swagger-ui",
             "/v3/api-docs",
@@ -95,6 +99,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private boolean isPublic(String path) {
         if (PUBLIC_PATHS.contains(path)) return true;
+        if (PUBLIC_PREFIXES_PATHS.stream().anyMatch(path::startsWith)) return true;
         return PUBLIC_PREFIXES.stream().anyMatch(path::startsWith);
     }
 

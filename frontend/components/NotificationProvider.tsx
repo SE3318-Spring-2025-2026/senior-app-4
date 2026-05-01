@@ -25,7 +25,7 @@ import {
 import { API_BASE } from "@/lib/api-utils";
 
 // ------------------------------------------------------------------ Types
-
+const ENABLE_NOTIFICATIONS = false;
 type NotificationContextType = {
     notifications: Notification[];
     unreadOrPendingCount: number;
@@ -84,6 +84,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let cancelled = false;
 
+        if (!ENABLE_NOTIFICATIONS) {
+            setLoading(false);
+            return;
+        }
+
         async function load() {
             try {
                 setLoading(true);
@@ -118,6 +123,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         let pollingId: number | null = null;
         const wsUrl = getWebSocketUrl();
 
+        if (!ENABLE_NOTIFICATIONS) {
+            return;
+        }
         function startPolling() {
             if (pollingId !== null) return;
             pollingId = window.setInterval(() => {
@@ -145,17 +153,25 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         function connectWebSocket() {
             const token = getToken();
+
+            if (!token) {
+                setSocketConnected(false);
+                startPolling();
+                return;
+            }
+
             client = new Client({
-                webSocketFactory: () => new SockJS(wsUrl),
-                connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
-                debug: () => {},
-                reconnectDelay: 5000,
+                webSocketFactory: () => new SockJS(`${wsUrl}?token=${encodeURIComponent(token)}`),
+                connectHeaders: {
+                    Authorization: `Bearer ${token}`,
+                },
+                debug: () => { },
+                reconnectDelay: 0,
                 onConnect: () => {
                     setSocketConnected(true);
                     stopPolling();
-                    if (client) {
-                        client.subscribe("/user/queue/notifications", handlePush);
-                    }
+
+                    client?.subscribe("/user/queue/notifications", handlePush);
                 },
                 onStompError: () => {
                     setSocketConnected(false);
@@ -164,6 +180,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 onWebSocketError: () => {
                     setSocketConnected(false);
                     startPolling();
+                    client?.deactivate();
                 },
                 onWebSocketClose: () => {
                     setSocketConnected(false);
@@ -175,7 +192,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             startPolling();
         }
 
-        connectWebSocket();
+        startPolling();
 
         return () => {
             if (client) {

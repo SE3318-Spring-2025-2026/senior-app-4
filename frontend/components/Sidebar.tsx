@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getUser, clearAuth } from "@/lib/auth";
-import NotificationDropdown from "@/components/NotificationDropdown";
 
 export default function Sidebar({ activePage }: { activePage: string }) {
   const router = useRouter();
@@ -24,7 +23,7 @@ export default function Sidebar({ activePage }: { activePage: string }) {
   return (
     <aside className="w-64 border-r border-white/5 flex flex-col shrink-0 bg-gray-950">
       <div className="px-5 py-5 border-b border-white/5">
-        <div className="flex items-center justify-between gap-2.5">
+        <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -34,7 +33,6 @@ export default function Sidebar({ activePage }: { activePage: string }) {
             <p className="text-sm font-semibold text-white">SPMS</p>
             <p className="text-xs text-gray-500 capitalize">{user.role} Panel</p>
           </div>
-          <NotificationDropdown />
         </div>
       </div>
 
@@ -96,6 +94,13 @@ export default function Sidebar({ activePage }: { activePage: string }) {
               }
               badge
             />
+            <NavItem
+              label="Committees"
+              active={activePage === "committees"}
+              href="/committees"
+              icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" /></svg>}
+
+            />
           </>
         )}
         {user.role === "coordinator" && (
@@ -124,6 +129,20 @@ export default function Sidebar({ activePage }: { activePage: string }) {
               active={activePage === "committees"}
               href="/coordinator/committees"
               icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" /></svg>}
+            />
+            <NavItem
+              label="Audit Logs"
+              active={activePage === "committee-audit-logs"}
+              href="/coordinator/committees/audit-logs"
+              icon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H6.75A2.25 2.25 0 004.5 4.5v15A2.25 2.25 0 006.75 21h10.5A2.25 2.25 0 0019.5 18.75v-4.5z"
+                  />
+                </svg>
+              }
             />
             <NavItem
               label="Schedule"
@@ -189,18 +208,29 @@ export default function Sidebar({ activePage }: { activePage: string }) {
               href="/professor/my-advisees"
               icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197" /></svg>}
             />
+            <NavItem
+              label="Committees"
+              active={activePage === "committees"}
+              href="/committees"
+              icon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18" />
+                </svg>
+              }
+            />
           </>
         )}
 
         {(user.role === "coordinator" || user.role === "professor") && (
           <>
-             <p className="text-xs font-medium text-gray-600 px-3 mt-4 mb-2 uppercase tracking-widest">Personnel</p>
-             <NavItem
-               label="Register Personnel"
-               active={activePage === "register"}
-               href="/admin/register"
-               icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" /></svg>}
-             />
+            <p className="text-xs font-medium text-gray-600 px-3 mt-4 mb-2 uppercase tracking-widest">Personnel</p>
+            <NavItem
+              label="Register Personnel"
+              active={activePage === "register"}
+              href="/admin/register"
+              icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" /></svg>}
+            />
           </>
         )}
       </nav>
