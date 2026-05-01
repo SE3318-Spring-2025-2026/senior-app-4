@@ -11,10 +11,33 @@ import {
 } from "@/lib/committees-api";
 import { Committee, CommitteeFormValues } from "@/lib/committee-types";
 import { getUser } from "@/lib/auth";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 export default function CoordinatorCommitteesPage() {
+    const authStatus = useAuthGuard("coordinator");
+
+    if (authStatus === "loading") {
+        return (
+            <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full border-4 border-white/20 border-t-blue-500 animate-spin" />
+            </div>
+        );
+    }
+
+    if (authStatus === "denied") {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-950">
+                <div className="text-center space-y-4">
+                    <h1 className="text-lg font-semibold text-white">Access Restricted</h1>
+                    <p className="text-sm text-gray-500">
+                        Only Coordinators can access this page.
+                    </p>
+                </div>
+            </div>
+        );
+    }
     const [committees, setCommittees] = useState<Committee[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);

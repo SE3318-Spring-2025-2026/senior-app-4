@@ -1,9 +1,7 @@
 package com.spms.backend.dto.response;
 
-import java.time.Instant;
-
 public class GradeSubmissionResponse {
-    
+
     private String status;
     private String message;
     private GradeData data;
@@ -17,14 +15,25 @@ public class GradeSubmissionResponse {
             this.isGradingComplete = isGradingComplete;
         }
 
-        public Long getGradeId() { return gradeId; }
-        public void setGradeId(Long gradeId) { this.gradeId = gradeId; }
+        public Long getGradeId() {
+            return gradeId;
+        }
 
-        public Boolean getIsGradingComplete() { return isGradingComplete; }
-        public void setIsGradingComplete(Boolean isGradingComplete) { this.isGradingComplete = isGradingComplete; }
+        public void setGradeId(Long gradeId) {
+            this.gradeId = gradeId;
+        }
+
+        public Boolean getIsGradingComplete() {
+            return isGradingComplete;
+        }
+
+        public void setIsGradingComplete(Boolean isGradingComplete) {
+            this.isGradingComplete = isGradingComplete;
+        }
     }
 
-    public GradeSubmissionResponse() {}
+    public GradeSubmissionResponse() {
+    }
 
     public GradeSubmissionResponse(String status, String message, Long gradeId, Boolean isGradingComplete) {
         this.status = status;
@@ -32,12 +41,27 @@ public class GradeSubmissionResponse {
         this.data = new GradeData(gradeId, isGradingComplete);
     }
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public String getStatus() {
+        return status;
+    }
 
-    public String getMessage() { return message; }
-    public void setMessage(String message) { this.message = message; }
+    public void setStatus(String status) {
+        this.status = status;
+    }
 
-    public GradeData getData() { return data; }
-    public void setData(GradeData data) { this.data = data; }
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
+    public GradeData getData() {
+        return data;
+    }
+
+    public void setData(GradeData data) {
+        this.data = data;
+    }
 }

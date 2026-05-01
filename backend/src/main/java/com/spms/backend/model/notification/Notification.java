@@ -39,6 +39,9 @@ public class Notification {
     @Column(name = "group_id")
     private Long groupId;
 
+    @Column(name = "committee_id")
+    private Long committeeId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -102,6 +105,14 @@ public class Notification {
 
     public void setGroupId(Long groupId) {
         this.groupId = groupId;
+    }
+
+    public Long getCommitteeId() {
+        return committeeId;
+    }
+
+    public void setCommitteeId(Long committeeId) {
+        this.committeeId = committeeId;
     }
 
     public Instant getCreatedAt() {

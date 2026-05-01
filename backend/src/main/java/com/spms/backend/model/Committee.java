@@ -6,14 +6,28 @@ import java.util.List;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
+import com.spms.backend.model.enums.CommitteeStatus;
 
 @Entity
-@Table(name = "committees")
+@Table(name = "committees", indexes = {
+    @Index(name = "idx_committee_id", columnList = "committee_id"),
+    @Index(name = "idx_committee_status", columnList = "status"),
+    @Index(name = "idx_committee_created_by", columnList = "created_by")
+})
 public class Committee {
 
     @Id
@@ -21,14 +35,18 @@ public class Committee {
     @Column(name = "committee_id")
     private Long committeeId;
 
+    @NotBlank(message = "{committee.name.required}")
+    @Size(min = 3, max = 100, message = "{committee.name.size}")
+    @Pattern(regexp = "^[a-zA-Z0-9 ]+$", message = "{committee.name.invalid}")
     @Column(name = "committee_name", nullable = false)
     private String committeeName;
 
     @Column(name = "description")
     private String description;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status")
-    private String status; // ACTIVE, INACTIVE, COMPLETED
+    private CommitteeStatus status; // ACTIVE, INACTIVE, COMPLETED
 
     @Column(name = "created_by")
     private Long createdBy; // Coordinator userId
@@ -39,20 +57,24 @@ public class Committee {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL)
+    @Version
+    @Column(name = "version")
+    private Integer version;
+
+    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<CommitteeAdvisor> advisors;
 
-    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<CommitteeJury> juryMembers;
 
-    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<GroupCommitteeAssignment> groupAssignments;
 
     // Constructors
     public Committee() {
     }
 
-    public Committee(String committeeName, String description, String status, Long createdBy) {
+    public Committee(String committeeName, String description, CommitteeStatus status, Long createdBy) {
         this.committeeName = committeeName;
         this.description = description;
         this.status = status;
@@ -86,11 +108,11 @@ public class Committee {
         this.description = description;
     }
 
-    public String getStatus() {
+    public CommitteeStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(CommitteeStatus status) {
         this.status = status;
     }
 
@@ -140,5 +162,13 @@ public class Committee {
 
     public void setGroupAssignments(List<GroupCommitteeAssignment> groupAssignments) {
         this.groupAssignments = groupAssignments;
+    }
+
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
     }
 }

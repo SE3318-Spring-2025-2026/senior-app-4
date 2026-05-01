@@ -83,7 +83,7 @@ export default function ProfessorSubmissionsPage() {
 
     return (
         <div className="flex min-h-screen bg-gray-50">
-            <Sidebar role="professor" />
+            <Sidebar activePage="submissions" />
             <main className="flex-1 p-8">
                 <h1 className="text-2xl font-bold text-gray-900 mb-6">Submissions to Grade</h1>
 

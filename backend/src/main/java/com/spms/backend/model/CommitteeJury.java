@@ -10,9 +10,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "committee_jury_members")
+@Table(name = "committee_jury_members", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"committee_id", "jury_user_id"})
+})
 public class CommitteeJury {
 
     @Id
