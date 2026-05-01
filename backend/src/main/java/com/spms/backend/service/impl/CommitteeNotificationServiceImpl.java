@@ -4,7 +4,6 @@ import com.spms.backend.dto.request.CommitteeNotifyRequestDto;
 import com.spms.backend.dto.response.CommitteeNotificationResponse;
 import com.spms.backend.dto.response.NotificationDto;
 import com.spms.backend.exception.BadRequestException;
-import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.Committee;
 import com.spms.backend.model.CommitteeAdvisor;
@@ -43,9 +42,9 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
     private final SimpMessagingTemplate messagingTemplate;
 
     public CommitteeNotificationServiceImpl(CommitteeRepository committeeRepository,
-                                            NotificationRepository notificationRepository,
-                                            UserRepository userRepository,
-                                            SimpMessagingTemplate messagingTemplate) {
+            NotificationRepository notificationRepository,
+            UserRepository userRepository,
+            SimpMessagingTemplate messagingTemplate) {
         this.committeeRepository = committeeRepository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
@@ -58,8 +57,8 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
     @Override
     @Transactional
     public CommitteeNotificationResponse sendCommitteeNotification(Long committeeId,
-                                                                    CommitteeNotifyRequestDto request,
-                                                                    Long senderUserId) {
+            CommitteeNotifyRequestDto request,
+            Long senderUserId) {
         // 1. Committee var mı?
         Committee committee = committeeRepository.findById(committeeId)
                 .orElseThrow(() -> new NotFoundException("Committee not found with id: " + committeeId));
@@ -82,7 +81,8 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
         for (User recipient : recipients) {
             Notification notif = buildNotification(sender, recipient, notifType, request.message(), committeeId, null);
             Notification saved = notificationRepository.save(notif);
-            if (firstId == null) firstId = saved.getId();
+            if (firstId == null)
+                firstId = saved.getId();
             pushWebSocket(recipient.getUserId(), mapToDto(saved));
         }
 
@@ -108,7 +108,7 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GET /api/v1/committees/notifications  (caller'ın aldıkları)
+    // GET /api/v1/committees/notifications (caller'ın aldıkları)
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional(readOnly = true)
@@ -130,11 +130,13 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
     @Transactional
     public void notifyAdvisorAssignment(Long committeeId, Long assignedUserId, Long actorUserId) {
         Committee committee = committeeRepository.findById(committeeId).orElse(null);
-        if (committee == null) return;
+        if (committee == null)
+            return;
 
         User actor = userRepository.findById(actorUserId).orElse(null);
         User assignedUser = userRepository.findById(assignedUserId).orElse(null);
-        if (actor == null || assignedUser == null) return;
+        if (actor == null || assignedUser == null)
+            return;
 
         String msg = actor.getFullName() + " assigned " + assignedUser.getFullName()
                 + " as advisor to committee '" + committee.getCommitteeName() + "'.";
@@ -146,7 +148,8 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
             Notification saved = notificationRepository.save(notif);
             pushWebSocket(member.getUserId(), mapToDto(saved));
         }
-        log.info("[P5.2->P5.7] ADVISOR_ASSIGNMENT notified: committeeId={} assignedUser={}", committeeId, assignedUserId);
+        log.info("[P5.2->P5.7] ADVISOR_ASSIGNMENT notified: committeeId={} assignedUser={}", committeeId,
+                assignedUserId);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -156,11 +159,13 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
     @Transactional
     public void notifyJuryAssignment(Long committeeId, Long assignedUserId, Long actorUserId) {
         Committee committee = committeeRepository.findById(committeeId).orElse(null);
-        if (committee == null) return;
+        if (committee == null)
+            return;
 
         User actor = userRepository.findById(actorUserId).orElse(null);
         User assignedUser = userRepository.findById(assignedUserId).orElse(null);
-        if (actor == null || assignedUser == null) return;
+        if (actor == null || assignedUser == null)
+            return;
 
         String msg = actor.getFullName() + " assigned " + assignedUser.getFullName()
                 + " as jury member to committee '" + committee.getCommitteeName() + "'.";
@@ -182,10 +187,12 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
     @Transactional
     public void notifyGroupAssignment(Long committeeId, Long groupId, Long actorUserId) {
         Committee committee = committeeRepository.findById(committeeId).orElse(null);
-        if (committee == null) return;
+        if (committee == null)
+            return;
 
         User actor = userRepository.findById(actorUserId).orElse(null);
-        if (actor == null) return;
+        if (actor == null)
+            return;
 
         String msg = actor.getFullName() + " assigned group #" + groupId
                 + " to committee '" + committee.getCommitteeName() + "'.";
@@ -233,7 +240,7 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
     }
 
     private Notification buildNotification(User from, User to, NotificationType type,
-                                           String message, Long committeeId, Long groupId) {
+            String message, Long committeeId, Long groupId) {
         Notification n = new Notification();
         n.setFromUser(from);
         n.setToUser(to);
@@ -253,8 +260,7 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
             messagingTemplate.convertAndSendToUser(
                     toUserId.toString(),
                     "/queue/notifications",
-                    dto
-            );
+                    dto);
         } catch (Exception e) {
             log.warn("[P5.7] WebSocket push failed for userId={}: {}", toUserId, e.getMessage());
         }
@@ -281,7 +287,6 @@ public class CommitteeNotificationServiceImpl implements CommitteeNotificationSe
                 n.getFromUser() != null ? n.getFromUser().getFullName() : null,
                 n.getToUser() != null ? n.getToUser().getUserId() : null,
                 n.getGroupId(),
-                n.getCreatedAt()
-        );
+                n.getCreatedAt());
     }
 }
