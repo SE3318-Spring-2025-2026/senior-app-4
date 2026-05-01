@@ -253,23 +253,7 @@ public class CommitteeController {
         return ResponseEntity.ok(auditLogService.getAuditLogsByCommittee(committeeId, pageable));
     }
 
-    @GetMapping("/audit-logs")
-    public ResponseEntity<AuditLogListResponse> getAllAuditLogs(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            HttpServletRequest httpReq) {
-        Object role = httpReq.getAttribute("jwt_role");
-        if (role == null || (!("coordinator".equalsIgnoreCase(role.toString())) && !("admin".equalsIgnoreCase(role.toString())))) {
-            throw new ForbiddenException("Only coordinators and admins can view audit logs.");
-        }
 
-        if (page < 0 || size <= 0 || size > 100) {
-            throw new BadRequestException("Invalid pagination parameters. Page must be >= 0, size must be between 1 and 100.");
-        }
-
-        Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(auditLogService.getAllAuditLogs(pageable));
-    }
 
     @GetMapping("/jury/{juryMemberId}/committees")
     public ResponseEntity<JuryListResponse> getCommitteesByJury(@PathVariable Long juryMemberId) {

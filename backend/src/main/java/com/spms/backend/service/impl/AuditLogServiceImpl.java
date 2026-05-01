@@ -50,8 +50,9 @@ public class AuditLogServiceImpl implements AuditLogService {
 
     @Override
     @Transactional(readOnly = true)
-    public AuditLogListResponse getAllAuditLogs(Pageable pageable) {
-        Page<AuditLog> auditLogs = auditLogRepository.findAllByOrderByCreatedAtDesc(pageable);
+    public AuditLogListResponse getAllAuditLogs(com.spms.backend.model.ActionType action, String entityType, java.time.Instant startDate, java.time.Instant endDate, Pageable pageable) {
+        org.springframework.data.jpa.domain.Specification<AuditLog> spec = com.spms.backend.repository.specification.AuditLogSpecification.filterBy(action, entityType, startDate, endDate);
+        Page<AuditLog> auditLogs = auditLogRepository.findAll(spec, pageable);
 
         List<AuditLogResponseDto> logs = auditLogs.getContent().stream()
                 .map(this::toAuditLogResponseDto)
