@@ -19,6 +19,7 @@ backend/application.yml
 Thumbs.db
 
 application-local.properties
+application.properties
 
 # Log files
 *.log

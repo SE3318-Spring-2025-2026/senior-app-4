@@ -236,26 +236,23 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
 
     @Override
     @Transactional
-    public void removeAdvisor(Long committeeId, Long advisorId) {
+    public void removeAdvisor(Long committeeId, Long committeeAdvisorId) {
         Committee committee = committeeRepository.findById(committeeId)
                 .orElseThrow(() -> new NotFoundException("Committee not found"));
 
         CommitteeAdvisor assignment = committee.getAdvisors().stream()
-                .filter(ca -> ca.getAdvisor().getUserId().equals(advisorId))
+                .filter(ca -> ca.getCommitteeAdvisorId().equals(committeeAdvisorId))
                 .findFirst()
-                .orElseThrow(() -> new NotFoundException("Advisor is not assigned to this committee"));
+                .orElseThrow(() -> new NotFoundException("Advisor assignment not found"));
 
         committee.getAdvisors().remove(assignment);
         committeeAdvisorRepository.delete(assignment);
         committeeRepository.save(committee);
 
-        // Assume assignedBy is the current context user, but since we don't pass it, we can just log a system event or skip.
-        // The issue specifies AuditLogging, but removeAdvisor interface doesn't have `removedBy`. 
-        // We'll log it without a specific `userId` or default to 1L (system) or the advisorId itself.
         AuditLog auditLog = new AuditLog();
         auditLog.setActionType(ActionType.MEMBER_REMOVED);
-        auditLog.setUserId(1L); // Defaulting to system
-        auditLog.setEventDetails("Removed advisor " + advisorId + " from committee " + committeeId);
+        auditLog.setUserId(1L);
+        auditLog.setEventDetails("Removed advisor " + assignment.getAdvisor().getUserId() + " from committee " + committeeId);
         auditLogRepository.save(auditLog);
     }
 }
