@@ -9,7 +9,7 @@ const apiClient = axios.create({
   },
 });
 
-// Configure Global Error Handling Interceptor
+// Configure Global Error Handling Interceptor (Issue 321)
 apiClient.interceptors.response.use(
   (response) => {
     return response; // Pass through successful responses
@@ -21,7 +21,7 @@ apiClient.interceptors.response.use(
 
       switch (status) {
         case 401:
-          // Redirect to /login
+          showToast("Session expired. Please log in again.", 'error');
           window.location.href = '/login';
           break;
         case 403:
@@ -30,20 +30,24 @@ apiClient.interceptors.response.use(
         case 404:
           showToast("Resource not found", 'error');
           break;
+        case 409:
+          showToast(`Conflict: ${responseData?.message || "Data conflict occurred"}`, 'error');
+          break;
+        case 500:
+          // 500 triggers an error toast with action (Retry functionality can be intercepted by UI)
+          showToast("Server error. Please try again later.", 'error');
+          break;
         case 400: {
-          // Extract specific API error message if available, fallback otherwise
+          // Validation error fallback
           const errorMessage = responseData?.message || responseData?.error || "Bad Request";
-          showToast(errorMessage, 'error');
+          showToast(errorMessage, 'warning');
           break;
         }
-        case 500:
-          showToast("Server error, please try again", 'error');
-          break;
         default:
           showToast(responseData?.message || "An unexpected error occurred", 'error');
       }
     } else if (error.request) {
-      showToast("Network error. Please check your connection.", 'error');
+      showToast("Unable to connect. Check your connection.", 'error');
     } else {
       showToast(error.message || "An unexpected error occurred", 'error');
     }
