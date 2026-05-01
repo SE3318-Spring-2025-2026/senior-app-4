@@ -5,6 +5,7 @@ import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.ActionType;
 import com.spms.backend.model.AuditLog;
 import com.spms.backend.model.Committee;
+import com.spms.backend.model.enums.CommitteeStatus;
 import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.CommitteeRepository;
 import com.spms.backend.service.CommitteeService;
@@ -28,10 +29,11 @@ public class CommitteeServiceImpl implements CommitteeService {
 
     @Override
     public Committee createCommittee(CommitteeCreateRequest request, Long coordinatorId) {
+        CommitteeStatus status = request.getStatus() != null ? request.getStatus() : CommitteeStatus.ACTIVE;
         Committee committee = new Committee(
                 request.getCommitteeName(),
                 request.getDescription(),
-                "ACTIVE",
+                status,
                 coordinatorId
         );
 
@@ -47,6 +49,9 @@ public class CommitteeServiceImpl implements CommitteeService {
         Committee committee = getCommitteeById(id);
         committee.setCommitteeName(request.getCommitteeName());
         committee.setDescription(request.getDescription());
+        if (request.getStatus() != null) {
+            committee.setStatus(request.getStatus());
+        }
         committee.setUpdatedAt(Instant.now());
 
         Committee saved = committeeRepository.save(committee);
@@ -59,9 +64,8 @@ public class CommitteeServiceImpl implements CommitteeService {
     @Override
     public void deleteCommittee(Long id, Long coordinatorId) {
         Committee committee = getCommitteeById(id);
-        committeeRepository.delete(committee);
-
         logAction(ActionType.COMMITTEE_DELETED, coordinatorId, id, "Committee deleted");
+        committeeRepository.delete(committee);
     }
 
     @Override
