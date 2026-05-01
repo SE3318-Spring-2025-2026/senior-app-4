@@ -50,6 +50,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, exception.getMessage());
     }
 
+    @ExceptionHandler(SyncAlreadyRunningException.class)
+    public ResponseEntity<ErrorResponse> handleSyncAlreadyRunning(SyncAlreadyRunningException exception) {
+        return buildResponse(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException exception) {
         String message = exception.getBindingResult()
