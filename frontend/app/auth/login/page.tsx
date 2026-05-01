@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { apiClient, ApiError } from "@/lib/client";
+import apiClient from "@/lib/client";
 
 type Step = "student-id" | "redirecting";
 
@@ -18,26 +18,21 @@ export default function LoginPage() {
 
     try {
       // Step 1: Validate student ID (apiClient handles 400/500 errors globally with Toasts)
-      await apiClient("/students/validate", {
-        method: "POST",
-        body: JSON.stringify({ studentId: studentId.trim() }),
-      });
+      await apiClient.post("/students/validate", { studentId: studentId.trim() });
 
       // Step 2: Get GitHub OAuth URL from backend
-      const { authorizationUrl } = await apiClient("/auth/github", {
-        method: "POST",
-        body: JSON.stringify({ studentId: studentId.trim() }),
-      });
+      const response = await apiClient.post("/auth/github", { studentId: studentId.trim() });
+      const authorizationUrl = response.data.authorizationUrl;
 
       setStep("redirecting");
 
       // Step 3: Redirect to GitHub OAuth
       globalThis.location.href = authorizationUrl;
     } catch (err: any) {
-      // If it's an ApiError, the Toast interceptor already handled the UI notification!
-      // We only need to set local state if we want to show inline red text, but Toast is enough.
-      if (err instanceof ApiError) {
-        setError(err.message || "Student ID not found. Please check and try again.");
+      // If it's an Axios error, the Toast interceptor already handled the UI notification!
+      // We only need to set local state if we want to show inline red text.
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
       } else {
         setError("Unable to connect to the server. Please try again later.");
       }

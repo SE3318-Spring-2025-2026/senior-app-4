@@ -2,7 +2,9 @@ package com.spms.backend.model;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import org.hibernate.annotations.BatchSize;
 
+@BatchSize(size = 50)
 @Entity
 @Table(name = "users")
 public class User {
@@ -36,6 +38,9 @@ public class User {
     @Column(name = "requires_password_change")
     private boolean requiresPasswordChange;
 
+    @Column(name = "current_advisee_count", nullable = false)
+    private Integer currentAdviseeCount = 0;
+
     public User() {
     }
 
@@ -49,6 +54,7 @@ public class User {
         this.role = other.role;
         this.createdAt = other.createdAt;
         this.requiresPasswordChange = other.requiresPasswordChange;
+        this.currentAdviseeCount = other.currentAdviseeCount;
     }
 
     public Long getUserId() {
@@ -121,5 +127,13 @@ public class User {
 
     public void setRequiresPasswordChange(boolean requiresPasswordChange) {
         this.requiresPasswordChange = requiresPasswordChange;
+    }
+
+    public Integer getCurrentAdviseeCount() {
+        return currentAdviseeCount;
+    }
+
+    public void setCurrentAdviseeCount(Integer currentAdviseeCount) {
+        this.currentAdviseeCount = currentAdviseeCount;
     }
 }

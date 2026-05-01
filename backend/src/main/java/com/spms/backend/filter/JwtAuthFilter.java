@@ -47,6 +47,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     @NonNull FilterChain filterChain)
             throws ServletException, IOException {
 
+        // --- YENİ EKLENEN KISIM: CORS ÖN KONTROLÜ (PREFLIGHT) ---
+        // OPTIONS isteklerini Security/Token filtresinden geçirmez, CORS confignize gönderir.
+        if (request.getMethod().equalsIgnoreCase("OPTIONS")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        // --------------------------------------------------------
+
         String path = request.getRequestURI();
 
         if (isPublic(path)) {
@@ -70,8 +78,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         // Claims'i request attribute olarak sakla (controller'lardan erişilebilir)
         request.setAttribute("jwt_claims", claims);
-        request.setAttribute("jwt_userId", claims.get("userId"));
-        request.setAttribute("jwt_role", claims.get("role"));
+
+        // Rol kontrolü — null/boş rol varsa token hatalı sayılır
+        Object userId = claims.get("userId");
+        Object role   = claims.get("role");
+        if (userId == null || role == null || role.toString().isBlank()) {
+            sendUnauthorized(response, "Token is missing required claims (userId or role).");
+            return;
+        }
+
+        request.setAttribute("jwt_userId", userId);
+        request.setAttribute("jwt_role", role);
 
         filterChain.doFilter(request, response);
     }

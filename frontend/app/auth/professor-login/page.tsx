@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setAuth } from "@/lib/auth";
+import { setAuth, decodeToken } from "@/lib/auth";
 
 export default function ProfessorLoginPage() {
   const router = useRouter();
@@ -17,7 +17,7 @@ export default function ProfessorLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+      const res = await fetch(`/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password }),
@@ -30,9 +30,15 @@ export default function ProfessorLoginPage() {
         return;
       }
 
+
+      const claims = decodeToken(data.token) ?? {};
+
       setAuth(data.token, {
-        role: data.role,
-        requiresPasswordChange: data.requiresPasswordChange,
+        userId: Number(claims.userId),
+        studentId: claims.studentId as string | undefined,
+        githubUsername: claims.githubUsername as string | undefined,
+        role: data.role ?? (claims.role as string),
+        requiresPasswordChange: data.requiresPasswordChange ?? (claims.requiresPasswordChange as boolean),
       });
 
       if (data.requiresPasswordChange) {

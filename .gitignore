@@ -1,11 +1,14 @@
 backend/target/
 .DS_Store
+CLAUDE.md
+
 
 # Environment files
 .env
 .env.local
 .env.production
 backend/application.properties
+backend/application.yml
 
 # IDE
 .idea/
@@ -14,3 +17,13 @@ backend/application.properties
 
 # OS
 Thumbs.db
+
+application-local.properties
+application.properties
+
+# Log files
+*.log
+boot_error.log
+
+# Local notes
+PENDING_FIXES.md

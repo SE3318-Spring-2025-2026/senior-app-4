@@ -16,7 +16,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByGithubUsername(String githubUsername);
 
-    List<User> findAllByRole(String role);
+    List<User> findAllByRoleIgnoreCase(String role);
 
     default boolean deleteByUserId(Long userId) {
         if (userId == null || findByUserId(userId).isEmpty()) return false;
