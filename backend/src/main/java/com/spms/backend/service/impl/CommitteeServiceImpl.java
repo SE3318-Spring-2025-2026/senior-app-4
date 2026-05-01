@@ -79,8 +79,12 @@ public class CommitteeServiceImpl implements CommitteeService {
     @Override
     @Transactional(readOnly = true)
     public Committee getCommitteeByIdWithFullDetails(Long id) {
-        return committeeRepository.findWithFullDetails(id)
+        Committee c = committeeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Committee not found with id " + id));
+        if (c.getAdvisors() != null) c.getAdvisors().size();
+        if (c.getJuryMembers() != null) c.getJuryMembers().size();
+        if (c.getGroupAssignments() != null) c.getGroupAssignments().size();
+        return c;
     }
 
     @Override
