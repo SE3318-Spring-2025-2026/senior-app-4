@@ -6,6 +6,7 @@ import java.time.Instant;
 @Entity
 @Table(name = "system_logs", indexes = {
     @Index(name = "idx_system_logs_group_id", columnList = "group_id"),
+    @Index(name = "idx_system_logs_committee_id", columnList = "committee_id"),
     @Index(name = "idx_system_logs_action_type", columnList = "action_type"),
     @Index(name = "idx_system_logs_created_at", columnList = "created_at")
 })
@@ -26,6 +27,9 @@ public class AuditLog {
 
     @Column(name = "group_id")
     private Long groupId;
+
+    @Column(name = "committee_id")
+    private Long committeeId;
 
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
@@ -71,6 +75,14 @@ public class AuditLog {
 
     public void setGroupId(Long groupId) {
         this.groupId = groupId;
+    }
+
+    public Long getCommitteeId() {
+        return committeeId;
+    }
+
+    public void setCommitteeId(Long committeeId) {
+        this.committeeId = committeeId;
     }
 
     public String getIpAddress() {

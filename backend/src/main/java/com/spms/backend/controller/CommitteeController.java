@@ -4,15 +4,18 @@ import com.spms.backend.dto.request.AdvisorAssignmentRequest;
 import com.spms.backend.dto.request.CommitteeCreateRequest;
 import com.spms.backend.dto.request.JuryAssignmentRequest;
 import com.spms.backend.dto.response.AdvisorListResponse;
+import com.spms.backend.dto.response.AuditLogListResponse;
 import com.spms.backend.dto.response.CommitteeDetailDto;
 import com.spms.backend.dto.response.CommitteeListResponse;
 import com.spms.backend.dto.response.CommitteePaginationInfo;
 import com.spms.backend.dto.response.JuryListResponse;
+import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
 import com.spms.backend.model.Committee;
 import com.spms.backend.model.enums.CommitteeStatus;
 import com.spms.backend.service.AdvisorAssignmentService;
+import com.spms.backend.service.AuditLogService;
 import com.spms.backend.service.CommitteeService;
 import com.spms.backend.service.JuryAssignmentService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,13 +39,16 @@ public class CommitteeController {
     private final CommitteeService committeeService;
     private final AdvisorAssignmentService advisorAssignmentService;
     private final JuryAssignmentService juryAssignmentService;
+    private final AuditLogService auditLogService;
 
     public CommitteeController(CommitteeService committeeService,
                               AdvisorAssignmentService advisorAssignmentService,
-                              JuryAssignmentService juryAssignmentService) {
+                              JuryAssignmentService juryAssignmentService,
+                              AuditLogService auditLogService) {
         this.committeeService = committeeService;
         this.advisorAssignmentService = advisorAssignmentService;
         this.juryAssignmentService = juryAssignmentService;
+        this.auditLogService = auditLogService;
     }
 
     @PostMapping
@@ -209,7 +215,7 @@ public class CommitteeController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         if (page < 0 || size <= 0 || size > 100) {
-            throw new com.spms.backend.exception.BadRequestException("Invalid pagination parameters. Page must be >= 0, size must be between 1 and 100.");
+            throw new BadRequestException("Invalid pagination parameters. Page must be >= 0, size must be between 1 and 100.");
         }
 
         Pageable pageable = PageRequest.of(page, size);
@@ -226,6 +232,43 @@ public class CommitteeController {
                 committeePages.getSize());
 
         return ResponseEntity.ok(new CommitteeListResponse("success", committees, pagination));
+    }
+
+    @GetMapping("/{committeeId}/audit-logs")
+    public ResponseEntity<AuditLogListResponse> getCommitteeAuditLogs(
+            @PathVariable Long committeeId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest httpReq) {
+        Object role = httpReq.getAttribute("jwt_role");
+        if (role == null || (!("coordinator".equalsIgnoreCase(role.toString())) && !("admin".equalsIgnoreCase(role.toString())))) {
+            throw new ForbiddenException("Only coordinators and admins can view audit logs.");
+        }
+
+        if (page < 0 || size <= 0 || size > 100) {
+            throw new BadRequestException("Invalid pagination parameters. Page must be >= 0, size must be between 1 and 100.");
+        }
+
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(auditLogService.getAuditLogsByCommittee(committeeId, pageable));
+    }
+
+    @GetMapping("/audit-logs")
+    public ResponseEntity<AuditLogListResponse> getAllAuditLogs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest httpReq) {
+        Object role = httpReq.getAttribute("jwt_role");
+        if (role == null || (!("coordinator".equalsIgnoreCase(role.toString())) && !("admin".equalsIgnoreCase(role.toString())))) {
+            throw new ForbiddenException("Only coordinators and admins can view audit logs.");
+        }
+
+        if (page < 0 || size <= 0 || size > 100) {
+            throw new BadRequestException("Invalid pagination parameters. Page must be >= 0, size must be between 1 and 100.");
+        }
+
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(auditLogService.getAllAuditLogs(pageable));
     }
 
     @GetMapping("/jury/{juryMemberId}/committees")
