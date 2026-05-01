@@ -33,3 +33,7 @@ github:
 token:
   secret: ${TOKEN_SECRET}
   expiration-seconds: ${TOKEN_EXPIRATION_SECONDS:3600}
+
+scrum:
+  sync:
+    cron: ${SCRUM_SYNC_CRON:0 0 2 * * *}
