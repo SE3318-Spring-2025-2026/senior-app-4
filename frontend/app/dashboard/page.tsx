@@ -6,10 +6,17 @@ import Link from "next/link";
 import { getUser, getToken, clearAuth } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
 import SystemLogsTable from "@/components/audit-logs/SystemLogsTable";
+import { redirect } from "next/navigation";
+
 
 export default function DashboardPage() {
+
   const router = useRouter();
   const [user, setUser] = useState<ReturnType<typeof getUser>>(null);
+
+  useEffect(() => {
+    router.replace("/dashboards");
+  }, [router]);
 
   useEffect(() => {
     const token = getToken();
