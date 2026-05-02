@@ -158,3 +158,91 @@ export async function testIntegrations(
 
     return res.json();
 }
+
+export type IntegrationStatusResponse = {
+    github: "CONNECTED" | "DISCONNECTED";
+    jira: "CONNECTED" | "DISCONNECTED";
+};
+
+export type IntegrationSettingsPayload = {
+    githubPat: string;
+    jiraSpaceUrl: string;
+};
+
+export async function getIntegrationStatus(): Promise<IntegrationStatusResponse> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/integrations/status`, {
+        method: "GET",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
+
+export async function saveIntegrationSettings(
+    payload: IntegrationSettingsPayload
+): Promise<{ message: string }> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/integrations/settings`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
+
+export async function bindJiraIntegration(
+    groupId: number,
+    jiraSpaceUrl: string,
+    apiKey: string,
+    projectKey: string
+): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/integrations/jira`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({ jiraSpaceUrl, apiKey, projectKey }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+export async function triggerScrumSync(): Promise<{ status: string }> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/scrum-sync/trigger`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
