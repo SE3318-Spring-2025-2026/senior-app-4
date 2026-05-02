@@ -8,6 +8,7 @@ import com.spms.backend.model.GroupCommitteeAssignment;
 import com.spms.backend.model.Submission;
 import com.spms.backend.model.SubmissionGrade;
 import com.spms.backend.model.User;
+import com.spms.backend.model.enums.CommitteeStatus;
 import com.spms.backend.model.enums.DeliverableType;
 import com.spms.backend.model.enums.SubmissionStatus;
 import com.spms.backend.model.notification.Notification;
@@ -130,7 +131,7 @@ public class SubmissionGradingMultiStateApiTest extends BaseApiTest {
             g.setLeader(em.find(User.class, leaderId));
             em.persist(g);
 
-            Committee c = new Committee("Committee-167", "issue-167 fixture", "ACTIVE", coordinatorId);
+            Committee c = new Committee("Committee-167", "issue-167 fixture", CommitteeStatus.ACTIVE, coordinatorId);
             em.persist(c);
 
             em.persist(new CommitteeAdvisor(c, em.find(User.class, advisor1Id), "MEMBER", coordinatorId));
