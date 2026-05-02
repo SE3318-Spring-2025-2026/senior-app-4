@@ -242,9 +242,61 @@ body {
   outline: none;
 }
 .input::placeholder { color: var(--text-muted); }
-.input:focus {
+.input:focus, .btn:focus-visible {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25); /* WCAG 2.1 AA compliant focus ring */
+  outline: none;
+}
+
+/* ── Tables ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: var(--font-size-sm);
+}
+.table th {
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-surface-2);
+}
+.table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+}
+.table tbody tr:hover td {
+  background: var(--bg-surface-2);
+}
+
+/* ── Modals ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 1rem;
+}
+.modal-content {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 500px;
+  overflow: hidden;
+  animation: modal-fade-in 0.2s ease-out;
+}
+@keyframes modal-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* ── Sidebar ── */
