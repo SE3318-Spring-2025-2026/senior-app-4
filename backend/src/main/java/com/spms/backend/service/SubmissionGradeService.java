@@ -120,6 +120,17 @@ public class SubmissionGradeService {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new IllegalStateException("Submission not found"));
 
+        if (submission.getStatus() == SubmissionStatus.GRADED) {
+            throw new com.spms.backend.exception.ConflictException("Submission is already fully graded.");
+        }
+
+        scheduleRepository.findTopByOrderByIdDesc().ifPresent(schedule -> {
+            if (schedule.getGradingDeadline() != null
+                    && java.time.Instant.now().isAfter(schedule.getGradingDeadline())) {
+                throw new com.spms.backend.exception.ForbiddenException("Grading deadline has passed (D10).");
+            }
+        });
+
         if (gradeRepository.existsBySubmissionIdAndProfessorId(submissionId, professorId)) {
             throw new IllegalArgumentException("Professor has already submitted a grade for this submission");
         }

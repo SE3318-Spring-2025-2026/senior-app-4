@@ -202,9 +202,13 @@ public class SubmissionController {
             GradeSubmissionResponse response = gradeService.submitGrade(id, reviewerId, request);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
-            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorResponse("Bad Request", e.getMessage()), HttpStatus.BAD_REQUEST);
         } catch (SecurityException e) {
-            return new ResponseEntity<>(e.getMessage(), HttpStatus.FORBIDDEN);
+            return new ResponseEntity<>(new ErrorResponse("Forbidden", e.getMessage()), HttpStatus.FORBIDDEN);
+        } catch (com.spms.backend.exception.ConflictException e) {
+            return new ResponseEntity<>(new ErrorResponse("Conflict", e.getMessage()), HttpStatus.CONFLICT);
+        } catch (com.spms.backend.exception.ForbiddenException e) {
+            return new ResponseEntity<>(new ErrorResponse("Forbidden", e.getMessage()), HttpStatus.FORBIDDEN);
         } catch (Exception e) {
             return new ResponseEntity<>(new ErrorResponse("Internal Server Error", "An error occurred: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
