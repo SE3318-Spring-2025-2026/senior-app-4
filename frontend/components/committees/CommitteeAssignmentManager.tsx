@@ -1,11 +1,25 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Loader2 } from "lucide-react";
-import { CommitteeValidationRules, AdvisorAssignment, JuryAssignment } from "@/lib/committee-types";
-import { fetchValidationRules, fetchAdvisors, fetchJury } from "@/lib/committee-assignment-api";
+import { Loader2, LayoutGrid, ClipboardList } from "lucide-react";
+import { 
+    CommitteeValidationRules, 
+    AdvisorAssignment, 
+    JuryAssignment, 
+    GroupAssignment,
+    AvailabilitySlot
+} from "@/lib/committee-types";
+import { 
+    fetchValidationRules, 
+    fetchAdvisors, 
+    fetchJury,
+    fetchAssignedGroups,
+    fetchCommitteeAvailability
+} from "@/lib/committee-assignment-api";
 import { handleApiError } from "@/lib/error-handler";
 
+import { GroupSelectionPanel } from "./GroupSelectionPanel";
+import { GroupSchedulingPanel } from "./GroupSchedulingPanel";
 import ValidationRulesPanel from "@/components/committee/ValidationRulesPanel";
 import AdvisorAssignmentPanel from "@/components/committees/AdvisorAssignmentPanel";
 import JuryAssignmentPanel from "@/components/committees/JuryAssignmentPanel";
@@ -18,82 +32,162 @@ export default function CommitteeAssignmentManager({ committeeId }: Props) {
     const [rules, setRules] = useState<CommitteeValidationRules | null>(null);
     const [advisors, setAdvisors] = useState<AdvisorAssignment[]>([]);
     const [jury, setJury] = useState<JuryAssignment[]>([]);
+    const [assignedGroups, setAssignedGroups] = useState<GroupAssignment[]>([]);
     
+    // We keep this state for the upcoming scheduling/calendar feature, 
+    // but we won't pass it to the GroupSelectionPanel anymore.
+    const [availabilities, setAvailabilities] = useState<AvailabilitySlot[]>([]);
+
     const [loadingRules, setLoadingRules] = useState(true);
     const [loadingAdvisors, setLoadingAdvisors] = useState(true);
     const [loadingJury, setLoadingJury] = useState(true);
+    const [loadingGroups, setLoadingGroups] = useState(true);
 
-    const loadRules = useCallback(async () => {
-        setLoadingRules(true);
+    const loadAvailabilities = useCallback(async () => {
         try {
-            const data = await fetchValidationRules(committeeId);
-            setRules(data);
+            const data = await fetchCommitteeAvailability(committeeId);
+            setAvailabilities(data);
         } catch (error) {
-        } finally {
-            setLoadingRules(false);
-        }
-    }, [committeeId]);
-
-    const loadAdvisors = useCallback(async () => {
-        setLoadingAdvisors(true);
-        try {
-            const data = await fetchAdvisors(committeeId);
-            setAdvisors(data);
-        } catch (error) {
-            handleApiError(error, "Advisors");
-        } finally {
-            setLoadingAdvisors(false);
-        }
-    }, [committeeId]);
-
-    const loadJury = useCallback(async () => {
-        setLoadingJury(true);
-        try {
-            const data = await fetchJury(committeeId);
-            setJury(data);
-        } catch (error) {
-            handleApiError(error, "Jury");
-        } finally {
-            setLoadingJury(false);
+            handleApiError(error, "Failed to load professor availabilities");
         }
     }, [committeeId]);
 
     useEffect(() => {
-        loadRules();
-        loadAdvisors();
-        loadJury();
-    }, [loadRules, loadAdvisors, loadJury]);
+        loadAvailabilities();
+    }, [loadAvailabilities]);
+
+    const loadData = useCallback(async () => {
+        setLoadingRules(true);
+        setLoadingAdvisors(true);
+        setLoadingJury(true);
+        setLoadingGroups(true);
+
+        const [rulesRes, advisorsRes, juryRes, groupsRes] = await Promise.allSettled([
+            fetchValidationRules(committeeId),
+            fetchAdvisors(committeeId),
+            fetchJury(committeeId),
+            fetchAssignedGroups(committeeId)
+        ]);
+
+        if (rulesRes.status === "fulfilled") {
+            setRules(rulesRes.value);
+        } else {
+            handleApiError(rulesRes.reason, "Failed to load validation rules");
+        }
+        setLoadingRules(false);
+
+        if (advisorsRes.status === "fulfilled") {
+            setAdvisors(advisorsRes.value);
+        } else {
+            handleApiError(advisorsRes.reason, "Failed to load advisors");
+        }
+        setLoadingAdvisors(false);
+
+        if (juryRes.status === "fulfilled") {
+            setJury(juryRes.value);
+        } else {
+            handleApiError(juryRes.reason, "Failed to load jury members");
+        }
+        setLoadingJury(false);
+
+        if (groupsRes.status === "fulfilled") {
+            setAssignedGroups(groupsRes.value);
+        } else {
+            handleApiError(groupsRes.reason, "Failed to load assigned groups");
+        }
+        setLoadingGroups(false);
+
+    }, [committeeId]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
+    const handleGroupAssigned = (newAssignment: GroupAssignment) => {
+        setAssignedGroups((prev) => [...prev, newAssignment]);
+    };
 
     return (
-        <div className="space-y-6">
-            {loadingRules ? (
-                <div className="h-32 animate-pulse rounded-2xl border border-white/5 bg-gray-900/30" />
-            ) : (
-                rules && <ValidationRulesPanel rules={rules} />
-            )}
-
-            <div className={loadingAdvisors ? "opacity-50 pointer-events-none transition-opacity" : ""}>
-                <AdvisorAssignmentPanel 
-                    committeeId={committeeId} 
-                    advisors={advisors} 
-                    onRefresh={loadAdvisors} 
-                />
-            </div>
-
-            <div className={loadingJury ? "opacity-50 pointer-events-none transition-opacity" : ""}>
-                <JuryAssignmentPanel 
-                    committeeId={committeeId} 
-                    jury={jury} 
-                    onRefresh={loadJury} 
-                />
-            </div>
-
-            {(loadingAdvisors || loadingJury) && (
-                <div className="fixed bottom-4 right-4 flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-medium text-white shadow-lg z-50">
-                    <Loader2 size={14} className="animate-spin" />
-                    Syncing...
+        <div className="max-w-[1600px] mx-auto p-4 lg:p-8">
+            <div className="flex items-center gap-3 mb-8">
+                <div className="p-3 bg-blue-500/10 rounded-xl">
+                    <LayoutGrid className="text-blue-500" size={24} />
                 </div>
-            )}
+                <div>
+                    <h1 className="text-2xl font-bold text-white">Committee Management</h1>
+                    <p className="text-gray-400 text-sm">Orchestrate assignments and verify scheduling requirements.</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                    <div className={loadingAdvisors ? "opacity-50 pointer-events-none" : ""}>
+                        <AdvisorAssignmentPanel 
+                            committeeId={committeeId} 
+                            advisors={advisors} 
+                            onRefresh={loadData} 
+                        />
+                    </div>
+
+                    <div className={loadingJury ? "opacity-50 pointer-events-none" : ""}>
+                        <JuryAssignmentPanel 
+                            committeeId={committeeId} 
+                            jury={jury} 
+                            onRefresh={loadData} 
+                        />
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-gray-900/40 p-6 backdrop-blur-sm">
+                        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <ClipboardList size={20} className="text-emerald-500" />
+                            Active Group Assignments ({assignedGroups.length})
+                        </h3>
+                        {loadingGroups ? (
+                            <div className="flex justify-center p-4">
+                                <Loader2 className="animate-spin text-gray-500" />
+                            </div>
+                        ) : assignedGroups.length === 0 ? (
+                            <p className="text-sm text-gray-500 italic">No group assignments detected for this committee.</p>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {assignedGroups.map((assignment) => (
+                                    <div key={assignment.assignmentId} className="p-4 rounded-xl bg-white/5 border border-white/5 flex justify-between items-center">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium text-white">{assignment.groupName}</span>
+                                            <span className="text-[11px] text-gray-500">
+                                                Since: {new Date(assignment.assignedAt).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="space-y-8">
+                    {loadingRules ? (
+                        <div className="h-32 animate-pulse rounded-2xl bg-gray-900/30 border border-white/5" />
+                    ) : (
+                        rules && <ValidationRulesPanel rules={rules} />
+                    )}
+
+                    <GroupSelectionPanel
+                        committeeId={committeeId}
+                        onGroupAssigned={handleGroupAssigned}
+                        currentGroupCount={assignedGroups.length}
+                        maxGroupsAllowed={rules?.maxGroupsPerCommittee || 99}
+                    />
+                    <GroupSchedulingPanel
+                        committeeId={committeeId}
+                        assignedGroups={assignedGroups}
+                        availabilities={availabilities}
+                        onScheduleUpdated={() => {
+                            loadData();
+                        }}
+                    />
+                </div>
+            </div>
         </div>
     );
 }
