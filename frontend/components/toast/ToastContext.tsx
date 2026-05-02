@@ -25,14 +25,14 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
-export const toastEventTarget = new EventTarget();
-
 export const showToast = (message: string, type: ToastType = 'info') => {
-  toastEventTarget.dispatchEvent(
-    new CustomEvent('showToast', {
-      detail: { message, type },
-    })
-  );
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('showToast', {
+        detail: { message, type },
+      })
+    );
+  }
 };
 
 interface ToastProviderProps {
@@ -69,20 +69,31 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
       addToast(customEvent.detail.message, customEvent.detail.type);
     };
 
-    toastEventTarget.addEventListener('showToast', handleEvent);
+    window.addEventListener('showToast', handleEvent);
 
     return () => {
-      toastEventTarget.removeEventListener('showToast', handleEvent);
+      window.removeEventListener('showToast', handleEvent);
     };
   }, [addToast]);
 
   return (
     <ToastContext.Provider value={{ addToast, removeToast, toasts }}>
       {children}
+
+      <div className="fixed top-4 right-4 space-y-2 z-50">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`toast toast-${t.type}`}
+          >
+            {t.message}
+          </div>
+        ))}
+      </div>
+
     </ToastContext.Provider>
   );
 };
-
 export const useToast = () => {
   const context = useContext(ToastContext);
 
@@ -91,4 +102,11 @@ export const useToast = () => {
   }
 
   return context;
+};
+
+export const toast = {
+  success: (message: string) => showToast(message, 'success'),
+  error: (message: string) => showToast(message, 'error'),
+  warning: (message: string) => showToast(message, 'warning'),
+  info: (message: string) => showToast(message, 'info'),
 };

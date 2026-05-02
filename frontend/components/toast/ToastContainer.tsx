@@ -38,9 +38,11 @@ export const ToastContainer: React.FC = () => {
       {toasts.map((toast) => (
         <div
           key={toast.id}
+          className={`toast-${toast.type}`}
           style={{
             backgroundColor: getBackgroundColor(toast.type),
             color: '#fff',
+            wordBreak: 'break-word',
             padding: '16px 20px',
             borderRadius: '8px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
