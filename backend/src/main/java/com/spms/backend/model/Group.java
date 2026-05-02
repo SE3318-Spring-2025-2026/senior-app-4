@@ -44,6 +44,10 @@ public class Group {
     @Column(name = "updated_at")
     private Instant updatedAt = Instant.now();
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
+
     public Group() {
     }
 
@@ -113,5 +117,13 @@ public class Group {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

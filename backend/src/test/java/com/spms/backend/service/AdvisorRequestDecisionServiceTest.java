@@ -162,4 +162,17 @@ class AdvisorRequestDecisionServiceTest {
             groupService.processAdvisorRequestDecision(10L, 1L, "INVALID", null)
         );
     }
+
+    @Test
+    @DisplayName("APPROVE throws ConflictException if group already has an advisor")
+    void approveThrowsConflictExceptionIfAdvisorAlreadyAssigned() {
+        group.setAdvisor(new User()); // Group already has an advisor
+        when(notificationRepository.findById(1L)).thenReturn(Optional.of(request));
+        when(groupRepository.findById(100L)).thenReturn(Optional.of(group));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(professor));
+
+        assertThrows(com.spms.backend.exception.ConflictException.class, () ->
+            groupService.processAdvisorRequestDecision(10L, 1L, "APPROVE", null)
+        );
+    }
 }

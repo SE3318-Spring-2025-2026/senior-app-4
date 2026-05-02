@@ -316,14 +316,12 @@ class AdvisorAssignmentServiceImplTest {
         }
 
         @Override
-        public org.springframework.data.domain.Page<AuditLog> findByCommitteeIdOrderByCreatedAtDesc(
-                Long committeeId, org.springframework.data.domain.Pageable pageable) {
+        public Page<AuditLog> findByCommitteeIdOrderByCreatedAtDesc(Long committeeId, Pageable pageable) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public org.springframework.data.domain.Page<AuditLog> findAllByOrderByCreatedAtDesc(
-                org.springframework.data.domain.Pageable pageable) {
+        public Page<AuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable) {
             throw new UnsupportedOperationException();
         }
 
