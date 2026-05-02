@@ -62,3 +62,51 @@ export type CommitteeAuditLogPageResponse = {
     totalPages: number;
     totalElements: number;
 };
+
+export type CommitteeValidationRules = {
+    sizeRequirements: string[];
+    advisorQualifications: string[];
+    scheduleRules: string[];
+    groupAssignmentRules: string[];
+};
+
+export type AdvisorRole = "PRESIDENT" | "VICE_PRESIDENT" | "MEMBER";
+export type AdvisorAssignmentStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+
+export type AdvisorAssignment = {
+    assignmentId: number;
+    committeeId: number;
+    advisorId: number;
+    fullName: string;
+    email: string;
+    role: AdvisorRole;
+    assignedAt: string;
+    status: AdvisorAssignmentStatus;
+};
+
+export type AdvisorAssignmentFormValues = {
+    advisorId: number;
+    role: AdvisorRole;
+};
+
+export type JuryType = "CORE" | "SUBSTITUTE";
+
+export type JuryAssignment = {
+    assignmentId: number;
+    committeeId: number;
+    juryId: number;
+    fullName: string;
+    email: string;
+    juryType: JuryType;
+    assignedAt: string;
+};
+
+export type JuryAssignmentFormValues = {
+    juryId: number;
+    juryType: JuryType;
+};
+
+export type CommitteeAssignmentDetail = {
+    advisors: AdvisorAssignment[];
+    juryMembers: JuryAssignment[];
+};
