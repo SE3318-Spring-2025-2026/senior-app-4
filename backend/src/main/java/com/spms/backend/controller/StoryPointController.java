@@ -51,4 +51,14 @@ public class StoryPointController {
 
         return ResponseEntity.ok(Map.of("performanceRatio", ratio));
     }
+    // Merge Statüsüne Göre SP Uygunluğu Endpoint'i
+    @PostMapping("/merge-status")
+    public ResponseEntity<?> checkMergeStatus(@RequestBody Map<String, Object> request) {
+        Boolean isMerged = (Boolean) request.getOrDefault("merged", false);
+        
+        return ResponseEntity.ok(Map.of(
+                "eligibleForPoints", isMerged,
+                "message", isMerged ? "Task is merged. Points will be calculated." : "Task is NOT merged. No points."
+        ));
+    }
 }
