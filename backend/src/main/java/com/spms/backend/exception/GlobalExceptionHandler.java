@@ -7,6 +7,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -51,6 +52,9 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, exception.getMessage());
     }
 
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException exception) {
+        return buildResponse(HttpStatus.CONFLICT, "Concurrent modification detected. Please refresh and try again."); }
     @ExceptionHandler(SyncAlreadyRunningException.class)
     public ResponseEntity<ErrorResponse> handleSyncAlreadyRunning(SyncAlreadyRunningException exception) {
         return buildResponse(HttpStatus.CONFLICT, exception.getMessage());
