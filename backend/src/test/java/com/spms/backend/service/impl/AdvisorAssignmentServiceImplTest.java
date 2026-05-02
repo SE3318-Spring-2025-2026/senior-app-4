@@ -314,5 +314,57 @@ class AdvisorAssignmentServiceImplTest {
                 Long groupId, com.spms.backend.model.ActionType actionType) {
             return Optional.empty();
         }
+
+        @Override
+        public Page<AuditLog> findByCommitteeIdOrderByCreatedAtDesc(Long committeeId, Pageable pageable) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Page<AuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<AuditLog> findOne(org.springframework.data.jpa.domain.Specification<AuditLog> spec) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<AuditLog> findAll(org.springframework.data.jpa.domain.Specification<AuditLog> spec) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Page<AuditLog> findAll(org.springframework.data.jpa.domain.Specification<AuditLog> spec, Pageable pageable) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<AuditLog> findAll(org.springframework.data.jpa.domain.Specification<AuditLog> spec, org.springframework.data.domain.Sort sort) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(org.springframework.data.jpa.domain.Specification<AuditLog> spec) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean exists(org.springframework.data.jpa.domain.Specification<AuditLog> spec) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long delete(org.springframework.data.jpa.domain.Specification<AuditLog> spec) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <S extends AuditLog, R> R findBy(
+                org.springframework.data.jpa.domain.Specification<AuditLog> spec,
+                java.util.function.Function<org.springframework.data.repository.query.FluentQuery.FetchableFluentQuery<S>, R> queryFunction) {
+            throw new UnsupportedOperationException();
+        }
     }
 }
