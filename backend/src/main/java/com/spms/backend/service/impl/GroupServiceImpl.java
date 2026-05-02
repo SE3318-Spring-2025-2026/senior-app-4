@@ -530,6 +530,15 @@ public class GroupServiceImpl implements GroupService {
                 .orElseThrow(() -> new NotFoundException("Professor not found."));
 
         if ("approved".equalsIgnoreCase(status)) {
+            if (group.getAdvisor() != null) {
+                throw new com.spms.backend.exception.ConflictException(
+                        "Group already has an assigned advisor. The advisor must release the group first.");
+            }
+            if (groupRepository.countByAdvisor_UserId(professorId) > 0) {
+                throw new com.spms.backend.exception.ConflictException(
+                        "You are already advising another group. Release that group before accepting a new advisee.");
+            }
+
             group.setAdvisor(professor);
             group.setStatus(GroupStatus.ADVISED);
             group.setUpdatedAt(Instant.now());
@@ -561,6 +570,34 @@ public class GroupServiceImpl implements GroupService {
                         "Auto-rejected pending advisor request for professor " + otherReq.getToUser().getUserId() + " ("
                                 + otherReq.getToUser().getFullName() + ") due to approval of a different advisor.");
                 auditLogRepository.save(log);
+            }
+
+            // Spec: "the advisor must release the team first in order them to make another advisee request."
+            List<Notification> otherGroupRequestsToSameProfessor =
+                    notificationRepository.findByToUser_UserIdAndTypeAndStatusAndGroupIdNot(
+                            professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, groupId);
+            for (Notification otherReq : otherGroupRequestsToSameProfessor) {
+                otherReq.setStatus(NotificationStatus.REJECTED);
+                notificationRepository.save(otherReq);
+
+                Notification leaderNotif = new Notification();
+                leaderNotif.setType(NotificationType.SYSTEM_ALERT);
+                leaderNotif.setStatus(NotificationStatus.PENDING);
+                leaderNotif.setMessage("Your advisor request to professor " + professor.getFullName()
+                        + " was automatically rejected because they accepted another group.");
+                leaderNotif.setGroupId(otherReq.getGroupId());
+                leaderNotif.setFromUser(professor);
+                leaderNotif.setToUser(otherReq.getFromUser());
+                notificationRepository.save(leaderNotif);
+
+                AuditLog occupiedLog = new AuditLog();
+                occupiedLog.setActionType(ActionType.ADVISOR_REJECTED);
+                occupiedLog.setUserId(professorId);
+                occupiedLog.setGroupId(otherReq.getGroupId());
+                occupiedLog.setEventDetails(
+                        "Auto-rejected pending advisor request from group " + otherReq.getGroupId()
+                                + " because professor " + professorId + " accepted a different group.");
+                auditLogRepository.save(occupiedLog);
             }
 
             Notification notif = new Notification();
@@ -618,6 +655,10 @@ public class GroupServiceImpl implements GroupService {
             if (group.getAdvisor() != null) {
                 throw new com.spms.backend.exception.ConflictException("Group already has an assigned advisor. The advisor must release the group first.");
             }
+            if (groupRepository.countByAdvisor_UserId(professorId) > 0) {
+                throw new com.spms.backend.exception.ConflictException(
+                        "You are already advising another group. Release that group before accepting a new advisee.");
+            }
             group.setAdvisor(professor);
             group.setStatus(GroupStatus.ADVISED);
             group.setUpdatedAt(Instant.now());
@@ -663,6 +704,36 @@ public class GroupServiceImpl implements GroupService {
                         "Auto-rejected pending advisor request for professor " + otherReq.getToUser().getUserId() + " ("
                                 + otherReq.getToUser().getFullName() + ") due to approval of a different advisor.");
                 auditLogRepository.save(log);
+            }
+
+            // Spec: "the advisor must release the team first in order them to make another advisee request."
+            // Once the professor is matched with this group, all PENDING requests from OTHER groups
+            // to this same professor must be auto-rejected — the professor is now occupied.
+            List<Notification> otherGroupRequestsToSameProfessor =
+                    notificationRepository.findByToUser_UserIdAndTypeAndStatusAndGroupIdNot(
+                            professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, groupId);
+            for (Notification otherReq : otherGroupRequestsToSameProfessor) {
+                otherReq.setStatus(NotificationStatus.REJECTED);
+                notificationRepository.save(otherReq);
+
+                Notification leaderNotif = new Notification();
+                leaderNotif.setType(NotificationType.SYSTEM_ALERT);
+                leaderNotif.setStatus(NotificationStatus.PENDING);
+                leaderNotif.setMessage("Your advisor request to professor " + professor.getFullName()
+                        + " was automatically rejected because they accepted another group.");
+                leaderNotif.setGroupId(otherReq.getGroupId());
+                leaderNotif.setFromUser(professor);
+                leaderNotif.setToUser(otherReq.getFromUser());
+                notificationRepository.save(leaderNotif);
+
+                AuditLog occupiedLog = new AuditLog();
+                occupiedLog.setActionType(ActionType.ADVISOR_REJECTED);
+                occupiedLog.setUserId(professorId);
+                occupiedLog.setGroupId(otherReq.getGroupId());
+                occupiedLog.setEventDetails(
+                        "Auto-rejected pending advisor request from group " + otherReq.getGroupId()
+                                + " because professor " + professorId + " accepted a different group.");
+                auditLogRepository.save(occupiedLog);
             }
 
             Notification notif = new Notification();
