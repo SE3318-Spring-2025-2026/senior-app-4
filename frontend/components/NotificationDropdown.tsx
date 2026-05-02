@@ -7,18 +7,31 @@ import { markNotificationRead } from "@/lib/notifications-api";
 import { Notification, NotificationType } from "@/lib/notification-types";
 
 function getIcon(type: NotificationType): string {
-    switch (type) {
-        case "membership_invite": return "📩";
-        case "advisor_request":
-        case "advisor_decision": return "👨‍🏫";
-        case "group_disbanded": return "🚫";
-        case "system_alert": return "⚠️";
+    const normalized = String(type ?? "")
+        .normalize("NFKC")
+        .replace(/[\s\u200B-\u200D\uFEFF]/g, "")
+        .replace(/ı/g, "i")
+        .replace(/İ/g, "i")
+        .toUpperCase();
+    
+    switch (normalized) {
+        case "ADVISOR_ASSIGNMENT": return "🧑‍🏫";
+        case "JURY_ASSIGNMENT": return "🧑‍⚖️";
+        case "GROUP_ASSIGNMENT": return "👥";
+        case "SCHEDULE_CHANGE": return "🗓️";
+        case "MEETING_REMINDER": return "⏰";
+        case "GENERAL": return "ℹ️";
+        case "MEMBERSHIP_INVITE": return "📩";
+        case "ADVISOR_REQUEST":
+        case "ADVISOR_DECISION": return "👨‍🏫";
+        case "GROUP_DISBANDED": return "🚫";
+        case "SYSTEM_ALERT": return "⚠️";
         default: return "🔔";
     }
 }
 
 function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString("en-US", {
+    return new Date(iso).toLocaleString(undefined, {
         day: "numeric",
         month: "short",
         hour: "2-digit",

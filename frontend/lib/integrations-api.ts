@@ -1,4 +1,5 @@
 import { getToken } from "@/lib/auth";
+import { API_BASE, parseError } from "@/lib/api-utils";
 
 export type GithubIntegrationApiResponse = {
     success: boolean;
@@ -21,17 +22,6 @@ export type JiraIntegrationApiResponse = {
     };
 };
 
-const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
-
-async function parseError(res: Response) {
-    try {
-        const data = await res.json();
-        return data?.message || data?.error || "Request failed.";
-    } catch {
-        return "Request failed.";
-    }
-}
 
 export async function fetchGithubIntegration(
     groupId: number
@@ -95,6 +85,75 @@ export async function fetchJiraIntegration(
                 message: errorMessage || "Not connected",
             },
         };
+    }
+
+    return res.json();
+}
+
+export type IntegrationsTestResponse = {
+    github: {
+        connected: boolean;
+        message: string;
+    };
+    jira: {
+        connected: boolean;
+        message: string;
+    };
+};
+
+export async function bindGithubIntegration(
+    groupId: number,
+    githubPat: string,
+    organizationName: string
+): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/integrations/github`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({
+            githubPat,
+            organizationName,
+        }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+export async function unbindGithubIntegration(groupId: number): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/integrations/github`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+export async function testIntegrations(
+    groupId: number
+): Promise<IntegrationsTestResponse> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/integrations/test`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
     }
 
     return res.json();

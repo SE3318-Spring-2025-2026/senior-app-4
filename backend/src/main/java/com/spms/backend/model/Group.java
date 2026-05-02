@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import jakarta.persistence.Convert;
+import org.hibernate.annotations.Formula;
 
 @Entity
 @Table(name = "groups", indexes = {
@@ -33,6 +34,9 @@ public class Group {
 
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<GroupMember> members = new ArrayList<>();
+
+    @Formula("(SELECT COUNT(*) FROM group_members gm WHERE gm.group_id = id)")
+    private int memberCount;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -93,6 +97,10 @@ public class Group {
 
     public void setMembers(List<GroupMember> members) {
         this.members = members;
+    }
+
+    public int getMemberCount() {
+        return memberCount;
     }
 
     public Instant getCreatedAt() {

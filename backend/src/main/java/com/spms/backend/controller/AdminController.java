@@ -97,6 +97,7 @@ public class AdminController {
                 log.getActionType(),
                 log.getEventDetails(),
                 log.getGroupId(),
+                log.getCommitteeId(),
                 log.getIpAddress(),
                 log.getCreatedAt()
         ));

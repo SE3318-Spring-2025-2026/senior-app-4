@@ -13,4 +13,8 @@ public interface AdvisorAssignmentService {
      */
     AdvisorAssignmentListResponse listAdvisorAssignments(
             String requesterRole, Long requesterUserId, Long filterAdvisorId, Boolean hasAdvisor);
+
+    void assignAdvisor(Long committeeId, Long advisorId, String role, Long assignedBy);
+
+    void removeAdvisor(Long committeeId, Long committeeAdvisorId);
 }

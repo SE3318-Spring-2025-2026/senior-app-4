@@ -34,7 +34,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException exception) {
-        return buildResponse(HttpStatus.NOT_FOUND, exception.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("NOT_FOUND", exception.getMessage()));
     }
 
     @ExceptionHandler(DuplicateUserException.class)
@@ -54,6 +55,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException exception) {
         return buildResponse(HttpStatus.CONFLICT, "Concurrent modification detected. Please refresh and try again.");
+    @ExceptionHandler(SyncAlreadyRunningException.class)
+    public ResponseEntity<ErrorResponse> handleSyncAlreadyRunning(SyncAlreadyRunningException exception) {
+        return buildResponse(HttpStatus.CONFLICT, exception.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

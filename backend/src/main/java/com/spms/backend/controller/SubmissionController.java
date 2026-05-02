@@ -48,13 +48,14 @@ public class SubmissionController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Long committeeId,
             @RequestParam(required = false) String deliverableType,
+            @RequestParam(required = false) String deadlineStatus,
             @RequestAttribute("jwt_userId") Object userId,
             @RequestAttribute("jwt_role") Object role) {
         try {
             Long currentUserId = Long.valueOf(userId.toString());
             String userRole = role.toString();
             SubmissionListResponse response = submissionService.listSubmissions(
-                    currentUserId, userRole, teamId, status, committeeId, deliverableType, pageable);
+                    currentUserId, userRole, teamId, status, committeeId, deliverableType, deadlineStatus, pageable);
             return ResponseEntity.ok(response);
         } catch (com.spms.backend.exception.ForbiddenException e) {
             return new ResponseEntity<>(new ErrorResponse("Forbidden", e.getMessage()), HttpStatus.FORBIDDEN);

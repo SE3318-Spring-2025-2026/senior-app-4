@@ -59,6 +59,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.data.jpa.domain.Specification;
+import com.spms.backend.repository.specification.GroupSpecification;
 
 
 @Service
@@ -159,40 +161,23 @@ public class GroupServiceImpl implements GroupService {
 
     }
 
-    // rol bazlı grup getirmek için
     @Override
     @Transactional(readOnly = true)
-    public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole) {
+    public Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole, String status, String advisorAssigned, String groupName) {
+        String role = (requesterRole != null) ? requesterRole.toLowerCase() : "guest";
+        boolean hasFilters = (status != null && !status.isEmpty() && !"all".equalsIgnoreCase(status)) ||
+                             (advisorAssigned != null && !advisorAssigned.isEmpty() && !"all".equalsIgnoreCase(advisorAssigned)) ||
+                             (groupName != null && !groupName.trim().isEmpty());
 
         Page<Group> groupsPage;
 
-        String role = (requesterRole != null) ? requesterRole.toLowerCase() : "guest";
-
-        switch (role) {
-            case "student":
-                groupsPage = groupRepository.findAllWithStudentGroupFirst(requesterId, pageable);
-                break;
-
-            case "professor":
-                groupsPage = groupRepository.findByAdvisorId(requesterId, pageable);
-                break;
-
-            case "coordinator":
-                groupsPage = groupRepository.findAll(pageable);
-                try {
-                    List<Object[]> counts = groupRepository.countGroupsByStatus();
-                    counts.forEach(
-                            result -> log.info("Coordinator Summary - Status: {} Count: {}", result[0], result[1]));
-                } catch (Exception e) {
-                    log.error("Status summary count failed", e);
-                }
-                break;
-
-            default:
-
-                groupsPage = groupRepository.findAll(pageable);
-                break;
+        if ("student".equals(role) && !hasFilters) {
+            groupsPage = groupRepository.findAllWithStudentGroupFirst(requesterId, pageable);
+        } else {
+            Specification<Group> spec = GroupSpecification.filterGroups(status, advisorAssigned, groupName, role, requesterId);
+            groupsPage = groupRepository.findAll(spec, pageable);
         }
+
         if (groupsPage == null) {
             return Page.empty(pageable);
         }
@@ -330,7 +315,7 @@ public class GroupServiceImpl implements GroupService {
         return new JiraIntegrationResponse(
                 true,
                 new JiraIntegrationResponse.JiraIntegrationData(
-                        jira.getStatus().name().toLowerCase(),
+                        jira.getStatus().name().toLowerCase(java.util.Locale.ROOT),
                         jira.getJiraSpaceUrl(),
                         jira.getProjectKey(),
                         jira.getCreatedAt().toString(),
@@ -349,7 +334,7 @@ public class GroupServiceImpl implements GroupService {
         return new GithubIntegrationResponse(
                 true,
                 new GithubIntegrationResponse.GithubIntegrationData(
-                        github.getStatus().name().toLowerCase(),
+                        github.getStatus().name().toLowerCase(java.util.Locale.ROOT),
                         github.getOrganizationName(),
                         github.getCreatedAt().toString(),
                         github.getLastError() != null ? github.getLastError() : "Connected successfully"
@@ -385,7 +370,7 @@ public class GroupServiceImpl implements GroupService {
                 group.getLeader().getUserId(),
                 group.getAdvisor() != null ? group.getAdvisor().getUserId() : null,
                 group.getStatus().name(),
-                group.getMembers().size(),
+                group.getMemberCount(),
                 group.getCreatedAt());
     }
 

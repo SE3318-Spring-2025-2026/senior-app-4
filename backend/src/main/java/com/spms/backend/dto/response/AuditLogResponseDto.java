@@ -9,6 +9,7 @@ public record AuditLogResponseDto(
         ActionType actionType,
         String eventDetails,
         Long groupId,
+        Long committeeId,
         String ipAddress,
         Instant createdAt
 ) {}

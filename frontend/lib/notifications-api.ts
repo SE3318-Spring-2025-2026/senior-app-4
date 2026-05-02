@@ -1,24 +1,4 @@
-import { getToken } from "@/lib/auth";
-
-const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
-
-async function parseError(res: Response): Promise<string> {
-    try {
-        const data = await res.json();
-        return data?.message || data?.error || "Request failed.";
-    } catch {
-        return "Request failed.";
-    }
-}
-
-function authHeaders(): HeadersInit {
-    const token = getToken();
-    return {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token ?? ""}`,
-    };
-}
+import { API_BASE, buildHeaders as authHeaders, parseError } from "@/lib/api-utils";
 
 // ------------------------------------------------------------------ Types
 
@@ -27,6 +7,7 @@ export type ApiNotification = {
     type: string;
     message: string;
     status: string;
+    readStatus: boolean;
     fromUserId: number | null;
     fromUserName: string | null;
     toUserId: number | null;
@@ -59,6 +40,23 @@ export async function fetchNotifications(
             cache: "no-store",
         }
     );
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+
+    return res.json();
+}
+
+/**
+ * P5.11 — Fetch the current user's committee notifications.
+ */
+export async function fetchMyCommitteeNotifications(): Promise<ApiNotification[]> {
+    const res = await fetch(`${API_BASE}/committees/notifications`, {
+        method: "GET",
+        headers: authHeaders(),
+        cache: "no-store",
+    });
 
     if (!res.ok) {
         throw new Error(await parseError(res));

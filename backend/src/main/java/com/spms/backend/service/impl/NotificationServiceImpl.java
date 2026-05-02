@@ -320,9 +320,9 @@ public class NotificationServiceImpl implements NotificationService {
     private NotificationDto mapToDto(Notification notif) {
         return new NotificationDto(
                 notif.getId(),
-                notif.getType().name().toLowerCase(),
+                notif.getType().name().toLowerCase(java.util.Locale.ENGLISH),
                 notif.getMessage(),
-                notif.getStatus().name().toLowerCase(),
+                notif.getStatus().name().toLowerCase(java.util.Locale.ENGLISH),
                 notif.isReadStatus(),
                 notif.getFromUser() != null ? notif.getFromUser().getUserId() : null,
                 notif.getFromUser() != null ? notif.getFromUser().getFullName() : null,

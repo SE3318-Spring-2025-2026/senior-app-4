@@ -16,7 +16,9 @@ public record SubmissionListResponse(
             String status,
             Long assignedCommitteeId,
             Integer revisionNumber,
-            LocalDateTime submittedAt) {
+            LocalDateTime submittedAt,
+            LocalDateTime deadline,
+            Boolean isOverdue) {
     }
 
     public record PaginationMeta(

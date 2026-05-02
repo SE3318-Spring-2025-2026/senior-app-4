@@ -1,13 +1,6 @@
-export type DeliverableType = "PROPOSAL" | "REVISED_PROPOSAL" | "STATEMENT_OF_WORK";
+export type { DeliverableType, SubmissionStatus, ReviewDecision } from "@/lib/submissions-api";
 
-export type SubmissionStatus =
-  | "PENDING_REVIEW"
-  | "UNDER_REVIEW"
-  | "REVISION_REQUESTED"
-  | "APPROVED"
-  | "GRADED";
-
-export type ReviewDecision = "APPROVED" | "REVISION_REQUESTED";
+import type { DeliverableType, SubmissionStatus, ReviewDecision } from "@/lib/submissions-api";
 
 export type CommitteeSubmissionPreview = {
   submissionId: number;

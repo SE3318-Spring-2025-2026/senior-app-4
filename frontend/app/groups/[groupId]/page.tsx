@@ -358,13 +358,17 @@ export default function GroupDetailPage() {
                             </div>
                         </Link>
 
-                        <GithubStatusCard
-                            integration={
-                                githubIntegration?.data?.status === "inactive"
-                                    ? undefined
-                                    : githubIntegration?.data
-                            }
-                        />
+                        <Link href={`/groups/${group.id}/integrations/github`}>
+                            <div className="cursor-pointer">
+                                <GithubStatusCard
+                                    integration={
+                                        githubIntegration?.data?.status === "inactive"
+                                            ? undefined
+                                            : githubIntegration?.data
+                                    }
+                                />
+                            </div>
+                        </Link>
 
                         <JiraStatusCard
                             integration={

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import apiClient from "@/lib/client";
 
 type Step = "student-id" | "redirecting";
 
@@ -16,45 +17,25 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Step 1: Validate student ID
-      const validateRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/students/validate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ studentId: studentId.trim() }),
-        }
-      );
-
-      if (!validateRes.ok) {
-        const data = await validateRes.json().catch(() => ({}));
-        setError(data.message || "Student ID not found. Please check and try again.");
-        return;
-      }
+      // Step 1: Validate student ID (apiClient handles 400/500 errors globally with Toasts)
+      await apiClient.post("/students/validate", { studentId: studentId.trim() });
 
       // Step 2: Get GitHub OAuth URL from backend
-      const authRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/github`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ studentId: studentId.trim() }),
-        }
-      );
+      const response = await apiClient.post("/auth/github", { studentId: studentId.trim() });
+      const authorizationUrl = response.data.authorizationUrl;
 
-      if (!authRes.ok) {
-        const data = await authRes.json().catch(() => ({}));
-        setError(data.message || "Failed to initiate GitHub login. Please try again.");
-        return;
-      }
-
-      const { authorizationUrl } = await authRes.json();
       setStep("redirecting");
 
       // Step 3: Redirect to GitHub OAuth
       globalThis.location.href = authorizationUrl;
-    } catch {
-      setError("Unable to connect to the server. Please try again later.");
+    } catch (err: any) {
+      // If it's an Axios error, the Toast interceptor already handled the UI notification!
+      // We only need to set local state if we want to show inline red text.
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError("Unable to connect to the server. Please try again later.");
+      }
     } finally {
       setLoading(false);
     }

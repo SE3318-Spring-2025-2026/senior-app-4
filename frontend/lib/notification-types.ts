@@ -3,7 +3,14 @@ export type NotificationType =
     | "advisor_request"
     | "advisor_decision"
     | "system_alert"
-    | "group_disbanded";
+    | "group_disbanded"
+    | "committee_assigned"
+    | "advisor_assignment"
+    | "jury_assignment"
+    | "group_assignment"
+    | "schedule_change"
+    | "meeting_reminder"
+    | "general";
 
 export type NotificationStatus =
     | "pending"
@@ -16,10 +23,11 @@ export type Notification = {
     type: NotificationType;
     message: string;
     status: NotificationStatus;
+    readStatus: boolean;
     fromUserId: number | null;
     fromUserName: string | null;
     groupId: number | null;
     createdAt: string;
 };
 
-export type NotificationDecision = "accept" | "reject";
+export type NotificationDecision = "accept" | "reject";

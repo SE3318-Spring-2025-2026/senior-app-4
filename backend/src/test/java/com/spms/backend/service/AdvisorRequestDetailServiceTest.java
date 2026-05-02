@@ -227,6 +227,8 @@ class AdvisorRequestDetailServiceTest {
         @Override public List<Notification> findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(Long groupId, NotificationType type, com.spms.backend.model.notification.NotificationStatus status, Long excludedUserId) { return List.of(); }
         @Override public List<Notification> findByTypeOrderByCreatedAtDesc(NotificationType type) { return List.of(); }
         @Override public List<Notification> findByGroupIdAndTypeOrderByCreatedAtDesc(Long groupId, NotificationType type) { return List.of(); }
+        @Override public List<Notification> findByCommitteeIdOrderByCreatedAtDesc(Long committeeId) { return List.of(); }
+        @Override public List<Notification> findByToUser_UserIdAndCommitteeIdIsNotNullOrderByCreatedAtDesc(Long userId) { return List.of(); }
     }
 
     static class StubGroupRepository
@@ -262,6 +264,48 @@ class AdvisorRequestDetailServiceTest {
             return findAll().stream()
                     .filter(g -> g.getStatus() != disbanded)
                     .toList();
+        }
+
+        @Override
+        public <S extends Group, R> R findBy(
+                org.springframework.data.jpa.domain.Specification<Group> spec,
+                java.util.function.Function<org.springframework.data.repository.query.FluentQuery.FetchableFluentQuery<S>, R> queryFunction) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Page<Group> findAll(org.springframework.data.jpa.domain.Specification<Group> spec, Pageable pageable) {
+            return Page.empty(pageable);
+        }
+
+        @Override
+        public List<Group> findAll(org.springframework.data.jpa.domain.Specification<Group> spec) {
+            return List.of();
+        }
+
+        @Override
+        public List<Group> findAll(org.springframework.data.jpa.domain.Specification<Group> spec, org.springframework.data.domain.Sort sort) {
+            return List.of();
+        }
+
+        @Override
+        public Optional<Group> findOne(org.springframework.data.jpa.domain.Specification<Group> spec) {
+            return Optional.empty();
+        }
+
+        @Override
+        public long count(org.springframework.data.jpa.domain.Specification<Group> spec) {
+            return 0;
+        }
+
+        @Override
+        public boolean exists(org.springframework.data.jpa.domain.Specification<Group> spec) {
+            return false;
+        }
+
+        @Override
+        public long delete(org.springframework.data.jpa.domain.Specification<Group> spec) {
+            return 0;
         }
     }
 }

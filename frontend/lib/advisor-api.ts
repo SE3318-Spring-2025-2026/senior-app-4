@@ -1,4 +1,5 @@
-import { getToken } from "@/lib/auth";
+import { UserRole } from "@/types/enums";
+import { API_BASE, buildHeaders as getAuthHeaders, parseError } from "@/lib/api-utils";
 
 export type ProfessorDirectoryItem = {
     userId: number;
@@ -9,7 +10,7 @@ export type ProfessorDirectoryItem = {
     createdAt: string | null;
 };
 
-export type AdvisorRequestStatus = {
+export type AdvisorRequestInfo = {
     requestId: number;
     professorName: string;
     status: string;
@@ -21,35 +22,10 @@ type UserListResponse = {
     data: ProfessorDirectoryItem[];
 };
 
-type ErrorPayload = {
-    error?: string;
-    message?: string;
-};
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
-
-async function parseError(res: Response) {
-    try {
-        const data = (await res.json()) as ErrorPayload;
-        return data.message || data.error || "Request failed.";
-    } catch {
-        return "Request failed.";
-    }
-}
-
-function getAuthHeaders() {
-    const token = getToken();
-
-    return {
-        Authorization: `Bearer ${token ?? ""}`,
-        "Content-Type": "application/json",
-    };
-}
-
 export async function fetchProfessors(): Promise<ProfessorDirectoryItem[]> {
     // TODO(#80): replace the generic professor directory with a dedicated
     // "available professors" endpoint once backend filtering/availability data lands.
-    const res = await fetch(`${API_BASE}/users?role=professor`, {
+    const res = await fetch(`${API_BASE}/users?role=${UserRole.PROFESSOR}`, {
         method: "GET",
         headers: {
             Authorization: getAuthHeaders().Authorization,
@@ -65,7 +41,7 @@ export async function fetchProfessors(): Promise<ProfessorDirectoryItem[]> {
     return payload.data ?? [];
 }
 
-export async function fetchAdvisorRequestStatus(groupId: number): Promise<AdvisorRequestStatus | null> {
+export async function fetchAdvisorRequestInfo(groupId: number): Promise<AdvisorRequestInfo | null> {
     const res = await fetch(`${API_BASE}/groups/${groupId}/advisor-request`, {
         method: "GET",
         headers: {
@@ -90,7 +66,7 @@ export async function createAdvisorRequest(groupId: number, professorId: number)
     const res = await fetch(`${API_BASE}/advisor-requests`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ teamId: String(groupId), professorId }),
+        body: JSON.stringify({ teamId: groupId, professorId }),
     });
 
     if (!res.ok) {

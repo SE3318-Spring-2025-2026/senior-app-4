@@ -79,7 +79,7 @@ class AdvisorDeadlineDisbandServiceTest {
     void skipsWhenNoCoordinatorFound() {
         when(scheduleRepository.findTopByOrderByIdDesc())
                 .thenReturn(Optional.of(scheduleWithAdvisorDeadline(Instant.now().minus(1, ChronoUnit.HOURS))));
-        when(userRepository.findAllByRole("coordinator")).thenReturn(Collections.emptyList());
+        when(userRepository.findAllByRoleIgnoreCase("coordinator")).thenReturn(Collections.emptyList());
 
         service.disbandUnassignedGroups();
 
@@ -154,7 +154,7 @@ class AdvisorDeadlineDisbandServiceTest {
                 .thenReturn(Optional.of(scheduleWithAdvisorDeadline(Instant.now().minus(1, ChronoUnit.HOURS))));
         User coordinator = new User();
         coordinator.setUserId(COORDINATOR_ID);
-        when(userRepository.findAllByRole("coordinator")).thenReturn(List.of(coordinator));
+        when(userRepository.findAllByRoleIgnoreCase("coordinator")).thenReturn(List.of(coordinator));
     }
 
     private Schedule scheduleWithAdvisorDeadline(Instant advisorDeadline) {

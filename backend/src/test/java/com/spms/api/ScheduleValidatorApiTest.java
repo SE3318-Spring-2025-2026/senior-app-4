@@ -71,7 +71,7 @@ public class ScheduleValidatorApiTest extends BaseApiTest {
         coordinatorToken = tokenService.generateToken(coord);
 
         // Common mock for findCoordinatorId helper
-        when(userRepository.findAllByRole("coordinator")).thenReturn(List.of(coord));
+        when(userRepository.findAllByRoleIgnoreCase("coordinator")).thenReturn(List.of(coord));
     }
 
     // ── API TESTS: GET /schedule

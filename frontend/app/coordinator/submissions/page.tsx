@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, startTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { getToken, getUser } from "@/lib/auth";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import Sidebar from "@/components/Sidebar";
 import {
   fetchSubmissions,
@@ -19,21 +18,9 @@ import {
 // ─── Auth shell ──────────────────────────────────────────────────────────────
 
 export default function CoordinatorSubmissionsPage() {
-  const router = useRouter();
-  const [role, setRole] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = getToken();
-    const user = getUser();
-    if (!token || !user) { router.replace("/auth/login"); return; }
-    if (user.requiresPasswordChange) { router.replace("/auth/change-password"); return; }
-    startTransition(() => {
-      setRole(user.role === "coordinator" ? user.role : "denied");
-    });
-  }, [router]);
-
-  if (role === null) return <Spinner />;
-  if (role === "denied") return <AccessDenied />;
+  const authStatus = useAuthGuard("coordinator");
+  if (authStatus === "loading") return <Spinner />;
+  if (authStatus === "denied") return <AccessDenied />;
   return <SubmissionsDashboard />;
 }
 
@@ -289,14 +276,14 @@ function SubmissionRow({ submission: s }: { submission: SubmissionSummary }) {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SubmissionStatusBadge({ status }: { status: SubmissionStatus }) {
-  const styles: Record<SubmissionStatus, string> = {
+  const styles: Record<string, string> = {
     PENDING_REVIEW:     "bg-yellow-500/15 text-yellow-400 border-yellow-500/20",
     UNDER_REVIEW:       "bg-blue-500/15 text-blue-400 border-blue-500/20",
     REVISION_REQUESTED: "bg-orange-500/15 text-orange-400 border-orange-500/20",
     APPROVED:           "bg-green-500/15 text-green-400 border-green-500/20",
     GRADED:             "bg-purple-500/15 text-purple-400 border-purple-500/20",
   };
-  const labels: Record<SubmissionStatus, string> = {
+  const labels: Record<string, string> = {
     PENDING_REVIEW:     "Pending Review",
     UNDER_REVIEW:       "Under Review",
     REVISION_REQUESTED: "Revision Requested",
@@ -311,7 +298,7 @@ function SubmissionStatusBadge({ status }: { status: SubmissionStatus }) {
 }
 
 function DeliverableTypeBadge({ type }: { type: DeliverableType }) {
-  const labels: Record<DeliverableType, string> = {
+  const labels: Record<string, string> = {
     PROPOSAL:           "Proposal",
     REVISED_PROPOSAL:   "Revised Proposal",
     STATEMENT_OF_WORK:  "SoW",

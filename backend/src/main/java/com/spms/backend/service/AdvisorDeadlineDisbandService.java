@@ -97,7 +97,7 @@ public class AdvisorDeadlineDisbandService {
     }
 
     private Long findCoordinatorId() {
-        return userRepository.findAllByRole(COORDINATOR_ROLE)
+        return userRepository.findAllByRoleIgnoreCase(COORDINATOR_ROLE)
                 .stream()
                 .findFirst()
                 .map(u -> u.getUserId())

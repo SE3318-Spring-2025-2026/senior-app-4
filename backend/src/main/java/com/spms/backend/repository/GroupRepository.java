@@ -10,8 +10,10 @@ import org.springframework.stereotype.Repository;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupStatus;
 
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
 @Repository
-public interface GroupRepository extends JpaRepository<Group, Long> {
+public interface GroupRepository extends JpaRepository<Group, Long>, JpaSpecificationExecutor<Group> {
 
     // --- Takım arkadaşlarının eski metotları (Korundu) ---
     java.util.List<Group> findByStatus(com.spms.backend.model.GroupStatus status);
@@ -23,8 +25,10 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
     @Query("SELECT g.status, COUNT(g) FROM Group g GROUP BY g.status")
     List<Object[]> countGroupsByStatus();
 
-    @Query("SELECT g FROM Group g LEFT JOIN g.members m "
-            + "ORDER BY CASE WHEN m.user.userId = :studentId THEN 0 ELSE 1 END, g.id ASC")
+    @Query("SELECT g FROM Group g " +
+            "ORDER BY CASE WHEN EXISTS " +
+            "(SELECT 1 FROM GroupMember m WHERE m.group = g AND m.user.userId = :studentId) " +
+            "THEN 0 ELSE 1 END, g.id ASC")
     Page<Group> findAllWithStudentGroupFirst(@Param("studentId") Long studentId, Pageable pageable);
 
     /** All non-disbanded groups with advisor and leader loaded (P4-ASSIGN-1 list). */
