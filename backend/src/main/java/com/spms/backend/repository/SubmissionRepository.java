@@ -17,6 +17,8 @@ import java.util.Optional;
 public interface SubmissionRepository extends JpaRepository<Submission, Long> {
 
     Optional<Submission> findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(Long groupId, DeliverableType type);
+    
+    boolean existsByGroupIdAndDeliverableTypeAndParentSubmissionIdIsNull(Long groupId, DeliverableType deliverableType);
 
     Page<Submission> findByGroupId(Long groupId, Pageable pageable);
 
