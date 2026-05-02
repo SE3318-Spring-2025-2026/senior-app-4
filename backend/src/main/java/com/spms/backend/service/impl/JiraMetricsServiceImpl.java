@@ -2,11 +2,18 @@ package com.spms.backend.service.impl;
 
 import com.spms.backend.client.JiraApiClient;
 import com.spms.backend.dto.request.JiraCallbackRequest;
+import com.spms.backend.dto.request.JiraInitializeRequest;
 import com.spms.backend.dto.request.JiraIssueDetailsRequest;
+import com.spms.backend.dto.request.JiraIssueQueryRequest;
 import com.spms.backend.dto.response.JiraCallbackResponse;
 import com.spms.backend.dto.response.JiraCleansedIssue;
+import com.spms.backend.dto.response.JiraInitializeResponse;
 import com.spms.backend.dto.response.JiraIssueDetailsResponse;
+import com.spms.backend.dto.response.JiraIssueQueryResponse;
 import com.spms.backend.exception.JiraApiException;
+import com.spms.backend.exception.NotFoundException;
+import com.spms.backend.model.JiraIntegration;
+import com.spms.backend.repository.JiraIntegrationRepository;
 import com.spms.backend.service.JiraMetricsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,9 +31,12 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
     private static final int BATCH_SIZE = 100;
 
     private final JiraApiClient jiraApiClient;
+    private final JiraIntegrationRepository jiraIntegrationRepository;
 
-    public JiraMetricsServiceImpl(JiraApiClient jiraApiClient) {
+    public JiraMetricsServiceImpl(JiraApiClient jiraApiClient,
+                                   JiraIntegrationRepository jiraIntegrationRepository) {
         this.jiraApiClient = jiraApiClient;
+        this.jiraIntegrationRepository = jiraIntegrationRepository;
     }
 
     @Override
@@ -70,6 +80,53 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
 
         logger.info("Issue details fetched: {}/{} keys resolved", results.size(), keys.size());
         return new JiraIssueDetailsResponse(keys.size(), results.size(), results);
+    }
+
+    @Override
+    public JiraInitializeResponse initializeConnection(JiraInitializeRequest request) {
+        JiraIntegration integration = jiraIntegrationRepository
+                .findByGroup_Id(request.groupId())
+                .orElseThrow(() -> new NotFoundException(
+                        "No JIRA integration found for group: " + request.groupId()));
+
+        boolean connected = jiraApiClient.validateSpaceConnection(
+                integration.getJiraSpaceUrl(),
+                integration.getProjectKey(),
+                integration.getApiKey());
+
+        String message = connected
+                ? "JIRA connection established successfully"
+                : "JIRA connection failed — check credentials";
+
+        logger.info("JIRA initialize for group {}: connected={}", request.groupId(), connected);
+
+        return new JiraInitializeResponse(
+                connected,
+                integration.getJiraSpaceUrl(),
+                integration.getProjectKey(),
+                message);
+    }
+
+    @Override
+    public JiraIssueQueryResponse queryIssuesByJql(JiraIssueQueryRequest request) {
+        JiraIntegration integration = jiraIntegrationRepository
+                .findByGroup_Id(request.groupId())
+                .orElseThrow(() -> new NotFoundException(
+                        "No JIRA integration found for group: " + request.groupId()));
+
+        List<String> issueKeys;
+        try {
+            issueKeys = jiraApiClient.searchIssuesByJql(
+                    integration.getJiraSpaceUrl(),
+                    integration.getApiKey(),
+                    request.jql());
+        } catch (JiraApiException e) {
+            logger.error("JQL query failed for group {}: {}", request.groupId(), e.getMessage());
+            throw e;
+        }
+
+        logger.info("JQL query for group {} returned {} keys", request.groupId(), issueKeys.size());
+        return new JiraIssueQueryResponse(issueKeys.size(), issueKeys);
     }
 
     // fields.assignee.displayName → assigneeName  (test kontratı)

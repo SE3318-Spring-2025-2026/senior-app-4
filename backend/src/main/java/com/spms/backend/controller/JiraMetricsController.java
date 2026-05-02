@@ -1,9 +1,13 @@
 package com.spms.backend.controller;
 
 import com.spms.backend.dto.request.JiraCallbackRequest;
+import com.spms.backend.dto.request.JiraInitializeRequest;
 import com.spms.backend.dto.request.JiraIssueDetailsRequest;
+import com.spms.backend.dto.request.JiraIssueQueryRequest;
 import com.spms.backend.dto.response.JiraCallbackResponse;
+import com.spms.backend.dto.response.JiraInitializeResponse;
 import com.spms.backend.dto.response.JiraIssueDetailsResponse;
+import com.spms.backend.dto.response.JiraIssueQueryResponse;
 import com.spms.backend.service.JiraMetricsService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +24,18 @@ public class JiraMetricsController {
 
     public JiraMetricsController(JiraMetricsService jiraMetricsService) {
         this.jiraMetricsService = jiraMetricsService;
+    }
+
+    @PostMapping("/initialize")
+    public ResponseEntity<JiraInitializeResponse> initialize(
+            @Valid @RequestBody JiraInitializeRequest request) {
+        return ResponseEntity.ok(jiraMetricsService.initializeConnection(request));
+    }
+
+    @PostMapping("/issue-query")
+    public ResponseEntity<JiraIssueQueryResponse> issueQuery(
+            @Valid @RequestBody JiraIssueQueryRequest request) {
+        return ResponseEntity.ok(jiraMetricsService.queryIssuesByJql(request));
     }
 
     @PostMapping("/callback")

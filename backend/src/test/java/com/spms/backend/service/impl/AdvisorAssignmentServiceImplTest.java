@@ -326,22 +326,28 @@ class AdvisorAssignmentServiceImplTest {
         }
 
         @Override
-        public Optional<AuditLog> findOne(org.springframework.data.jpa.domain.Specification<AuditLog> spec) {
+        public java.util.Optional<AuditLog> findOne(
+                org.springframework.data.jpa.domain.Specification<AuditLog> spec) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public List<AuditLog> findAll(org.springframework.data.jpa.domain.Specification<AuditLog> spec) {
+        public java.util.List<AuditLog> findAll(
+                org.springframework.data.jpa.domain.Specification<AuditLog> spec) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public Page<AuditLog> findAll(org.springframework.data.jpa.domain.Specification<AuditLog> spec, Pageable pageable) {
+        public org.springframework.data.domain.Page<AuditLog> findAll(
+                org.springframework.data.jpa.domain.Specification<AuditLog> spec,
+                org.springframework.data.domain.Pageable pageable) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public List<AuditLog> findAll(org.springframework.data.jpa.domain.Specification<AuditLog> spec, org.springframework.data.domain.Sort sort) {
+        public java.util.List<AuditLog> findAll(
+                org.springframework.data.jpa.domain.Specification<AuditLog> spec,
+                org.springframework.data.domain.Sort sort) {
             throw new UnsupportedOperationException();
         }
 

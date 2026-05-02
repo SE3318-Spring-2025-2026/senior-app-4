@@ -12,6 +12,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -82,5 +84,59 @@ public class JiraApiClient {
             logger.error("JIRA batch fetch failed for keys {}: {}", issueKeys, e.getMessage());
             throw new JiraApiException("JIRA API returned error: " + e.getMessage());
         }
+    }
+
+    public List<String> searchIssuesByJql(String jiraBaseUrl, String apiKey, String jql) {
+        List<String> allKeys = new ArrayList<>();
+        int startAt = 0;
+        int maxResults = 100;
+        int total;
+
+        String url = UriComponentsBuilder
+                .fromUriString(jiraBaseUrl.trim())
+                .pathSegment("rest", "api", "2", "search")
+                .build()
+                .toUriString();
+
+        do {
+            String requestBody = String.format(
+                    "{\"jql\":\"%s\",\"startAt\":%d,\"maxResults\":%d,\"fields\":[\"summary\"]}",
+                    jql.replace("\\", "\\\\").replace("\"", "\\\""), startAt, maxResults);
+
+            Map<String, Object> response;
+            try {
+                response = restClient.post()
+                        .uri(url)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey.trim())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .body(requestBody)
+                        .retrieve()
+                        .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+            } catch (RestClientException e) {
+                logger.error("JIRA JQL search failed (startAt={}): {}", startAt, e.getMessage());
+                throw new JiraApiException("JIRA API returned error: " + e.getMessage());
+            }
+
+            total = ((Number) response.getOrDefault("total", 0)).intValue();
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> issues =
+                    (List<Map<String, Object>>) response.getOrDefault("issues", Collections.emptyList());
+
+            for (Map<String, Object> issue : issues) {
+                allKeys.add((String) issue.getOrDefault("key", "UNKNOWN"));
+            }
+
+            startAt += issues.size();
+
+            if (issues.isEmpty()) {
+                break;
+            }
+
+        } while (startAt < total);
+
+        logger.info("JQL query fetched {} / {} issues", allKeys.size(), total);
+        return allKeys;
     }
 }
