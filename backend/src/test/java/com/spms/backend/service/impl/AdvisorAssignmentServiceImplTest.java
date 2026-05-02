@@ -8,7 +8,11 @@ import com.spms.backend.model.GroupStatus;
 import com.spms.backend.model.User;
 import com.spms.backend.repository.AbstractStubJpaRepository;
 import com.spms.backend.repository.AuditLogRepository;
+import com.spms.backend.repository.CommitteeAdvisorRepository;
+import com.spms.backend.repository.CommitteeRepository;
 import com.spms.backend.repository.GroupRepository;
+import com.spms.backend.repository.UserRepository;
+import com.spms.backend.service.CommitteeNotificationService;
 import com.spms.backend.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +33,10 @@ class AdvisorAssignmentServiceImplTest {
     private StubGroupRepository groupRepository;
     private AuditLogRepository auditLogRepository;
     private NotificationService notificationService;
+    private CommitteeRepository committeeRepository;
+    private UserRepository userRepository;
+    private CommitteeAdvisorRepository committeeAdvisorRepository;
+    private CommitteeNotificationService committeeNotificationService;
 
     private AdvisorAssignmentServiceImpl service;
 
@@ -37,7 +45,12 @@ class AdvisorAssignmentServiceImplTest {
         groupRepository = new StubGroupRepository();
         auditLogRepository = new StubAuditLogRepository();
         notificationService = org.mockito.Mockito.mock(NotificationService.class);
-        service = new AdvisorAssignmentServiceImpl(groupRepository, auditLogRepository, notificationService);
+        committeeRepository = org.mockito.Mockito.mock(CommitteeRepository.class);
+        userRepository = org.mockito.Mockito.mock(UserRepository.class);
+        committeeAdvisorRepository = org.mockito.Mockito.mock(CommitteeAdvisorRepository.class);
+        committeeNotificationService = org.mockito.Mockito.mock(CommitteeNotificationService.class);
+        service = new AdvisorAssignmentServiceImpl(groupRepository, auditLogRepository, notificationService,
+                committeeRepository, userRepository, committeeAdvisorRepository, committeeNotificationService);
     }
 
     @Test

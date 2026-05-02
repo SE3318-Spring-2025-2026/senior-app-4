@@ -41,11 +41,24 @@ class AdvisorAssignmentServiceImplTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private com.spms.backend.repository.CommitteeRepository committeeRepository;
+
+    @Mock
+    private com.spms.backend.repository.UserRepository userRepository;
+
+    @Mock
+    private com.spms.backend.repository.CommitteeAdvisorRepository committeeAdvisorRepository;
+
+    @Mock
+    private CommitteeNotificationService committeeNotificationService;
+
     private AdvisorAssignmentServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new AdvisorAssignmentServiceImpl(groupRepository, auditLogRepository, notificationService);
+        service = new AdvisorAssignmentServiceImpl(groupRepository, auditLogRepository, notificationService,
+                committeeRepository, userRepository, committeeAdvisorRepository, committeeNotificationService);
     }
 
     @Test
