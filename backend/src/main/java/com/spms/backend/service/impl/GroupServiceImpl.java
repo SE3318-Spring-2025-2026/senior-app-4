@@ -364,6 +364,9 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private GroupResponseDto mapToSimpleDto(Group group) {
+        boolean hasJira = jiraIntegrationRepository.findByGroup_Id(group.getId()).isPresent();
+        boolean hasGithub = githubIntegrationRepository.findByGroup_Id(group.getId()).isPresent();
+
         return new GroupResponseDto(
                 group.getId(),
                 group.getGroupName(),
@@ -371,7 +374,9 @@ public class GroupServiceImpl implements GroupService {
                 group.getAdvisor() != null ? group.getAdvisor().getUserId() : null,
                 group.getStatus().name(),
                 group.getMemberCount(),
-                group.getCreatedAt());
+                group.getCreatedAt(),
+                hasGithub,
+                hasJira);
     }
 
     @Override

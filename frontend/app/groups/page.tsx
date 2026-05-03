@@ -1,6 +1,6 @@
 "use client";
 import Sidebar from "@/components/Sidebar";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import GroupCard from "@/components/GroupCard";
 import GroupCardSkeleton from "@/components/GroupCardSkeleton";
@@ -46,14 +46,22 @@ function mapApiGroupToUiGroup(apiGroup: ApiGroupListItem): Group {
         advisorName: apiGroup.advisorId ? `Advisor #${apiGroup.advisorId}` : "Not Assigned",
         memberCount: apiGroup.memberCount,
         members: [],
-        githubBound: false,
-        jiraBound: false,
+        githubBound: apiGroup.githubBound ?? false,
+        jiraBound: apiGroup.jiraBound ?? false,
         createdAt: apiGroup.createdAt,
         updatedAt: apiGroup.createdAt,
     };
 }
 
 export default function GroupsPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Loading groups...</div>}>
+            <GroupsContent />
+        </Suspense>
+    );
+}
+
+function GroupsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const pathname = usePathname();
@@ -62,7 +70,8 @@ export default function GroupsPage() {
     const [loading, setLoading] = useState(true);
     const [ownGroupId, setOwnGroupId] = useState<number | null>(null);
 
-    const page = parseInt(searchParams.get("page") || "0");
+    const pageParam = searchParams.get("page");
+    const page = pageParam && !isNaN(parseInt(pageParam)) ? parseInt(pageParam) : 0;
     const statusFilter = searchParams.get("status") || "all";
     const advisorFilter = searchParams.get("advisorAssigned") || "all";
     const searchQuery = searchParams.get("groupName") || "";
@@ -115,29 +124,11 @@ export default function GroupsPage() {
 
                 if (cancelled) return;
 
-                const mappedGroups = await Promise.all(
-                    response.content.map(async (apiGroup) => {
-                        const uiGroup = mapApiGroupToUiGroup(apiGroup);
-
-                        try {
-                            const [githubIntegration, jiraIntegration] = await Promise.all([
-                                fetchGithubIntegration(apiGroup.id),
-                                fetchJiraIntegration(apiGroup.id),
-                            ]);
-
-                            return {
-                                ...uiGroup,
-                                githubBound: isIntegrationConnected(githubIntegration.data),
-                                jiraBound: isIntegrationConnected(jiraIntegration.data),
-                            };
-                        } catch {
-                            return uiGroup;
-                        }
-                    })
-                );
+                const mappedGroups = response.content?.map(mapApiGroupToUiGroup) || [];
 
                 setGroups(mappedGroups);
-                setTotalPages(Math.max(response.totalPages, 1));
+                const fetchedTotalPages = response.totalPages ?? (response as any).page?.totalPages ?? 1;
+                setTotalPages(Math.max(fetchedTotalPages, 1));
 
                 if (currentUser?.role === "student") {
                     const groupId = await fetchCurrentUserGroupId();
@@ -198,29 +189,11 @@ export default function GroupsPage() {
             updateParams({ page: 0 });
 
             const response = await fetchGroups(0, pageSize, statusFilter, searchQuery, advisorFilter);
-            const mappedGroups = await Promise.all(
-                response.content.map(async (apiGroup) => {
-                    const uiGroup = mapApiGroupToUiGroup(apiGroup);
-
-                    try {
-                        const [githubIntegration, jiraIntegration] = await Promise.all([
-                            fetchGithubIntegration(apiGroup.id),
-                            fetchJiraIntegration(apiGroup.id),
-                        ]);
-
-                        return {
-                            ...uiGroup,
-                            githubBound: isIntegrationConnected(githubIntegration.data),
-                            jiraBound: isIntegrationConnected(jiraIntegration.data),
-                        };
-                    } catch {
-                        return uiGroup;
-                    }
-                })
-            );
+            const mappedGroups = response.content?.map(mapApiGroupToUiGroup) || [];
 
             setGroups(mappedGroups);
-            setTotalPages(Math.max(response.totalPages, 1));
+            const fetchedTotalPages = response.totalPages ?? (response as any).page?.totalPages ?? 1;
+            setTotalPages(Math.max(fetchedTotalPages, 1));
             setOwnGroupId(createdGroup.id);
         } catch (err) {
             const message =
@@ -404,28 +377,13 @@ export default function GroupsPage() {
                                     </button>
 
                                 <span className="text-sm text-gray-400">
-                                    Page <span className="text-white">
-                                        {/* 
-                                          Yedek Değer: (page || 0)
-                                          Eğer page tanımsızsa 0 kabul et ve 1 ekle. 
-                                        */}
-                                        {(page || 0) + 1}
-                                    </span> /{" "}
-                                    <span className="text-white">
-                                        {/* 
-                                          Yedek Değer: (totalPages || 1)
-                                          Eğer totalPages tanımsızsa 1 kabul et. 
-                                        */}
-                                        {Math.max(totalPages || 1, 1)}
-                                    </span>
+                                    Page <span className="text-white">{page + 1}</span> /{" "}
+                                    <span className="text-white">{Math.max(totalPages, 1)}</span>
                                 </span>
 
                                 <button
-                                    onClick={() => updateParams({ 
-                                        // Buton tıklamalarındaki matematik işlemlerini de aynı şekilde koruma altına alıyoruz
-                                        page: Math.min((page || 0) + 1, (totalPages || 1) - 1) 
-                                    })}
-                                    disabled={(page || 0) >= (totalPages || 1) - 1}
+                                    onClick={() => updateParams({ page: Math.min(page + 1, totalPages - 1) })}
+                                    disabled={page >= totalPages - 1}
                                     className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
                                 >
                                     Next
