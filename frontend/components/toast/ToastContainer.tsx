@@ -38,6 +38,7 @@ export const ToastContainer: React.FC = () => {
       {toasts.map((toast) => (
         <div
           key={toast.id}
+          className={`toast-${toast.type}`}
           style={{
             backgroundColor: getBackgroundColor(toast.type),
             color: '#fff',

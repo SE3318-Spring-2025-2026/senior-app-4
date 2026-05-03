@@ -26,8 +26,9 @@ function CallbackContent() {
 
     const exchangeCode = async () => {
       try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/github/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`
+          `${apiUrl}/auth/github/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`
         );
 
         if (!res.ok) {

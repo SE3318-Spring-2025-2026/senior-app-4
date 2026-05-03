@@ -1,6 +1,6 @@
 /* TDD SPECIFICATION: E2E Automation - UI Integration Settings & Toasts
    Issue #5 (Covers #17, #20, #18, #19, #24)
-   Uncomment and implement when the Integration Settings UI is ready.
+*/
 
 describe('Integration Settings & Toast E2E Tests', () => {
   beforeEach(() => {
@@ -22,7 +22,7 @@ describe('Integration Settings & Toast E2E Tests', () => {
   it('masks the GitHub PAT input field automatically (Issue #17)', () => {
     // Assert via DOM manipulation that the type of the PAT input element is 'password'
     cy.get('input[name="githubPat"]').should('have.attr', 'type', 'password');
-    
+
     // Type into it and ensure it works
     cy.get('input[name="githubPat"]').type('ghp_mock_token_123');
     cy.get('input[name="githubPat"]').should('have.value', 'ghp_mock_token_123');
@@ -81,6 +81,7 @@ describe('Integration Settings & Toast E2E Tests', () => {
 
     cy.wait('@triggerSync');
   });
+
   it('displays a Global Error Toast on 500 API failure (Issue #24)', () => {
     // Intercept with a 500 Server Error to test the Global Axios Interceptor
     cy.intercept('POST', '/api/v1/integrations/settings', {
@@ -100,4 +101,3 @@ describe('Integration Settings & Toast E2E Tests', () => {
       .and('contain', 'Internal Server Error');
   });
 });
-*/
