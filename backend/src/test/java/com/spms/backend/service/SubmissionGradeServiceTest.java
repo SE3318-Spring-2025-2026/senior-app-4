@@ -65,6 +65,53 @@ class SubmissionGradeServiceTest {
     }
 
     @Test
+    void submitGrade_AlreadyGraded_ThrowsConflictException() {
+        // Arrange
+        Long submissionId = 1L;
+        Long professorId = 5L;
+        GradeSubmissionRequest request = new GradeSubmissionRequest();
+        request.setGrade(85.0);
+
+        Submission submission = new Submission();
+        submission.setId(submissionId);
+        submission.setStatus(SubmissionStatus.GRADED);
+
+        when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(submission));
+
+        // Act & Assert
+        com.spms.backend.exception.ConflictException ex = assertThrows(com.spms.backend.exception.ConflictException.class, () -> 
+            submissionGradeService.submitGrade(submissionId, professorId, request)
+        );
+        assertTrue(ex.getMessage().contains("fully graded"));
+    }
+
+    @Test
+    void submitGrade_PastDeadline_ThrowsForbiddenException() {
+        // Arrange
+        Long submissionId = 1L;
+        Long professorId = 5L;
+        GradeSubmissionRequest request = new GradeSubmissionRequest();
+        request.setGrade(85.0);
+
+        Submission submission = new Submission();
+        submission.setId(submissionId);
+        submission.setStatus(SubmissionStatus.APPROVED);
+
+        Schedule schedule = new Schedule();
+        schedule.setGradingDeadline(java.time.Instant.now().minusSeconds(3600)); // 1 hour ago
+
+        when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(submission));
+        when(scheduleRepository.findTopByOrderByIdDesc()).thenReturn(Optional.of(schedule));
+
+        // Act & Assert
+        com.spms.backend.exception.ForbiddenException ex = assertThrows(com.spms.backend.exception.ForbiddenException.class, () -> 
+            submissionGradeService.submitGrade(submissionId, professorId, request)
+        );
+        assertTrue(ex.getMessage().contains("Grading deadline has passed"));
+    }
+
+
+    @Test
     void submitGrade_CompletesGradingAndNotifies_WhenAllMembersGraded() {
         // Arrange
         Long submissionId = 1L;
