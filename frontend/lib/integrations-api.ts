@@ -28,32 +28,44 @@ export async function fetchGithubIntegration(
 ): Promise<GithubIntegrationApiResponse> {
     const token = getToken();
 
-    const res = await fetch(
-        `${API_BASE}/groups/${groupId}/integrations/github`,
-        {
-            method: "GET",
-            headers: {
-                Authorization: `Bearer ${token ?? ""}`,
-            },
-            cache: "no-store",
+    try {
+        const res = await fetch(
+            `${API_BASE}/groups/${groupId}/integrations/github`,
+            {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token ?? ""}`,
+                },
+                cache: "no-store",
+            }
+        );
+
+        if (!res.ok) {
+            const errorMessage = await parseError(res);
+
+            return {
+                success: false,
+                data: {
+                    status: "inactive",
+                    organizationName: null,
+                    connectedAt: null,
+                    message: errorMessage || "Not connected",
+                },
+            };
         }
-    );
 
-    if (!res.ok) {
-        const errorMessage = await parseError(res);
-
+        return await res.json();
+    } catch (error) {
         return {
             success: false,
             data: {
                 status: "inactive",
                 organizationName: null,
                 connectedAt: null,
-                message: errorMessage || "Not connected",
+                message: "Not connected (Network Error)",
             },
         };
     }
-
-    return res.json();
 }
 
 export async function fetchJiraIntegration(
@@ -61,20 +73,35 @@ export async function fetchJiraIntegration(
 ): Promise<JiraIntegrationApiResponse> {
     const token = getToken();
 
-    const res = await fetch(
-        `${API_BASE}/groups/${groupId}/integrations/jira`,
-        {
-            method: "GET",
-            headers: {
-                Authorization: `Bearer ${token ?? ""}`,
-            },
-            cache: "no-store",
+    try {
+        const res = await fetch(
+            `${API_BASE}/groups/${groupId}/integrations/jira`,
+            {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token ?? ""}`,
+                },
+                cache: "no-store",
+            }
+        );
+
+        if (!res.ok) {
+            const errorMessage = await parseError(res);
+
+            return {
+                success: false,
+                data: {
+                    status: "inactive",
+                    jiraSpaceUrl: null,
+                    projectKey: null,
+                    connectedAt: null,
+                    message: errorMessage || "Not connected",
+                },
+            };
         }
-    );
 
-    if (!res.ok) {
-        const errorMessage = await parseError(res);
-
+        return await res.json();
+    } catch (error) {
         return {
             success: false,
             data: {
@@ -82,12 +109,10 @@ export async function fetchJiraIntegration(
                 jiraSpaceUrl: null,
                 projectKey: null,
                 connectedAt: null,
-                message: errorMessage || "Not connected",
+                message: "Not connected (Network Error)",
             },
         };
     }
-
-    return res.json();
 }
 
 export type IntegrationsTestResponse = {
@@ -157,6 +182,52 @@ export async function testIntegrations(
     }
 
     return res.json();
+}
+
+export type GlobalIntegrationStatusApiResponse = {
+    success: boolean;
+    data: {
+        connected: boolean;
+        lastSynced: string | null;
+        message: string | null;
+    };
+};
+
+export async function fetchIntegrationStatus(): Promise<GlobalIntegrationStatusApiResponse> {
+    const token = getToken();
+
+    try {
+        const res = await fetch(`${API_BASE}/integrations/status`, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${token ?? ""}`,
+            },
+            cache: "no-store",
+        });
+
+        if (!res.ok) {
+            const errorMessage = await parseError(res);
+            return {
+                success: false,
+                data: {
+                    connected: false,
+                    lastSynced: null,
+                    message: errorMessage || "Failed to fetch status",
+                },
+            };
+        }
+
+        return await res.json();
+    } catch (error) {
+        return {
+            success: false,
+            data: {
+                connected: false,
+                lastSynced: null,
+                message: "Failed to fetch status (Network Error)",
+            },
+        };
+    }
 }
 
 export type IntegrationStatusResponse = {
