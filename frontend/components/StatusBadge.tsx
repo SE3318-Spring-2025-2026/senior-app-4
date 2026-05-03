@@ -1,5 +1,5 @@
 type Props = {
-    status: "forming" | "formed" | "advised" | "disbanded";
+    status: "forming" | "formed" | "advised" | "disbanded" | "ACTIVE" | "INACTIVE" | "COMPLETED";
 };
 
 export default function StatusBadge({ status }: Props) {
@@ -12,6 +12,13 @@ export default function StatusBadge({ status }: Props) {
             "bg-green-500/15 text-green-300 border border-green-500/20 shadow-green-500/20",
         disbanded:
             "bg-red-500/15 text-red-300 border border-red-500/20 shadow-red-500/20",
+        // Issue 320 Statuses (Preserving backdrop-blur but using AC hex codes via CSS Variables)
+        ACTIVE:
+            "bg-[#28A745]/15 text-[#28A745] border border-[#28A745]/30 shadow-[#28A745]/20",
+        INACTIVE:
+            "bg-[#6C757D]/15 text-[#6C757D] border border-[#6C757D]/30 shadow-[#6C757D]/20",
+        COMPLETED:
+            "bg-[#FFC107]/15 text-[#FFC107] border border-[#FFC107]/30 shadow-[#FFC107]/20",
     };
 
     return (
