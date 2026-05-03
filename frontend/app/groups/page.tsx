@@ -1,9 +1,10 @@
 "use client";
 import Sidebar from "@/components/Sidebar";
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import GroupCard from "@/components/GroupCard";
 import GroupCardSkeleton from "@/components/GroupCardSkeleton";
+import { useNotifications } from "@/components/NotificationProvider";
 import {
     fetchGroups,
     fetchCurrentUserGroupId,
@@ -52,7 +53,7 @@ function mapApiGroupToUiGroup(apiGroup: ApiGroupListItem): Group {
     };
 }
 
-function GroupsContent() {
+export default function GroupsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const pathname = usePathname();
@@ -435,13 +436,5 @@ function GroupsContent() {
                 </div>
             </main>
         </div>
-    );
-}
-
-export default function GroupsPage() {
-    return (
-        <Suspense fallback={<div>Loading...</div>}>
-            <GroupsContent />
-        </Suspense>
     );
 }
