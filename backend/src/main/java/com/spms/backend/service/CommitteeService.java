@@ -18,4 +18,5 @@ public interface CommitteeService {
     Page<Committee> getAllCommitteesPaginated(Pageable pageable);
     Page<Committee> getCommitteesByStatus(CommitteeStatus status, Pageable pageable);
     Page<Committee> getCommitteesByCoordinator(Long coordinatorId, Pageable pageable);
+    Page<Committee> getCommitteesByFilters(CommitteeStatus status, String search, String sort,Pageable pageable); //komite search bar ve filtreleme için eklendi
 }

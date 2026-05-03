@@ -58,9 +58,13 @@ export default function CommitteeDetailPage() {
             <main className="flex-1 min-w-0 px-6 py-10 text-white">
                 <div className="mx-auto max-w-5xl space-y-8">
                     <div className="flex items-center gap-3 text-sm text-gray-400">
-                        <Link href="/coordinator/committees" className="text-blue-400 hover:text-blue-300">
-                            ← Back to committees
-                        </Link>
+                        
+                    <Link 
+                        href={isCoordinator ? "/coordinator/committees" : "/committees"} 
+                        className="text-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                         ← Back to committees
+                    </Link>
 
                         <span className="text-gray-600">/</span>
 

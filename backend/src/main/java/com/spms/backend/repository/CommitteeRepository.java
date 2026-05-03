@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+ import org.springframework.data.repository.query.Param;
 
 public interface CommitteeRepository extends JpaRepository<Committee, Long> {
     Optional<Committee> findByCommitteeId(Long committeeId);
@@ -31,7 +32,20 @@ public interface CommitteeRepository extends JpaRepository<Committee, Long> {
 
     @Query("SELECT c FROM Committee c WHERE c.status = :status")
     Page<Committee> findByStatusWithDetails(@Param("status") CommitteeStatus status, Pageable pageable);
-
+    @Query("SELECT c FROM Committee c WHERE " +
+       "(:status IS NULL OR c.status = :status) AND " +
+       "(:search IS NULL OR LOWER(c.committeeName) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+       "ORDER BY " +
+       "CASE WHEN :sort = 'name_asc' THEN c.committeeName END ASC, " +
+       "CASE WHEN :sort = 'name_desc' THEN c.committeeName END DESC, " +
+       "CASE WHEN :sort = 'created_asc' THEN c.createdAt END ASC, " +
+       "CASE WHEN :sort = 'created_desc' THEN c.createdAt END DESC")
+Page<Committee> findByFiltersManual(
+    @Param("status") CommitteeStatus status, 
+    @Param("search") String search, 
+    @Param("sort") String sort, 
+    Pageable pageable
+);
     @Query("SELECT c FROM Committee c WHERE c.createdBy = :coordinatorId")
     Page<Committee> findByCreatedByWithDetails(@Param("coordinatorId") Long coordinatorId, Pageable pageable);
 }
