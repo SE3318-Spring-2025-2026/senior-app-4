@@ -61,10 +61,16 @@ function GroupsContent() {
     const [loading, setLoading] = useState(true);
     const [ownGroupId, setOwnGroupId] = useState<number | null>(null);
 
-    const page = parseInt(searchParams.get("page") || "0");
-    const statusFilter = searchParams.get("status") || "all";
-    const advisorFilter = searchParams.get("advisorAssigned") || "all";
-    const searchQuery = searchParams.get("groupName") || "";
+    // Using local state for filters ensures 100% reliable re-renders in Next.js App Router 
+    // even when Suspense or routing cache intercepts router.push
+    const [filters, setFilters] = useState({
+        page: parseInt(searchParams.get("page") || "0"),
+        statusFilter: searchParams.get("status") || "all",
+        advisorFilter: searchParams.get("advisorAssigned") || "all",
+        searchQuery: searchParams.get("groupName") || ""
+    });
+
+    const { page, statusFilter, advisorFilter, searchQuery } = filters;
 
     const [searchInput, setSearchInput] = useState(searchQuery);
     const [totalPages, setTotalPages] = useState(1);
@@ -79,7 +85,6 @@ function GroupsContent() {
     const pageSize = 6;
     const currentUser = getUser();
 
-
     useEffect(() => {
         const handler = setTimeout(() => {
             if (searchInput !== searchQuery) {
@@ -91,6 +96,8 @@ function GroupsContent() {
 
     const updateParams = (updates: Record<string, string | number>) => {
         const params = new URLSearchParams(searchParams.toString());
+        const newFilters = { ...filters };
+
         Object.entries(updates).forEach(([key, value]) => {
             if (value === "" || value === "all" || value === 0) {
                 if (key !== "page") params.delete(key);
@@ -98,7 +105,15 @@ function GroupsContent() {
             } else {
                 params.set(key, String(value));
             }
+
+            // Sync with local state
+            if (key === "page") newFilters.page = Number(value);
+            if (key === "status") newFilters.statusFilter = String(value);
+            if (key === "advisorAssigned") newFilters.advisorFilter = String(value);
+            if (key === "groupName") newFilters.searchQuery = String(value);
         });
+
+        setFilters(newFilters);
         router.push(`${pathname}?${params.toString()}`);
     };
 
