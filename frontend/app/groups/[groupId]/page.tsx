@@ -9,6 +9,7 @@ import AdvisorRequestPanel from "@/components/AdvisorRequestPanel";
 import StatusBadge from "@/components/StatusBadge";
 import GithubStatusCard from "@/components/GithubStatusCard";
 import JiraStatusCard from "@/components/JiraStatusCard";
+import IntegrationStatusIndicator from "@/components/IntegrationStatusIndicator";
 import {
     ApiGroupDetail,
     ApiGroupMember,
@@ -284,6 +285,10 @@ export default function GroupDetailPage() {
                         <StatusBadge
                             status={group.status.toLowerCase() as "forming" | "formed" | "advised" | "disbanded"}
                         />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-6 bg-gray-900/50 p-4 rounded-2xl border border-white/5 w-full overflow-hidden">
+                        <IntegrationStatusIndicator />
                     </div>
 
                     {isLeader && (
