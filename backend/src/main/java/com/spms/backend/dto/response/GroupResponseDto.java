@@ -8,5 +8,7 @@ public record GroupResponseDto(
         Long advisorId,
         String status,
         int memberCount,
-        Instant createdAt
+        Instant createdAt,
+        boolean githubBound,
+        boolean jiraBound
 ) {}

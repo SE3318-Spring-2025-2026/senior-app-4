@@ -17,7 +17,8 @@ import {
     updateGroupNameApi,
     removeMemberApi,
     leaveGroupApi,
-    addMemberApi
+    addMemberApi,
+    deleteGroupApi
 } from "@/lib/groups-api";
 //import { inviteMemberApi } from "@/lib/notifications-api";
 import { getUser, getToken, decodeToken } from "@/lib/auth";
@@ -66,6 +67,9 @@ export default function GroupDetailPage() {
 
     const [leaving, setLeaving] = useState(false);
     const [leaveError, setLeaveError] = useState("");
+
+    const [disbanding, setDisbanding] = useState(false);
+    const [disbandError, setDisbandError] = useState("");
 
     const currentUser = getUser();
     const token = getToken();
@@ -246,6 +250,26 @@ export default function GroupDetailPage() {
             showToast(message, "error");
         } finally {
             setLeaving(false);
+        }
+    }
+
+    async function handleDisbandGroup() {
+        setDisbandError("");
+
+        const confirmed = window.confirm("Are you sure you want to completely disband and delete this group? This action cannot be undone.");
+        if (!confirmed) return;
+
+        setDisbanding(true);
+        try {
+            await deleteGroupApi(groupId);
+            showToast("Group disbanded successfully!", "success");
+            window.location.href = "/groups";
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to disband group.";
+            setDisbandError(message);
+            showToast(message, "error");
+        } finally {
+            setDisbanding(false);
         }
     }
 
@@ -507,6 +531,29 @@ export default function GroupDetailPage() {
                             {inviteError && (
                                 <p className="mt-3 text-sm text-red-400 font-medium">
                                     ✗ {inviteError}
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {isLeader && (
+                        <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-7 shadow-lg shadow-black/20 backdrop-blur mb-6">
+                            <h2 className="text-xl font-semibold mb-1 text-red-400">Danger Zone: Disband Group</h2>
+                            <p className="text-sm text-gray-400 mb-5">
+                                Completely delete the group and remove all members. This action cannot be undone.
+                            </p>
+
+                            <button
+                                onClick={handleDisbandGroup}
+                                disabled={disbanding}
+                                className="rounded-xl bg-red-600 px-6 py-3 text-sm font-semibold hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {disbanding ? "Disbanding..." : "Disband Group"}
+                            </button>
+
+                            {disbandError && (
+                                <p className="mt-3 text-sm text-red-400 font-medium">
+                                    ✗ {disbandError}
                                 </p>
                             )}
                         </div>

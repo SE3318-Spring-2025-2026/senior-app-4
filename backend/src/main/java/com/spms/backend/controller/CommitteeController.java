@@ -116,8 +116,8 @@ public class CommitteeController {
             orders.add(Sort.Order.desc("createdAt"));
         }
 
-Sort.Direction direction = sortDir.equalsIgnoreCase("DESC") ? Sort.Direction.DESC : Sort.Direction.ASC;
-Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sort));
+        // Unsorted PageRequest because the @Query explicitly handles sorting using the :sort parameter
+        Pageable pageable = PageRequest.of(page, size);
         
         Page<Committee> committeePages = committeeService.getCommitteesByFilters(committeeStatus, search,sort, pageable);
 

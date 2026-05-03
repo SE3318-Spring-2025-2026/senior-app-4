@@ -8,6 +8,8 @@ export type ApiGroupListItem = {
     status: string;
     memberCount: number;
     createdAt: string;
+    githubBound?: boolean;
+    jiraBound?: boolean;
 };
 
 export type ApiGroupMember = {
@@ -247,3 +249,20 @@ export async function leaveGroupApi(groupId: number) {
         throw new Error(await parseError(res));
     }
 }
+
+/* ===================== DELETE (DISBAND) ===================== */
+
+export async function deleteGroupApi(groupId: number) {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}

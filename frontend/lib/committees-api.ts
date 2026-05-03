@@ -274,7 +274,8 @@ function getAuthHeaders() {
 }
 
 function normalizeCommitteePage(data: any): CommitteePageResponse {
-    const committees = data?.content ?? data?.data ?? [];
+    const rawCommittees = data?.content ?? data?.data ?? [];
+    const committees = rawCommittees.map((c: any) => normalizeCommitteeDetail(c));
 
     return {
         content: committees,
@@ -363,15 +364,11 @@ export async function fetchCommittees(
     }
 
     const token = getToken();
-    const backendSort =
-        sort === "name_asc" || sort === "name_desc"
-            ? "committeeName"
-            : "createdAt";
 
     const params = new URLSearchParams({
         page: String(page),
         size: String(size),
-        sort: backendSort,
+        sort: sort,
     });
 
     if (status !== "ALL") params.set("status", status);
@@ -399,14 +396,11 @@ export async function fetchCoordinatorCommittees(
     }
 
     const token = getToken();
-    const sortField = sort.startsWith("name") ? "committeeName" : "createdAt";
-    const sortDir = sort.endsWith("desc") ? "desc" : "asc";
 
     const params = new URLSearchParams({
         page: String(page),
         size: String(size),
-        sort: sortField,
-        dir: sortDir
+        sort: sort
     });
 
     if (status !== "ALL") params.set("status", status);
