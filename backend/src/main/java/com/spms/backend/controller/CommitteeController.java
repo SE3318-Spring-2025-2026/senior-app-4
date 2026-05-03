@@ -28,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -60,19 +61,65 @@ public class CommitteeController {
         Committee fullDetails = committeeService.getCommitteeByIdWithFullDetails(created.getCommitteeId());
         return ResponseEntity.status(HttpStatus.CREATED).body(toCommitteeDetailDto(fullDetails));
     }
-
     @GetMapping
     public ResponseEntity<CommitteeListResponse> getAllCommittees(
+            @RequestParam(defaultValue = "") String search,
+            @RequestParam(defaultValue = "") String status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "committeeId") String sort) {
+            @RequestParam(defaultValue = "created_desc") String sort,// Varsayılanı 'created_desc' yaptık
+
+            @RequestParam(defaultValue = "ASC") String sortDir){
+        // Sayfalama parametrelerinin doğruluğunu kontrol ediyoruz
         if (page < 0 || size <= 0 || size > 100) {
             throw new com.spms.backend.exception.BadRequestException(
                     "Invalid pagination parameters. Page must be >= 0, size must be between 1 and 100.");
         }
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(sort).ascending());
-        Page<Committee> committeePages = committeeService.getAllCommitteesPaginated(pageable);
+        // Eğer status (durum) parametresi boş değilse onu Enum'a çeviriyoruz
+        CommitteeStatus committeeStatus = null;
+        if (!status.trim().isEmpty() && !"ALL".equalsIgnoreCase(status)) {
+            try {
+                committeeStatus = CommitteeStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new com.spms.backend.exception.BadRequestException(
+                        "Invalid status. Allowed values: ACTIVE, INACTIVE, COMPLETED");
+            }
+        }
+
+        // YENİ: Frontend'den gelen sıralama kelimelerini veritabanının anlayacağı dile çeviriyoruz
+        
+        // ... (Yukarıdaki sayfalama ve status kontrol kodları aynı kalacak) ...
+
+        // YENİ: Sıralama kurallarını tutacağımız bir liste oluşturuyoruz
+        List<Sort.Order> orders = new ArrayList<>();
+
+        // Frontend'den gelen isteğe göre doğru kuralı (Büyük/Küçük harf duyarsız olarak) ekliyoruz
+        if (sort != null) {
+            if (sort.equals("name_asc")) {
+                // A'dan Z'ye sırala ve büyük/küçük harf ayrımını YOK SAY
+                orders.add(Sort.Order.asc("committeeName").ignoreCase());
+            } else if (sort.equals("name_desc")) {
+                // Z'den A'ya sırala ve büyük/küçük harf ayrımını YOK SAY
+                orders.add(Sort.Order.desc("committeeName").ignoreCase());
+            } else if (sort.equals("created_asc")) {
+                // Tarihe göre eskiden yeniye (Tarihlerde harf duyarlılığına gerek yoktur)
+                orders.add(Sort.Order.asc("createdAt"));
+            } else if (sort.equals("created_desc")) {
+                // Tarihe göre yeniden eskiye
+                orders.add(Sort.Order.desc("createdAt"));
+            } else {
+                // Beklenmedik bir kelime gelirse varsayılan olarak en yenileri getir
+                orders.add(Sort.Order.desc("createdAt")); 
+            }
+        } else {
+            orders.add(Sort.Order.desc("createdAt"));
+        }
+
+Sort.Direction direction = sortDir.equalsIgnoreCase("DESC") ? Sort.Direction.DESC : Sort.Direction.ASC;
+Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sort));
+        
+        Page<Committee> committeePages = committeeService.getCommitteesByFilters(committeeStatus, search,sort, pageable);
 
         List<CommitteeDetailDto> committees = committeePages.getContent().stream()
                 .map(this::toCommitteeDetailDto)

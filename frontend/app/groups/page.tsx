@@ -401,16 +401,31 @@ export default function GroupsPage() {
                                     className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
                                 >
                                     Previous
-                                </button>
+                                    </button>
 
                                 <span className="text-sm text-gray-400">
-                                    Page <span className="text-white">{page + 1}</span> /{" "}
-                                    <span className="text-white">{Math.max(totalPages, 1)}</span>
+                                    Page <span className="text-white">
+                                        {/* 
+                                          Yedek Değer: (page || 0)
+                                          Eğer page tanımsızsa 0 kabul et ve 1 ekle. 
+                                        */}
+                                        {(page || 0) + 1}
+                                    </span> /{" "}
+                                    <span className="text-white">
+                                        {/* 
+                                          Yedek Değer: (totalPages || 1)
+                                          Eğer totalPages tanımsızsa 1 kabul et. 
+                                        */}
+                                        {Math.max(totalPages || 1, 1)}
+                                    </span>
                                 </span>
 
                                 <button
-                                    onClick={() => updateParams({ page: Math.min(page + 1, totalPages - 1) })}
-                                    disabled={page >= totalPages - 1}
+                                    onClick={() => updateParams({ 
+                                        // Buton tıklamalarındaki matematik işlemlerini de aynı şekilde koruma altına alıyoruz
+                                        page: Math.min((page || 0) + 1, (totalPages || 1) - 1) 
+                                    })}
+                                    disabled={(page || 0) >= (totalPages || 1) - 1}
                                     className="rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/5"
                                 >
                                     Next

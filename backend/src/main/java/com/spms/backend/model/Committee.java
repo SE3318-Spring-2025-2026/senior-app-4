@@ -1,8 +1,11 @@
 package com.spms.backend.model;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
+
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -61,14 +64,17 @@ public class Committee {
     @Column(name = "version")
     private Integer version;
 
-    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<CommitteeAdvisor> advisors;
+    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 20) // YENİ: Verileri 20'şerli paketler halinde hızlıca getirir
+    private List<CommitteeAdvisor> advisors = new ArrayList<>();
 
-    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<CommitteeJury> juryMembers;
+    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 20) // YENİ
+    private List<CommitteeJury> juryMembers = new ArrayList<>();
 
-    @OneToMany(mappedBy = "committee", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<GroupCommitteeAssignment> groupAssignments;
+    @OneToMany(mappedBy = "committee")
+    @BatchSize(size = 20) // YENİ
+    private List<GroupCommitteeAssignment> groupAssignments = new ArrayList<>();
 
     // Constructors
     public Committee() {

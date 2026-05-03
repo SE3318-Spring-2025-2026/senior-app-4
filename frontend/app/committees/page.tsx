@@ -2,12 +2,11 @@
 
 import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react"; // useRef eklendi
 import { fetchCommittees } from "@/lib/committees-api";
 import { Committee } from "@/lib/committee-types";
 import { showToast } from "@/components/toast/ToastContext";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-
 
 export default function CommitteesPage() {
     const [committees, setCommittees] = useState<Committee[]>([]);
@@ -31,6 +30,29 @@ export default function CommitteesPage() {
     const [pageSize, setPageSize] = useState(initialPageSize);
     const [totalPages, setTotalPages] = useState(1);
 
+    // YENİ: Yarış durumunu (race condition) önlemek için her isteğe bir ID vereceğiz
+    const fetchIdRef = useRef(0);
+
+    // YENİ: Senin özel renk tercihlerine göre güncellenmiş yardımcı fonksiyon
+function getStatusColor(status: string | undefined) {
+    switch (status) {
+        case "ACTIVE":
+            // turkuaz
+            return "border-teal-500/20 bg-teal-500/10 text-teal-400";
+            
+        case "INACTIVE":
+            // koyu pembe
+            return "border-pink-500/20 bg-pink-500/10 text-pink-400";
+            
+        case "COMPLETED":
+            // turuncu
+            return "border-orange-500/20 bg-orange-500/10 text-orange-400";
+            
+        default:
+            // Beklenmedik bir durum gelirse standart Gri tonu
+            return "border-gray-500/20 bg-gray-500/10 text-gray-400";
+    }
+}
     function updateUrlParams(updates: Record<string, string | number>) {
         const params = new URLSearchParams(searchParams.toString());
 
@@ -60,6 +82,9 @@ export default function CommitteesPage() {
         nextSize = pageSize
     ) {
         setLoading(true);
+        
+        // YENİ: Her yeni istekte ID'yi 1 artırıyoruz
+        const currentFetchId = ++fetchIdRef.current;
 
         try {
             const response = await fetchCommittees(
@@ -70,26 +95,34 @@ export default function CommitteesPage() {
                 nextSort
             );
 
+            // YENİ: Eğer bu istekten sonra başka bir istek atıldıysa, bu eski gelen cevabı YOKSAY!
+            if (currentFetchId !== fetchIdRef.current) {
+                return;
+            }
+
             setCommittees(response.content);
             setTotalPages(response.totalPages);
         } catch (err) {
-            showToast(
-                err instanceof Error ? err.message : "Failed to load committees.",
-                "error"
-            );
+            // Hatayı sadece en son istekte göster
+            if (currentFetchId === fetchIdRef.current) {
+                showToast(
+                    err instanceof Error ? err.message : "Failed to load committees.",
+                    "error"
+                );
+            }
         } finally {
-            setLoading(false);
+            // Yüklenme durumunu sadece en son istekte kapat
+            if (currentFetchId === fetchIdRef.current) {
+                setLoading(false);
+            }
         }
     }
-
+// Arama kutusuna yazı yazıldığında anında (0 gecikme ile) arama işlemi
     useEffect(() => {
-        const timeout = setTimeout(() => {
-            setPage(1);
-            setSearchQuery(searchInput);
-            updateUrlParams({ search: searchInput, page: 1 });
-        }, 300);
-
-        return () => clearTimeout(timeout);
+        // setTimeout'u tamamen kaldırdık! Tuşa basıldığı an state güncellenir ve arama başlar.
+        setPage(1);
+        setSearchQuery(searchInput);
+        updateUrlParams({ search: searchInput, page: 1 });
     }, [searchInput]);
 
     useEffect(() => {
@@ -207,8 +240,8 @@ export default function CommitteesPage() {
                                                         </p>
                                                     </div>
 
-                                                    <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-300">
-                                                        {committee.status}
+                                                    <span className={`rounded-full border px-3 py-1 text-xs ${getStatusColor(committee.status)}`}>
+                                                         {committee.status} {/*dinamik renklendirme eklendi dk */}
                                                     </span>
                                                 </div>
 

@@ -117,5 +117,12 @@ public class CommitteeServiceImpl implements CommitteeService {
         log.setEventDetails(details + " (Committee ID: " + committeeId + ")");
         // Notice we don't set GroupId because this is a committee action.
         auditLogRepository.save(log);
+
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public Page<Committee> getCommitteesByFilters(CommitteeStatus status, String search, String sort, Pageable pageable) {
+        // 'sort' parametresini artık doğrudan repository'ye gönderiyoruz
+        return committeeRepository.findByFiltersManual(status, search, sort, pageable);
     }
 }
