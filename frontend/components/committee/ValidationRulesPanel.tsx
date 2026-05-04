@@ -8,7 +8,7 @@ export default function ValidationRulesPanel({ rules }: { rules: CommitteeValida
         <LucideShieldCheck size={20} />
         <h3 className="font-semibold text-lg">Committee Validation Rules</h3>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         <section>
           <h4 className="font-medium text-blue-900 mb-1">Size Requirements</h4>
@@ -22,7 +22,7 @@ export default function ValidationRulesPanel({ rules }: { rules: CommitteeValida
             {rules.advisorQualifications.map((r, i) => <li key={i}>{r}</li>)}
           </ul>
         </section>
-         {/* Schedule Rules */}
+        {/* Schedule Rules */}
         <section>
           <h4 className="font-medium text-blue-900 mb-1">Schedule Rules</h4>
           <ul className="list-disc list-inside text-blue-700">

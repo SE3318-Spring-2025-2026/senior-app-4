@@ -33,11 +33,7 @@ export default function CommitteeAssignmentManager({ committeeId }: Props) {
     const [advisors, setAdvisors] = useState<AdvisorAssignment[]>([]);
     const [jury, setJury] = useState<JuryAssignment[]>([]);
     const [assignedGroups, setAssignedGroups] = useState<GroupAssignment[]>([]);
-    
-    // We keep this state for the upcoming scheduling/calendar feature, 
-    // but we won't pass it to the GroupSelectionPanel anymore.
     const [availabilities, setAvailabilities] = useState<AvailabilitySlot[]>([]);
-
     const [loadingRules, setLoadingRules] = useState(true);
     const [loadingAdvisors, setLoadingAdvisors] = useState(true);
     const [loadingJury, setLoadingJury] = useState(true);
@@ -55,6 +51,22 @@ export default function CommitteeAssignmentManager({ committeeId }: Props) {
     useEffect(() => {
         loadAvailabilities();
     }, [loadAvailabilities]);
+
+    const getStatusBadge = (status: string | undefined) => {
+        const s = status?.toUpperCase() || "ASSIGNED";
+        switch(s) {
+            case 'ASSIGNED': 
+                return <span className="bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wider">ASSIGNED</span>;
+            case 'SCHEDULED': 
+                return <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wider">SCHEDULED</span>;
+            case 'COMPLETED': 
+                return <span className="bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wider">COMPLETED</span>;
+            case 'CANCELLED': 
+                return <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wider">CANCELLED</span>;
+            default: 
+                return <span className="bg-gray-500/10 text-gray-400 border border-gray-500/20 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wider">{s}</span>;
+        }
+    };
 
     const loadData = useCallback(async () => {
         setLoadingRules(true);
@@ -151,12 +163,15 @@ export default function CommitteeAssignmentManager({ committeeId }: Props) {
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {assignedGroups.map((assignment) => (
-                                    <div key={assignment.assignmentId} className="p-4 rounded-xl bg-white/5 border border-white/5 flex justify-between items-center">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-medium text-white">{assignment.groupName}</span>
-                                            <span className="text-[11px] text-gray-500">
-                                                Since: {new Date(assignment.assignedAt).toLocaleDateString()}
-                                            </span>
+                                    <div key={assignment.assignmentId} className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-2">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-medium text-white">{assignment.groupName}</span>
+                                                <span className="text-[11px] text-gray-500">
+                                                    Members: {assignment.membersCount || '?'} | Since: {new Date(assignment.assignedAt).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                            {getStatusBadge(assignment.assignmentStatus)}
                                         </div>
                                     </div>
                                 ))}

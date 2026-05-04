@@ -68,8 +68,9 @@ function normalizeGroupAssignment(raw: any): GroupAssignment {
         committeeId: raw.committee_id ?? raw.committeeId,
         groupId: raw.group_id ?? raw.groupId,
         groupName: raw.group_name ?? raw.groupName,
-        assignmentStatus: (raw.assignment_status ?? raw.assignmentStatus) as GroupAssignmentStatus,
-        scheduledSlotId: raw.scheduled_slot_id ?? raw.scheduledSlotId ?? null, // Fallback eklendi.
+        membersCount: raw.members_count ?? raw.membersCount,
+        assignmentStatus: (raw.assignment_status ?? raw.assignmentStatus ?? "ASSIGNED") as GroupAssignmentStatus,
+        scheduledSlotId: raw.scheduled_slot_id ?? raw.scheduledSlotId ?? null,
         assignedAt: raw.assigned_at ?? raw.assignedAt,
     };
 }
@@ -291,4 +292,57 @@ export async function scheduleGroupPresentation(
     if (!res.ok) throw new Error(await parseError(res));
     const data = await res.json();
     return normalizeGroupAssignment(data);
+}
+
+export async function updateGroupAssignmentStatus(
+    committeeId: number,
+    assignmentId: number,
+    newStatus: string
+): Promise<GroupAssignment> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/committees/${committeeId}/group-assignments/${assignmentId}/status`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+    });
+    
+    if (!res.ok) throw new Error(await parseError(res));
+    const data = await res.json();
+    return normalizeGroupAssignment(data);
+}
+
+export async function validateSchedule(
+    committeeId: number,
+    assignmentId: number,
+    start: string,
+    end: string
+): Promise<{
+    hasConflict: boolean;
+    conflictingGroup?: string;
+    conflictingDate?: string;
+    suggestedDates?: string[];
+}> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/committees/${committeeId}/validate/schedule`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({
+            assignment_id: assignmentId,
+            start_date_time: start,
+            end_date_time: end
+        }),
+    });
+    
+    if (!res.ok) {
+        const errorMsg = await parseError(res);
+        throw new Error(errorMsg);
+    }
+    
+    return await res.json();
 }
