@@ -1,0 +1,5 @@
+ALTER TABLE jira_integrations
+ADD COLUMN email VARCHAR(255) NOT NULL DEFAULT '';
+
+ALTER TABLE jira_integrations
+ALTER COLUMN email DROP DEFAULT;

@@ -61,7 +61,7 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
             Map<String, Object> response;
             try {
                 response = jiraApiClient.fetchIssuesBatch(
-                        request.jiraSpaceUrl(), request.apiKey(), batch, 0, BATCH_SIZE);
+                        request.jiraSpaceUrl(), request.email(), request.apiKey(), batch, 0, BATCH_SIZE);
             } catch (JiraApiException e) {
                 logger.error("JIRA API error during batch fetch (startAt={}): {}", startAt, e.getMessage());
                 throw e;
@@ -96,6 +96,7 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
         boolean connected = jiraApiClient.validateSpaceConnection(
                 integration.getJiraSpaceUrl(),
                 integration.getProjectKey(),
+                integration.getEmail(),
                 integration.getApiKey());
 
         String message = connected
@@ -122,6 +123,7 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
         try {
             issueKeys = jiraApiClient.searchIssuesByJql(
                     integration.getJiraSpaceUrl(),
+                    integration.getEmail(),
                     integration.getApiKey(),
                     request.jql());
         } catch (JiraApiException e) {

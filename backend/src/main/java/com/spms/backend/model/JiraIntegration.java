@@ -27,6 +27,9 @@ public class JiraIntegration {
     @Column(name = "project_key", nullable = false)
     private String projectKey;
 
+    @Column(name = "email", nullable = false)
+    private String email;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private JiraIntegrationStatus status = JiraIntegrationStatus.ACTIVE;
@@ -78,6 +81,14 @@ public class JiraIntegration {
 
     public void setProjectKey(String projectKey) {
         this.projectKey = projectKey;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public JiraIntegrationStatus getStatus() {

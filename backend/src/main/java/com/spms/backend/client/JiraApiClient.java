@@ -13,10 +13,12 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.nio.charset.StandardCharsets;
 
 @Component
 public class JiraApiClient {
@@ -30,7 +32,7 @@ public class JiraApiClient {
         this.restClient = restClientBuilder.build();
     }
 
-    public boolean validateSpaceConnection(String jiraSpaceUrl, String projectKey, String apiKey) {
+    public boolean validateSpaceConnection(String jiraSpaceUrl, String projectKey, String email, String apiKey) {
         String normalizedBaseUrl = jiraSpaceUrl != null ? jiraSpaceUrl.trim() : "";
         String normalizedProjectKey = projectKey != null ? projectKey.trim() : "";
 
@@ -45,8 +47,10 @@ public class JiraApiClient {
                     .uri(validationUrl)
                     .accept(MediaType.APPLICATION_JSON);
 
-            if (StringUtils.hasText(apiKey)) {
-                request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey.trim());
+            if (StringUtils.hasText(email) && StringUtils.hasText(apiKey)) {
+                String auth = Base64.getEncoder().encodeToString(
+                    (email.trim() + ":" + apiKey.trim()).getBytes(StandardCharsets.UTF_8));
+                request = request.header(HttpHeaders.AUTHORIZATION, "Basic " + auth);
             }
 
             request.retrieve().toBodilessEntity();
@@ -58,6 +62,7 @@ public class JiraApiClient {
 
     public Map<String, Object> fetchIssuesBatch(
             String jiraBaseUrl,
+            String email,
             String apiKey,
             List<String> issueKeys,
             int startAt,
@@ -77,9 +82,11 @@ public class JiraApiClient {
                 .toUriString();
 
         try {
+            String auth = Base64.getEncoder().encodeToString(
+                (email.trim() + ":" + apiKey.trim()).getBytes(StandardCharsets.UTF_8));
             return restClient.get()
                     .uri(url)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey.trim())
+                    .header(HttpHeaders.AUTHORIZATION, "Basic " + auth)
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Map<String, Object>>() {});
@@ -89,7 +96,7 @@ public class JiraApiClient {
         }
     }
 
-    public List<String> searchIssuesByJql(String jiraBaseUrl, String apiKey, String jql) {
+    public List<String> searchIssuesByJql(String jiraBaseUrl, String email, String apiKey, String jql) {
         List<String> allKeys = new ArrayList<>();
         int startAt = 0;
         int maxResults = 100;
@@ -101,6 +108,9 @@ public class JiraApiClient {
                 .build()
                 .toUriString();
 
+        String auth = Base64.getEncoder().encodeToString(
+            (email.trim() + ":" + apiKey.trim()).getBytes(StandardCharsets.UTF_8));
+
         do {
             String requestBody = String.format(
                     "{\"jql\":\"%s\",\"startAt\":%d,\"maxResults\":%d,\"fields\":[\"summary\"]}",
@@ -110,7 +120,7 @@ public class JiraApiClient {
             try {
                 response = restClient.post()
                         .uri(url)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey.trim())
+                        .header(HttpHeaders.AUTHORIZATION, "Basic " + auth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .body(requestBody)

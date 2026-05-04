@@ -6,6 +6,7 @@ import java.util.List;
 
 public record JiraIssueDetailsRequest(
     @NotBlank String jiraSpaceUrl,
+    @NotBlank String email,
     @NotBlank String apiKey,
     @NotNull  List<String> issueKeys
 ) {}
