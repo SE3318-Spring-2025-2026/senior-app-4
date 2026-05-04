@@ -27,7 +27,7 @@ describe('Performance Dashboards & Charts E2E Tests', () => {
     }).as('getCharts');
 
     // Visit the dashboards page
-    cy.visit('/dashboards');
+    cy.visit('/dashboard');
   });
 
   it('renders the Leaderboard Table and sorts dynamically (Issue #6, #22)', () => {
