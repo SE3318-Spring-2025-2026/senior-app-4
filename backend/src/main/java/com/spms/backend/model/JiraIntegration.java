@@ -20,8 +20,11 @@ public class JiraIntegration {
     @Column(name = "jira_space_url", nullable = false)
     private String jiraSpaceUrl;
 
+    @Column(name = "jira_email", nullable = false)
+    private String email;
+
     @Convert(converter = EncryptionConverter.class)
-    @Column(name = "api_key")
+    @Column(name = "api_key_encrypted")
     private String apiKey;
 
     @Column(name = "project_key", nullable = false)
@@ -62,6 +65,14 @@ public class JiraIntegration {
 
     public void setJiraSpaceUrl(String jiraSpaceUrl) {
         this.jiraSpaceUrl = jiraSpaceUrl;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getApiKey() {

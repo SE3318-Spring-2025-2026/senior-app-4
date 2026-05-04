@@ -78,7 +78,7 @@ public class JiraJqlEngineApiTest extends BaseApiTest {
     @Test
     @DisplayName("POST /initialize → 200: bağlantı başarılı (AC1)")
     void initialize_success_returns200() {
-        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString()))
+        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(true);
 
         RestAssured.given()
@@ -97,7 +97,7 @@ public class JiraJqlEngineApiTest extends BaseApiTest {
     @Test
     @DisplayName("POST /initialize → 200: bağlantı başarısız (credentials hatalı)")
     void initialize_failure_returnsConnectedFalse() {
-        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString()))
+        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(false);
 
         RestAssured.given()
@@ -143,7 +143,7 @@ public class JiraJqlEngineApiTest extends BaseApiTest {
     @Test
     @DisplayName("POST /issue-query → 200: issue key listesi döner (AC1)")
     void issueQuery_success_returnsKeys() {
-        when(jiraApiClient.searchIssuesByJql(anyString(), anyString(), anyString()))
+        when(jiraApiClient.searchIssuesByJql(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(List.of("PROJ-1", "PROJ-2", "PROJ-3"));
 
         RestAssured.given()
@@ -163,7 +163,7 @@ public class JiraJqlEngineApiTest extends BaseApiTest {
         List<String> allKeys = new java.util.ArrayList<>();
         for (int i = 1; i <= 150; i++) allKeys.add("PROJ-" + i);
 
-        when(jiraApiClient.searchIssuesByJql(anyString(), anyString(), anyString()))
+        when(jiraApiClient.searchIssuesByJql(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(allKeys);
 
         RestAssured.given()
@@ -180,7 +180,7 @@ public class JiraJqlEngineApiTest extends BaseApiTest {
     @Test
     @DisplayName("POST /issue-query → 502: JIRA 500 hatası loglanır ve 502 döner (AC3)")
     void issueQuery_jiraServerError_returns502() {
-        when(jiraApiClient.searchIssuesByJql(anyString(), anyString(), anyString()))
+        when(jiraApiClient.searchIssuesByJql(anyString(), anyString(), anyString(), anyString()))
                 .thenThrow(new JiraApiException("JIRA API returned error: 500 Internal Server Error"));
 
         RestAssured.given()

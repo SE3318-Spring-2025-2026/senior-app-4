@@ -51,6 +51,10 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
 
     @Override
     public JiraIssueDetailsResponse fetchAndMergeIssueDetails(JiraIssueDetailsRequest request) {
+        JiraIntegration integration = jiraIntegrationRepository
+                .findByJiraSpaceUrl(request.jiraSpaceUrl())
+                .orElseThrow(() -> new NotFoundException("No JIRA integration found for URL: " + request.jiraSpaceUrl()));
+
         List<String> keys = request.issueKeys();
         List<JiraCleansedIssue> results = new ArrayList<>();
 
@@ -61,7 +65,7 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
             Map<String, Object> response;
             try {
                 response = jiraApiClient.fetchIssuesBatch(
-                        request.jiraSpaceUrl(), request.apiKey(), batch, 0, BATCH_SIZE);
+                        request.jiraSpaceUrl(), integration.getEmail(), request.apiKey(), batch, 0, BATCH_SIZE);
             } catch (JiraApiException e) {
                 logger.error("JIRA API error during batch fetch (startAt={}): {}", startAt, e.getMessage());
                 throw e;
@@ -92,6 +96,7 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
         boolean connected = jiraApiClient.validateSpaceConnection(
                 integration.getJiraSpaceUrl(),
                 integration.getProjectKey(),
+                integration.getEmail(),
                 integration.getApiKey());
 
         String message = connected
@@ -118,6 +123,7 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
         try {
             issueKeys = jiraApiClient.searchIssuesByJql(
                     integration.getJiraSpaceUrl(),
+                    integration.getEmail(),
                     integration.getApiKey(),
                     request.jql());
         } catch (JiraApiException e) {

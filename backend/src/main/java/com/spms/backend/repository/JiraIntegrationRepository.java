@@ -7,5 +7,6 @@ import java.util.Optional;
 
 public interface JiraIntegrationRepository extends JpaRepository<JiraIntegration, Long> {
     Optional<JiraIntegration> findByGroup_Id(Long groupId);
+    Optional<JiraIntegration> findByJiraSpaceUrl(String jiraSpaceUrl);
     void deleteByGroup_Id(Long groupId);
 }

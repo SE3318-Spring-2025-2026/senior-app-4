@@ -370,13 +370,17 @@ export default function GroupDetailPage() {
                             </div>
                         </Link>
 
-                        <JiraStatusCard
-                            integration={
-                                jiraIntegration?.data?.status === "inactive"
-                                    ? undefined
-                                    : jiraIntegration?.data
-                            }
-                        />
+                        <Link href={`/groups/${group.id}/integrations/jira`}>
+                            <div className="cursor-pointer">
+                                <JiraStatusCard
+                                    integration={
+                                        jiraIntegration?.data?.status === "inactive"
+                                            ? undefined
+                                            : jiraIntegration?.data
+                                    }
+                                />
+                            </div>
+                        </Link>
 
                         <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
                             <p className="text-sm text-gray-400 mb-2">Created At</p>

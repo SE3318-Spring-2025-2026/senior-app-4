@@ -15,22 +15,26 @@ type Props = {
 };
 
 export default function JiraStatusCard({ integration }: Props) {
-    const isConnected = integration?.status === "active";
+    const status = integration?.status?.toLowerCase();
+    const isConnected = status === "active";
+    const isError = status === "error";
+
+    const badgeClass = isConnected
+        ? "bg-green-500/15 text-green-400"
+        : isError
+        ? "bg-red-500/15 text-red-400"
+        : "bg-gray-700 text-gray-400";
+
+    const badgeLabel = isConnected ? "Connected" : isError ? "Error" : "Not Connected";
 
     return (
-        <div className="bg-gray-900/80 border border-white/10 rounded-2xl p-6 shadow-lg">
+        <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-6 shadow-lg shadow-indigo-950/20 backdrop-blur transition-all hover:border-indigo-400/40 hover:bg-indigo-500/15">
             {/* Title */}
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm text-gray-400">JIRA Integration</h3>
 
-                <span
-                    className={`text-xs px-3 py-1 rounded-full font-medium ${
-                        isConnected
-                            ? "bg-green-500/15 text-green-400"
-                            : "bg-gray-700 text-gray-400"
-                    }`}
-                >
-                    {isConnected ? "Connected" : "Not Connected"}
+                <span className={`text-xs px-3 py-1 rounded-full font-medium ${badgeClass}`}>
+                    {badgeLabel}
                 </span>
             </div>
 

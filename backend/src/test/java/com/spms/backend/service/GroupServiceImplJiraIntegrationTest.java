@@ -81,10 +81,10 @@ class GroupServiceImplJiraIntegrationTest {
     @Test
     void bindJiraIntegrationSucceedsForLeaderWhenValidationPasses() {
         Group group = groupWithLeader(10L, 100L);
-        JiraBindingRequest request = new JiraBindingRequest("https://team.atlassian.net", "api-key", "ALPHA");
+        JiraBindingRequest request = new JiraBindingRequest("https://team.atlassian.net", "test@example.com", "api-key", "ALPHA");
 
         when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
-        when(jiraApiClient.validateSpaceConnection(request.jiraSpaceUrl(), request.projectKey(), request.apiKey())).thenReturn(true);
+        when(jiraApiClient.validateSpaceConnection(request.jiraSpaceUrl(), request.projectKey(), request.email(), request.apiKey())).thenReturn(true);
 
         groupService.bindJiraIntegration(10L, 100L, request);
 
@@ -95,10 +95,10 @@ class GroupServiceImplJiraIntegrationTest {
     @Test
     void bindJiraIntegrationReturns400WhenValidationFails() {
         Group group = groupWithLeader(10L, 100L);
-        JiraBindingRequest request = new JiraBindingRequest("https://team.atlassian.net", null, "ALPHA");
+        JiraBindingRequest request = new JiraBindingRequest("https://team.atlassian.net", "test@example.com", null, "ALPHA");
 
         when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
-        when(jiraApiClient.validateSpaceConnection(request.jiraSpaceUrl(), request.projectKey(), request.apiKey())).thenReturn(false);
+        when(jiraApiClient.validateSpaceConnection(request.jiraSpaceUrl(), request.projectKey(), request.email(), request.apiKey())).thenReturn(false);
 
         assertThrows(BadRequestException.class, () -> groupService.bindJiraIntegration(10L, 100L, request));
 
@@ -107,7 +107,7 @@ class GroupServiceImplJiraIntegrationTest {
 
     @Test
     void bindJiraIntegrationReturns404WhenGroupDoesNotExist() {
-        JiraBindingRequest request = new JiraBindingRequest("https://team.atlassian.net", null, "ALPHA");
+        JiraBindingRequest request = new JiraBindingRequest("https://team.atlassian.net", "test@example.com", null, "ALPHA");
         when(groupRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () -> groupService.bindJiraIntegration(999L, 100L, request));
@@ -136,10 +136,7 @@ class GroupServiceImplJiraIntegrationTest {
         when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
         when(jiraIntegrationRepository.findByGroup_Id(10L)).thenReturn(Optional.empty());
 
-        JiraIntegrationResponse response = groupService.getJiraIntegration(10L);
-
-        assertEquals("inactive", response.data().status());
-        assertEquals("Not connected", response.data().message());
+        assertThrows(NotFoundException.class, () -> groupService.getJiraIntegration(10L));
     }
 
     @Test
@@ -167,7 +164,7 @@ class GroupServiceImplJiraIntegrationTest {
     @Test
     void onlyLeaderCanBindOrUnbindJiraIntegration() {
         Group group = groupWithLeader(10L, 100L);
-        JiraBindingRequest request = new JiraBindingRequest("https://team.atlassian.net", null, "ALPHA");
+        JiraBindingRequest request = new JiraBindingRequest("https://team.atlassian.net", "test@example.com", null, "ALPHA");
         when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
 
         assertThrows(ForbiddenException.class, () -> groupService.bindJiraIntegration(10L, 101L, request));
