@@ -22,7 +22,23 @@ export default function ValidationRulesPanel({ rules }: { rules: CommitteeValida
             {rules.advisorQualifications.map((r, i) => <li key={i}>{r}</li>)}
           </ul>
         </section>
-        {/* Diğer kısımları da buraya ekleyebilirsin dostum */}
+         {/* Schedule Rules */}
+        <section>
+          <h4 className="font-medium text-blue-900 mb-1">Schedule Rules</h4>
+          <ul className="list-disc list-inside text-blue-700">
+            <li>Exam dates must be scheduled in the future.</li>
+            <li>No overlapping schedules allowed for the same committee.</li>
+          </ul>
+        </section>
+
+        {/* Group Assignment Rules */}
+        <section>
+          <h4 className="font-medium text-blue-900 mb-1">Group Assignment Rules</h4>
+          <ul className="list-disc list-inside text-blue-700">
+            <li>Committee cannot exceed maximum group capacity.</li>
+            <li>Groups must meet prerequisite status for assignment.</li>
+          </ul>
+        </section>
       </div>
     </div>
   );
