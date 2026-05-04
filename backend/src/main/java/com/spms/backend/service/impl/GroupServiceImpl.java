@@ -264,7 +264,7 @@ public class GroupServiceImpl implements GroupService {
         ensureRequesterIsGroupLeader(group, requesterId);
 
         boolean valid = jiraApiClient.validateSpaceConnection(request.jiraSpaceUrl(), request.projectKey(),
-                request.apiKey());
+                request.email(), request.apiKey());
         if (!valid) {
             throw new BadRequestException("JIRA connection validation failed.");
         }
@@ -273,6 +273,7 @@ public class GroupServiceImpl implements GroupService {
                 .orElseGet(JiraIntegration::new);
         integration.setGroup(group);
         integration.setJiraSpaceUrl(request.jiraSpaceUrl().trim());
+        integration.setJiraEmail(request.email() != null ? request.email().trim() : null);
         integration.setApiKey(request.apiKey() != null ? request.apiKey().trim() : null);
         integration.setProjectKey(request.projectKey().trim());
         integration.setStatus(JiraIntegrationStatus.ACTIVE);
@@ -849,7 +850,8 @@ public class GroupServiceImpl implements GroupService {
         var jiraOpt = jiraIntegrationRepository.findByGroup_Id(groupId);
         if (jiraOpt.isPresent()) {
             jiraConnected = jiraApiClient.validateSpaceConnection(
-                    jiraOpt.get().getJiraSpaceUrl(), jiraOpt.get().getProjectKey(), jiraOpt.get().getApiKey());
+                    jiraOpt.get().getJiraSpaceUrl(), jiraOpt.get().getProjectKey(),
+                    jiraOpt.get().getJiraEmail(), jiraOpt.get().getApiKey());
             jiraMsg = jiraConnected ? "Connected" : "Jira credentials invalid";
         }
 

@@ -257,6 +257,7 @@ class AdvisorRequestDetailServiceTest {
         @Override public List<Group> findByAdvisorIsNullAndStatusNot(GroupStatus status) { return List.of(); }
         @Override public long countByAdvisor_UserId(Long advisorId) { return adviseeCountByProfessorId.getOrDefault(advisorId, 0L); }
         @Override public Page<Group> findByAdvisorId(Long advisorId, Pageable pageable) { return Page.empty(); }
+        @Override public List<Group> findByAdvisorId(Long advisorId) { return List.of(); }
         @Override public List<Object[]> countGroupsByStatus() { return List.of(); }
         @Override public Page<Group> findAllWithStudentGroupFirst(Long studentId, Pageable pageable) { return Page.empty(); }
 

@@ -14,14 +14,13 @@ export default function CommitteeDetailPage() {
     const committeeId = Number(params.committeeId);
 
     const [isCoordinator, setIsCoordinator] = useState(false);
+    const [committee, setCommittee] = useState<CommitteeDetail | null>(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const currentUser = getUser();
         setIsCoordinator(currentUser?.role === "coordinator");
     }, []);
-
-    const [committee, setCommittee] = useState<CommitteeDetail | null>(null);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         let cancelled = false;

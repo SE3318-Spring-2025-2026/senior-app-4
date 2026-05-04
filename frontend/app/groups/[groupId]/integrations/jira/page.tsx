@@ -18,6 +18,7 @@ export default function JiraIntegrationPage() {
     // Form states
     const [spaceUrl, setSpaceUrl] = useState("");
     const [apiKey, setApiKey] = useState("");
+    const [projectKey, setProjectKey] = useState("");
     const [bindLoading, setBindLoading] = useState(false);
 
     // Unbind states
@@ -47,21 +48,23 @@ export default function JiraIntegrationPage() {
     async function handleBind(e: React.FormEvent) {
         e.preventDefault();
         
-        if (!spaceUrl.trim() || !apiKey.trim()) {
-            toast.error("Space URL and API Key are required.");
+        if (!spaceUrl.trim() || !apiKey.trim() || !projectKey.trim()) {
+            toast.error("Space URL, API Key, and Project Key are required.");
             return;
         }
 
         setBindLoading(true);
         try {
             const res = await apiClient.post(`/groups/${groupId}/integrations/jira`, {
-                spaceUrl: spaceUrl.trim(),
-                apiKey: apiKey.trim()
+                jiraSpaceUrl: spaceUrl.trim(),
+                apiKey: apiKey.trim(),
+                projectKey: projectKey.trim()
             });
-            
+
             setIntegration(res.data || { spaceUrl, status: "ACTIVE" });
             setSpaceUrl("");
             setApiKey("");
+            setProjectKey("");
             toast.success("JIRA space successfully connected.");
         } catch (error: any) {
             console.error(error);
@@ -152,6 +155,17 @@ export default function JiraIntegrationPage() {
                                                 value={apiKey}
                                                 onChange={(e) => setApiKey(e.target.value)}
                                                 className="w-full bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-300 mb-1.5">Project Key</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="e.g., PROJ, SPM"
+                                                value={projectKey}
+                                                onChange={(e) => setProjectKey(e.target.value.toUpperCase())}
+                                                className="w-full bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none transition-all uppercase"
                                             />
                                         </div>
                                         <div className="pt-2">

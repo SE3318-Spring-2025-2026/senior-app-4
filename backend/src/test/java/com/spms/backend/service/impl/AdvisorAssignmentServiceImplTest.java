@@ -191,6 +191,13 @@ class AdvisorAssignmentServiceImplTest {
         }
 
         @Override
+        public List<Group> findByAdvisorId(Long advisorId) {
+            return store.values().stream()
+                    .filter(g -> g.getAdvisor() != null && advisorId.equals(g.getAdvisor().getUserId()))
+                    .toList();
+        }
+
+        @Override
         public List<Object[]> countGroupsByStatus() {
             throw new UnsupportedOperationException();
         }

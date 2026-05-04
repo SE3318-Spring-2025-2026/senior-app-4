@@ -1,6 +1,7 @@
 package com.spms.backend.client;
 
 import com.spms.backend.config.GithubProperties;
+import com.spms.backend.dto.PrCheckResult;
 import com.spms.backend.dto.external.GithubAccessTokenResponse;
 import com.spms.backend.dto.external.GithubUserResponse;
 import com.spms.backend.exception.GithubAuthenticationException;
@@ -12,6 +13,10 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Component
 public class GithubApiClient {
@@ -81,7 +86,7 @@ public class GithubApiClient {
     // issue 19 için eklenen method dk
     public boolean validateOrganizationAccess(String organizationName, String pat) {
         String url = "https://api.github.com/orgs/" + organizationName;
-        
+
         try {
             ResponseEntity<Void> response = restClient.get()
                     .uri(url)
@@ -89,10 +94,51 @@ public class GithubApiClient {
                     .header(HttpHeaders.ACCEPT, "application/vnd.github.v3+json")
                     .retrieve()
                     .toBodilessEntity();
-            
+
             return response.getStatusCode().is2xxSuccessful();
         } catch (RestClientException exception) {
             return false;
+        }
+    }
+
+    /**
+     * Find merged PR for a given branch
+     * @param orgName GitHub organization name
+     * @param repoName GitHub repository name
+     * @param branchName branch name to search for
+     * @param pat Personal Access Token
+     * @return Optional containing PR check result if PR found, empty otherwise
+     */
+    public Optional<PrCheckResult> findMergedPrForBranch(String orgName, String repoName, String branchName, String pat) {
+        String url = String.format("https://api.github.com/repos/%s/%s/pulls?head=%s:%s&base=main&state=closed",
+                orgName, repoName, orgName, branchName);
+
+        try {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> response = restClient.get()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + pat)
+                    .header(HttpHeaders.ACCEPT, "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .retrieve()
+                    .body((Class<List<Map<String, Object>>>) (Class<?>) List.class);
+
+            if (response == null || response.isEmpty()) {
+                return Optional.empty();
+            }
+
+            Map<String, Object> pr = response.get(0);
+            Long prNumber = ((Number) pr.get("number")).longValue();
+            String state = (String) pr.get("state");
+            Object mergedAtObj = pr.get("merged_at");
+            boolean merged = "closed".equals(state) && mergedAtObj != null;
+
+            Map<String, Object> userMap = (Map<String, Object>) pr.get("user");
+            String authorLogin = userMap != null ? (String) userMap.get("login") : "unknown";
+
+            return Optional.of(new PrCheckResult(prNumber, merged, authorLogin));
+        } catch (RestClientException exception) {
+            return Optional.empty();
         }
     }
 }

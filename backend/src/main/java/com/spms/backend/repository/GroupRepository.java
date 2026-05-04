@@ -22,6 +22,9 @@ public interface GroupRepository extends JpaRepository<Group, Long>, JpaSpecific
     @Query("SELECT g FROM Group g WHERE g.advisor.userId = :advisorId")
     Page<Group> findByAdvisorId(@Param("advisorId") Long advisorId, Pageable pageable);
 
+    @Query("SELECT g FROM Group g WHERE g.advisor.userId = :advisorId")
+    List<Group> findByAdvisorId(@Param("advisorId") Long advisorId);
+
     @Query("SELECT g.status, COUNT(g) FROM Group g GROUP BY g.status")
     List<Object[]> countGroupsByStatus();
 

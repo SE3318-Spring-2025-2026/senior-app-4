@@ -18,6 +18,7 @@ interface FormErrors {
     githubPat?: string;
     organizationName?: string;
     jiraSpaceUrl?: string;
+    jiraEmail?: string;
     jiraApiKey?: string;
     projectKey?: string;
 }
@@ -26,6 +27,7 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
     const [githubPat, setGithubPat] = useState("");
     const [organizationName, setOrganizationName] = useState("");
     const [jiraSpaceUrl, setJiraSpaceUrl] = useState("");
+    const [jiraEmail, setJiraEmail] = useState("");
     const [jiraApiKey, setJiraApiKey] = useState("");
     const [projectKey, setProjectKey] = useState("");
     const [errors, setErrors] = useState<FormErrors>({});
@@ -35,7 +37,7 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
     function validate(): FormErrors {
         const errs: FormErrors = {};
         const githubTouched = githubPat.trim() || organizationName.trim();
-        const jiraTouched = jiraSpaceUrl.trim() || jiraApiKey.trim() || projectKey.trim();
+        const jiraTouched = jiraSpaceUrl.trim() || jiraEmail.trim() || jiraApiKey.trim() || projectKey.trim();
 
         if (githubTouched) {
             if (!githubPat.trim()) errs.githubPat = "GitHub PAT is required";
@@ -43,6 +45,7 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
         }
         if (jiraTouched) {
             if (!jiraSpaceUrl.trim()) errs.jiraSpaceUrl = "JIRA Space URL is required";
+            if (!jiraEmail.trim()) errs.jiraEmail = "Account email is required";
             if (!projectKey.trim()) errs.projectKey = "Project key is required";
         }
         if (!githubTouched && !jiraTouched) {
@@ -72,8 +75,8 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
             if (githubPat.trim() && organizationName.trim()) {
                 tasks.push(bindGithubIntegration(groupId, githubPat.trim(), organizationName.trim()));
             }
-            if (jiraSpaceUrl.trim() && jiraApiKey.trim() && projectKey.trim()) {
-                tasks.push(bindJiraIntegration(groupId, jiraSpaceUrl.trim(), jiraApiKey.trim(), projectKey.trim()));
+            if (jiraSpaceUrl.trim() && jiraEmail.trim() && jiraApiKey.trim() && projectKey.trim()) {
+                tasks.push(bindJiraIntegration(groupId, jiraSpaceUrl.trim(), jiraEmail.trim(), jiraApiKey.trim(), projectKey.trim()));
             }
 
             await Promise.all(tasks);
@@ -81,6 +84,7 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
             setGithubPat("");
             setOrganizationName("");
             setJiraSpaceUrl("");
+            setJiraEmail("");
             setJiraApiKey("");
             setProjectKey("");
             showToast("Settings saved successfully", "success");
@@ -165,6 +169,22 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
                         />
                         {errors.jiraSpaceUrl && (
                             <p className="mt-1.5 text-sm text-red-400">{errors.jiraSpaceUrl}</p>
+                        )}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                            Account Email
+                        </label>
+                        <input
+                            name="jiraEmail"
+                            type="email"
+                            placeholder="you@yourcompany.com"
+                            value={jiraEmail}
+                            onChange={(e) => setJiraEmail(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                        />
+                        {errors.jiraEmail && (
+                            <p className="mt-1.5 text-sm text-red-400">{errors.jiraEmail}</p>
                         )}
                     </div>
                     <div>

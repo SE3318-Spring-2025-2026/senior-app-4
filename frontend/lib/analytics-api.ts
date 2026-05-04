@@ -16,7 +16,7 @@ export interface LeaderboardResponse {
 
 /**
  * Fetches the student leaderboard data from the analytics API.
- * 
+ *
  * @param page 0-indexed page number
  * @param size number of records per page
  * @param sortField field to sort by (name, assignedSp, accomplishedSp, ratio)
@@ -31,7 +31,7 @@ export async function fetchLeaderboard(
     // Map frontend sort fields to backend property paths
     // 'name' maps to 'user.fullName' since 'name' is in the DTO but sorting happens on the Entity
     const backendSortField = sortField === "name" ? "user.fullName" : sortField;
-    
+
     const params = new URLSearchParams({
         page: String(page),
         size: String(size),

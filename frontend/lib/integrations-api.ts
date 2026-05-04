@@ -211,6 +211,7 @@ export async function saveIntegrationSettings(
 export async function bindJiraIntegration(
     groupId: number,
     jiraSpaceUrl: string,
+    email: string,
     apiKey: string,
     projectKey: string
 ): Promise<void> {
@@ -222,7 +223,7 @@ export async function bindJiraIntegration(
             "Content-Type": "application/json",
             Authorization: `Bearer ${token ?? ""}`,
         },
-        body: JSON.stringify({ jiraSpaceUrl, apiKey, projectKey }),
+        body: JSON.stringify({ jiraSpaceUrl, email, apiKey, projectKey }),
     });
 
     if (!res.ok) {
