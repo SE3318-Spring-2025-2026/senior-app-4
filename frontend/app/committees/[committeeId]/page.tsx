@@ -18,6 +18,11 @@ export default function CommitteeDetailPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        const currentUser = getUser();
+        setIsCoordinator(currentUser?.role === "coordinator");
+    }, []);
+
+    useEffect(() => {
         let cancelled = false;
 
         async function loadCommittee() {
@@ -39,8 +44,6 @@ export default function CommitteeDetailPage() {
                 }
             }
         }
-
-        setIsCoordinator(getUser()?.role === "coordinator");
 
         if (!Number.isNaN(committeeId)) {
             loadCommittee();
