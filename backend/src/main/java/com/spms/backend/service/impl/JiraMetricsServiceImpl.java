@@ -67,6 +67,10 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
                 throw e;
             }
 
+            if (response == null) {
+                throw new JiraApiException("Empty response from JIRA API during batch fetch");
+            }
+
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> issueList =
                     (List<Map<String, Object>>) response.getOrDefault("issues", Collections.emptyList());
@@ -75,7 +79,7 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
                 results.add(extractCleansedIssue(raw));
             }
 
-            startAt += BATCH_SIZE;
+            startAt += batch.size();
         }
 
         logger.info("Issue details fetched: {}/{} keys resolved", results.size(), keys.size());

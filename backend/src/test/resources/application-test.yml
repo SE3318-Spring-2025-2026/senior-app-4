@@ -28,3 +28,7 @@ scrum:
 token:
   secret: test-secret-key-for-testing-only
   expiration-seconds: 3600
+
+jira:
+  encryption:
+    key: TestSuperSecretKey1234567890Test

@@ -16,11 +16,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Component
 public class JiraApiClient {
 
     private static final Logger logger = LoggerFactory.getLogger(JiraApiClient.class);
+    private static final Pattern ISSUE_KEY_PATTERN = Pattern.compile("^[A-Z]+-[0-9]+$");
 
     private final RestClient restClient;
 
@@ -61,6 +63,7 @@ public class JiraApiClient {
             int startAt,
             int maxResults) {
 
+        validateIssueKeys(issueKeys);
         String jql = "issueKey in (" + String.join(",", issueKeys) + ")";
 
         String url = UriComponentsBuilder
@@ -118,6 +121,10 @@ public class JiraApiClient {
                 throw new JiraApiException("JIRA API returned error: " + e.getMessage());
             }
 
+            if (response == null) {
+                throw new JiraApiException("Empty response from JIRA API");
+            }
+
             total = ((Number) response.getOrDefault("total", 0)).intValue();
 
             @SuppressWarnings("unchecked")
@@ -138,5 +145,16 @@ public class JiraApiClient {
 
         logger.info("JQL query fetched {} / {} issues", allKeys.size(), total);
         return allKeys;
+    }
+
+    private void validateIssueKeys(List<String> issueKeys) {
+        if (issueKeys == null || issueKeys.isEmpty()) {
+            throw new JiraApiException("Issue keys list cannot be empty");
+        }
+        for (String key : issueKeys) {
+            if (!ISSUE_KEY_PATTERN.matcher(key).matches()) {
+                throw new JiraApiException("Invalid issue key format: " + key);
+            }
+        }
     }
 }

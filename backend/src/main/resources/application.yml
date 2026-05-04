@@ -37,3 +37,7 @@ token:
 scrum:
   sync:
     cron: ${SCRUM_SYNC_CRON:0 0 2 * * *}
+
+jira:
+  encryption:
+    key: ${JIRA_ENCRYPTION_KEY}
