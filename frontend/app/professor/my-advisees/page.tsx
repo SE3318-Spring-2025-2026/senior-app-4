@@ -12,6 +12,12 @@ import {
     releaseAdviseeGroup,
     type AdvisorAssignment,
 } from "@/lib/advisor-requests-api";
+import {
+    fetchAdvisorSprintSummary,
+    fetchGroupTrackingDetails,
+    type SprintSummaryResponse,
+    type GroupTrackingDetail,
+} from "@/lib/sprint-tracking-api";
 
 export default function MyAdviseesPage() {
     const router = useRouter();
@@ -100,14 +106,32 @@ function AdviseesTable() {
     const [error, setError] = useState<string | null>(null);
     const [releasingId, setReleasingId] = useState<number | null>(null);
     const [confirmGroupId, setConfirmGroupId] = useState<number | null>(null);
+    const [sprintSummary, setSprintSummary] = useState<SprintSummaryResponse | null>(null);
+    const [expandedGroupId, setExpandedGroupId] = useState<number | null>(null);
+    const [trackingDetails, setTrackingDetails] = useState<Record<number, GroupTrackingDetail | null>>({});
+    const [loadingDetails, setLoadingDetails] = useState<Record<number, boolean>>({});
 
     const loadAdvisees = useCallback(async () => {
         setLoading(true);
         setError(null);
 
         try {
+            const token = getToken();
+            if (!token) {
+                throw new Error("No authentication token");
+            }
+
             const data = await fetchAdvisorAssignments({ hasAdvisor: true });
             setAdvisees(data);
+
+            // Load sprint summary
+            try {
+                const summary = await fetchAdvisorSprintSummary(token);
+                setSprintSummary(summary);
+            } catch (err: unknown) {
+                console.warn("Failed to load sprint summary:", err);
+                // Don't block page load if sprint data fails
+            }
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Failed to load active advisees.";
             setError(message);
@@ -138,6 +162,36 @@ function AdviseesTable() {
         } finally {
             setReleasingId(null);
             setConfirmGroupId(null);
+        }
+    };
+
+    const handleExpandRow = async (groupId: number) => {
+        if (expandedGroupId === groupId) {
+            setExpandedGroupId(null);
+            return;
+        }
+
+        if (trackingDetails[groupId]) {
+            setExpandedGroupId(groupId);
+            return;
+        }
+
+        setLoadingDetails((prev) => ({ ...prev, [groupId]: true }));
+
+        try {
+            const token = getToken();
+            if (!token) {
+                throw new Error("No authentication token");
+            }
+
+            const details = await fetchGroupTrackingDetails(groupId, token);
+            setTrackingDetails((prev) => ({ ...prev, [groupId]: details }));
+            setExpandedGroupId(groupId);
+        } catch (err: unknown) {
+            console.error("Failed to load tracking details:", err);
+            toast.error("Failed to load tracking details");
+        } finally {
+            setLoadingDetails((prev) => ({ ...prev, [groupId]: false }));
         }
     };
 
@@ -192,6 +246,30 @@ function AdviseesTable() {
 
     return (
         <>
+            {sprintSummary?.activeSprint && (
+                <div className="bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border border-blue-500/20 rounded-2xl p-6 mb-6">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+                                <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold text-white">{sprintSummary.activeSprint.sprintName}</p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    {sprintSummary.activeSprint.daysRemaining} days remaining • {new Date(sprintSummary.activeSprint.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-xs text-gray-400">Groups synced</p>
+                            <p className="text-lg font-semibold text-white">{sprintSummary.groups.length}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-gray-900 border border-white/8 rounded-2xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -216,25 +294,30 @@ function AdviseesTable() {
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1100px]">
+                    <table className="w-full min-w-[1200px]">
                         <thead>
                             <tr className="border-b border-white/5">
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12"></th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Group</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Leader</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sprint Progress</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Integrations</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {advisees.map((assignment) => (
-                                <AdviseeRow
+                                <SprintAwareAdviseeRow
                                     key={assignment.teamId}
                                     assignment={assignment}
                                     releasingId={releasingId}
                                     onReleaseClick={() => setConfirmGroupId(assignment.teamId)}
+                                    sprintData={sprintSummary?.groups.find((g) => g.groupId === assignment.teamId) || null}
+                                    isExpanded={expandedGroupId === assignment.teamId}
+                                    onExpandClick={() => handleExpandRow(assignment.teamId)}
+                                    trackingDetails={trackingDetails[assignment.teamId] || null}
+                                    loadingDetails={loadingDetails[assignment.teamId] || false}
                                 />
                             ))}
                         </tbody>
@@ -254,89 +337,245 @@ function AdviseesTable() {
     );
 }
 
-function AdviseeRow({
+function SprintAwareAdviseeRow({
     assignment,
     releasingId,
     onReleaseClick,
+    sprintData,
+    isExpanded,
+    onExpandClick,
+    trackingDetails,
+    loadingDetails,
 }: {
     assignment: AdvisorAssignment;
     releasingId: number | null;
     onReleaseClick: () => void;
+    sprintData: SprintSummaryResponse["groups"][0] | null;
+    isExpanded: boolean;
+    onExpandClick: () => void;
+    trackingDetails: GroupTrackingDetail | null;
+    loadingDetails: boolean;
 }) {
     const status = assignment.status?.toUpperCase() ?? "UNKNOWN";
     const canRelease = status === "ADVISED";
     const { status: integrationStatus, loading: integrationLoading } = useIntegrationStatus(assignment.teamId);
 
+    const totalPoints = sprintData?.perStudentSummary.reduce((sum, s) => sum + s.totalAssignedStoryPoints, 0) ?? 0;
+    const completedPoints = sprintData?.perStudentSummary.reduce((sum, s) => sum + s.completedStoryPoints, 0) ?? 0;
+    const progressPercent = totalPoints > 0 ? (completedPoints / totalPoints) * 100 : 0;
+
     return (
-        <tr className="hover:bg-white/[0.02] transition-colors">
-            <td className="px-6 py-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-blue-400 uppercase">
-                            {getInitials(assignment.teamName)}
-                        </span>
+        <>
+            <tr className="hover:bg-white/[0.02] transition-colors">
+                <td className="px-6 py-4">
+                    <button
+                        onClick={onExpandClick}
+                        className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-white transition-colors disabled:opacity-50"
+                        disabled={!sprintData || loadingDetails}
+                        title={sprintData ? (isExpanded ? "Collapse details" : "Expand details") : "No sprint data"}
+                    >
+                        {loadingDetails ? (
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                        ) : (
+                            <svg
+                                className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        )}
+                    </button>
+                </td>
+                <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <span className="text-xs font-bold text-blue-400 uppercase">
+                                {getInitials(assignment.teamName)}
+                            </span>
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{assignment.teamName}</p>
+                            <p className="text-xs text-gray-600">Group #{assignment.teamId}</p>
+                        </div>
                     </div>
-                    <div className="min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{assignment.teamName}</p>
-                        <p className="text-xs text-gray-600">Group #{assignment.teamId}</p>
-                    </div>
-                </div>
-            </td>
-            <td className="px-6 py-4 text-sm text-gray-300">
-                {assignment.leaderName || "Not available"}
-            </td>
-            <td className="px-6 py-4">
-                <StatusPill status={status} />
-            </td>
-            <td className="px-6 py-4 text-sm text-gray-400">
-                {assignment.assignedAt ? formatRelativeDate(assignment.assignedAt) : "Not tracked"}
-            </td>
-            <td className="px-6 py-4">
-                <AssignmentTypePill assignmentType={assignment.assignmentType} />
-            </td>
-            <td className="px-6 py-4">
-                <div className="flex flex-col gap-1.5 min-w-[200px]">
-                    <IntegrationStatusIndicator
-                        label="GitHub"
-                        connected={integrationStatus?.github.connected ?? false}
-                        connectedAt={integrationStatus?.github.connectedAt ?? null}
-                        loading={integrationLoading}
-                        data-testid={`integration-github-group-${assignment.teamId}`}
-                    />
-                    <IntegrationStatusIndicator
-                        label="JIRA"
-                        connected={integrationStatus?.jira.connected ?? false}
-                        connectedAt={integrationStatus?.jira.connectedAt ?? null}
-                        loading={integrationLoading}
-                        data-testid={`integration-jira-group-${assignment.teamId}`}
-                    />
-                </div>
-            </td>
-            <td className="px-6 py-4 text-right">
-                <button
-                    onClick={onReleaseClick}
-                    disabled={releasingId === assignment.teamId || !canRelease}
-                    title={canRelease ? "Release this advisee group" : "Only advised groups can be released"}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium ml-auto
-                               bg-red-600/10 border border-red-500/30 text-red-400
-                               hover:bg-red-600/20 hover:border-red-500/50 active:scale-95
-                               transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {releasingId === assignment.teamId ? (
-                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-300">
+                    {assignment.leaderName || "Not available"}
+                </td>
+                <td className="px-6 py-4">
+                    <StatusPill status={status} />
+                </td>
+                <td className="px-6 py-4">
+                    {sprintData ? (
+                        <div className="flex items-center gap-3 min-w-[200px]">
+                            <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                    <p className="text-xs text-gray-400">{completedPoints}/{totalPoints} points</p>
+                                    <p className="text-xs font-medium text-white">{Math.round(progressPercent)}%</p>
+                                </div>
+                                <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all"
+                                        style={{ width: `${progressPercent}%` }}
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">{sprintData.mergedPRCount} PRs merged</p>
+                            </div>
+                        </div>
                     ) : (
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H9m0 0l3-3m-3 3l3 3" />
-                        </svg>
+                        <p className="text-xs text-gray-500">No sprint data</p>
                     )}
-                    Release
-                </button>
-            </td>
-        </tr>
+                </td>
+                <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1.5 min-w-[200px]">
+                        <IntegrationStatusIndicator
+                            label="GitHub"
+                            connected={integrationStatus?.github.connected ?? false}
+                            connectedAt={integrationStatus?.github.connectedAt ?? null}
+                            loading={integrationLoading}
+                            data-testid={`integration-github-group-${assignment.teamId}`}
+                        />
+                        <IntegrationStatusIndicator
+                            label="JIRA"
+                            connected={integrationStatus?.jira.connected ?? false}
+                            connectedAt={integrationStatus?.jira.connectedAt ?? null}
+                            loading={integrationLoading}
+                            data-testid={`integration-jira-group-${assignment.teamId}`}
+                        />
+                    </div>
+                </td>
+                <td className="px-6 py-4 text-right">
+                    <button
+                        onClick={onReleaseClick}
+                        disabled={releasingId === assignment.teamId || !canRelease}
+                        title={canRelease ? "Release this advisee group" : "Only advised groups can be released"}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium ml-auto
+                                   bg-red-600/10 border border-red-500/30 text-red-400
+                                   hover:bg-red-600/20 hover:border-red-500/50 active:scale-95
+                                   transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {releasingId === assignment.teamId ? (
+                            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                        ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H9m0 0l3-3m-3 3l3 3" />
+                            </svg>
+                        )}
+                        Release
+                    </button>
+                </td>
+            </tr>
+
+            {isExpanded && trackingDetails && (
+                <tr className="bg-gray-950/50 border-t border-white/5">
+                    <td colSpan={7} className="px-6 py-6">
+                        <div className="space-y-6">
+                            {/* Per-Student Summary */}
+                            {trackingDetails && (
+                                <div className="bg-gray-900 rounded-lg border border-white/5 p-4">
+                                    <h4 className="text-sm font-semibold text-white mb-4">Team Member Progress</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {trackingDetails.issues && trackingDetails.issues.length > 0 ? (
+                                            Array.from(
+                                                new Map(
+                                                    trackingDetails.issues
+                                                        .filter((i) => i.assigneeGithubUsername)
+                                                        .map((i) => [i.assigneeGithubUsername, i])
+                                                ).entries()
+                                            ).map(([username, issue]) => {
+                                                const memberIssues = trackingDetails.issues.filter((i) => i.assigneeGithubUsername === username);
+                                                const memberPoints = memberIssues.reduce((sum, i) => sum + (i.storyPoints ?? 0), 0);
+                                                const memberMergedPoints = memberIssues
+                                                    .filter((i) => i.prMerged)
+                                                    .reduce((sum, i) => sum + (i.storyPoints ?? 0), 0);
+
+                                                return (
+                                                    <div key={username} className="bg-gray-800/50 rounded border border-white/5 p-3">
+                                                        <p className="text-xs font-medium text-gray-300 mb-2">{username}</p>
+                                                        <div className="space-y-1.5 text-xs">
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-500">Completed:</span>
+                                                                <span className="text-green-400 font-medium">{memberMergedPoints} pts</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-500">Total:</span>
+                                                                <span className="text-white font-medium">{memberPoints} pts</span>
+                                                            </div>
+                                                            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden mt-2">
+                                                                <div
+                                                                    className="h-full bg-green-500"
+                                                                    style={{ width: `${memberPoints > 0 ? (memberMergedPoints / memberPoints) * 100 : 0}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            <p className="text-xs text-gray-500">No member data available</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Issue Tracking Table */}
+                            {trackingDetails?.issues && trackingDetails.issues.length > 0 && (
+                                <div className="bg-gray-900 rounded-lg border border-white/5 overflow-hidden">
+                                    <div className="px-4 py-3 border-b border-white/5 bg-gray-800/50">
+                                        <h4 className="text-sm font-semibold text-white">Issue Details</h4>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[600px]">
+                                            <thead>
+                                                <tr className="border-b border-white/5 bg-gray-800/30">
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">Issue</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">Points</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">Assignee</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">PR #</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5">
+                                                {trackingDetails.issues.map((issue) => (
+                                                    <tr key={issue.issueKey} className="hover:bg-white/[0.02]">
+                                                        <td className="px-4 py-2 text-xs font-medium text-blue-400">{issue.issueKey}</td>
+                                                        <td className="px-4 py-2 text-xs text-gray-300">{issue.storyPoints ?? "-"}</td>
+                                                        <td className="px-4 py-2 text-xs text-gray-400">{issue.assigneeGithubUsername ?? "-"}</td>
+                                                        <td className="px-4 py-2 text-xs text-gray-400">{issue.prNumber ?? "-"}</td>
+                                                        <td className="px-4 py-2 text-xs">
+                                                            {issue.prMerged ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">
+                                                                    ✓ Merged
+                                                                </span>
+                                                            ) : issue.prNumber ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                                                                    ○ Open
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-gray-500">—</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </td>
+                </tr>
+            )}
+        </>
     );
 }
 

@@ -19,7 +19,9 @@ public class GithubIntegration {
     @Column(name = "organization_name")
     private String organizationName;
 
-    
+    @Column(name = "repository_name")
+    private String repositoryName;
+
     @Convert(converter = EncryptionConverter.class)
     @Column(name = "github_pat_encrypted")
     private String githubPatEncrypted;
@@ -59,6 +61,14 @@ public class GithubIntegration {
 
     public void setOrganizationName(String organizationName) {
         this.organizationName = organizationName;
+    }
+
+    public String getRepositoryName() {
+        return repositoryName;
+    }
+
+    public void setRepositoryName(String repositoryName) {
+        this.repositoryName = repositoryName;
     }
 
     public String getGithubPatEncrypted() {

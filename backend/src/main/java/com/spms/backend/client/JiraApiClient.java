@@ -1,5 +1,6 @@
 package com.spms.backend.client;
 
+import com.spms.backend.dto.JiraIssueData;
 import com.spms.backend.exception.JiraApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -138,5 +140,153 @@ public class JiraApiClient {
 
         logger.info("JQL query fetched {} / {} issues", allKeys.size(), total);
         return allKeys;
+    }
+
+    /**
+     * Fetch active sprint issues from JIRA Agile API
+     * @param jiraSpaceUrl JIRA base URL
+     * @param email JIRA account email
+     * @param apiToken JIRA API token
+     * @param projectKey JIRA project key
+     * @return List of JiraIssueData
+     */
+    public List<JiraIssueData> fetchActiveSprintIssues(String jiraSpaceUrl, String email, String apiToken, String projectKey) {
+        List<JiraIssueData> allIssues = new ArrayList<>();
+
+        try {
+            // Step 1: Get board ID
+            String boardUrl = UriComponentsBuilder
+                    .fromUriString(jiraSpaceUrl.trim())
+                    .pathSegment("rest", "agile", "1.0", "board")
+                    .queryParam("projectKeyOrId", projectKey.trim())
+                    .build()
+                    .toUriString();
+
+            Map<String, Object> boardResponse = restClient.get()
+                    .uri(boardUrl)
+                    .header(HttpHeaders.AUTHORIZATION, buildBasicAuthHeader(email, apiToken))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+
+            if (boardResponse == null) {
+                logger.warn("Board lookup returned null for project: {}", projectKey);
+                return allIssues;
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> boardValues = (List<Map<String, Object>>) boardResponse.get("values");
+            if (boardValues == null || boardValues.isEmpty()) {
+                logger.warn("No boards found for project: {}", projectKey);
+                return allIssues;
+            }
+
+            Number boardIdNum = (Number) boardValues.get(0).get("id");
+            Long boardId = boardIdNum.longValue();
+
+            // Step 2: Get active sprint ID
+            String sprintUrl = UriComponentsBuilder
+                    .fromUriString(jiraSpaceUrl.trim())
+                    .pathSegment("rest", "agile", "1.0", "board", boardId.toString(), "sprint")
+                    .queryParam("state", "active")
+                    .build()
+                    .toUriString();
+
+            Map<String, Object> sprintResponse = restClient.get()
+                    .uri(sprintUrl)
+                    .header(HttpHeaders.AUTHORIZATION, buildBasicAuthHeader(email, apiToken))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+
+            if (sprintResponse == null) {
+                logger.warn("Sprint lookup returned null for board: {}", boardId);
+                return allIssues;
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> sprintValues = (List<Map<String, Object>>) sprintResponse.get("values");
+            if (sprintValues == null || sprintValues.isEmpty()) {
+                logger.warn("No active sprints found for board: {}", boardId);
+                return allIssues;
+            }
+
+            Number sprintIdNum = (Number) sprintValues.get(0).get("id");
+            Long sprintId = sprintIdNum.longValue();
+
+            // Step 3: Fetch issues from active sprint (paginated)
+            int startAt = 0;
+            int maxResults = 100;
+            int total;
+
+            do {
+                String issueUrl = UriComponentsBuilder
+                        .fromUriString(jiraSpaceUrl.trim())
+                        .pathSegment("rest", "agile", "1.0", "sprint", sprintId.toString(), "issue")
+                        .queryParam("startAt", startAt)
+                        .queryParam("maxResults", maxResults)
+                        .build()
+                        .toUriString();
+
+                Map<String, Object> issueResponse = restClient.get()
+                        .uri(issueUrl)
+                        .header(HttpHeaders.AUTHORIZATION, buildBasicAuthHeader(email, apiToken))
+                        .accept(MediaType.APPLICATION_JSON)
+                        .retrieve()
+                        .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+
+                if (issueResponse == null) {
+                    break;
+                }
+
+                total = ((Number) issueResponse.getOrDefault("total", 0)).intValue();
+
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> issues = (List<Map<String, Object>>) issueResponse.getOrDefault("issues", Collections.emptyList());
+
+                for (Map<String, Object> issue : issues) {
+                    String issueKey = (String) issue.get("key");
+
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> fields = (Map<String, Object>) issue.get("fields");
+                    if (fields == null) continue;
+
+                    Integer storyPoints = null;
+                    Object spValue = fields.get("customfield_10016");
+                    if (spValue instanceof Number) {
+                        storyPoints = ((Number) spValue).intValue();
+                    }
+
+                    String assigneeEmail = null;
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> assignee = (Map<String, Object>) fields.get("assignee");
+                    if (assignee != null) {
+                        assigneeEmail = (String) assignee.get("emailAddress");
+                    }
+
+                    allIssues.add(new JiraIssueData(issueKey, storyPoints, assigneeEmail));
+                }
+
+                startAt += issues.size();
+
+                if (issues.isEmpty()) {
+                    break;
+                }
+
+            } while (startAt < total);
+
+            logger.info("Fetched {} issues from JIRA sprint {}", allIssues.size(), sprintId);
+
+        } catch (RestClientException e) {
+            logger.error("JIRA fetch active sprint issues failed: {}", e.getMessage());
+            throw new JiraApiException("JIRA API returned error: " + e.getMessage());
+        }
+
+        return allIssues;
+    }
+
+    private String buildBasicAuthHeader(String email, String apiToken) {
+        String credentials = email.trim() + ":" + apiToken.trim();
+        return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
     }
 }
