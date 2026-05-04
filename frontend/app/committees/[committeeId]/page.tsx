@@ -13,8 +13,12 @@ export default function CommitteeDetailPage() {
     const params = useParams();
     const committeeId = Number(params.committeeId);
 
-    const currentUser = getUser();
-    const isCoordinator = currentUser?.role === "coordinator";
+    const [isCoordinator, setIsCoordinator] = useState(false);
+
+    useEffect(() => {
+        const currentUser = getUser();
+        setIsCoordinator(currentUser?.role === "coordinator");
+    }, []);
 
     const [committee, setCommittee] = useState<CommitteeDetail | null>(null);
     const [loading, setLoading] = useState(true);

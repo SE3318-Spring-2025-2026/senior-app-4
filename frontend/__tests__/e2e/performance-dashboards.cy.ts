@@ -9,8 +9,8 @@ describe('Performance Dashboards & Charts E2E Tests', () => {
       statusCode: 200,
       body: {
         content: [
-          { studentId: 1, name: 'Alice', storyPoints: 40, ratio: 0.95 },
-          { studentId: 2, name: 'Bob', storyPoints: 20, ratio: 0.50 }
+          { studentId: 1, name: 'Alice', assignedSp: 42, accomplishedSp: 40, ratio: 0.95 },
+          { studentId: 2, name: 'Bob', assignedSp: 40, accomplishedSp: 20, ratio: 0.50 }
         ],
         totalPages: 5,
         totalElements: 50
