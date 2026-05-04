@@ -47,6 +47,17 @@ info:
     - Results feed into the **Advisor Dashboard** and into **P8 Grading & Evaluation**.
     - Each sprint+team combination can only have one active validation job at a time.
 
+    ## Roles & Authorization
+    | Role         | Access                                                                  |
+    |--------------|-------------------------------------------------------------------------|
+    | COORDINATOR  | All endpoints (trigger, retry, config read/write, results, details).    |
+    | ADVISOR      | Read-only on results & details, **only for own advisee teams**          |
+    |              | (other teams → 403 FORBIDDEN_TEAM_ACCESS). Cannot trigger / retry / write config. |
+    | STUDENT      | All P7 endpoints return **403 FORBIDDEN**. P7 outputs are intermediate  |
+    |              | signals consumed by advisors and the grading pipeline (P8); they are    |
+    |              | not surfaced to students directly.                                      |
+    | Unauthenticated | All endpoints return **401 UNAUTHORIZED**.                          |
+
 servers:
   - url: /api/v1
     description: Development server
@@ -122,16 +133,22 @@ paths:
                 $ref: '#/components/schemas/TriggerValidationResponse'
         '400':
           description: |
-            Sprint is not ready for validation. Possible causes:
-            - P6 has not completed for this sprint
-            - Sprint does not exist
-            - No issues found in sprint context (D6 empty for this sprint)
+            Sprint exists but is not in a state that allows validation. Possible causes:
+            - P6 has not completed for this sprint (errorCode: SPRINT_NOT_READY)
+            - No issues found in sprint context, D6 empty for this sprint (errorCode: NO_ISSUES_IN_SPRINT)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Coordinator role required
+          description: Coordinator role required (errorCode: FORBIDDEN).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            Sprint with the given ID does not exist (errorCode: SPRINT_NOT_FOUND).
           content:
             application/json:
               schema:
@@ -180,8 +197,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobStatusResponse'
+        '403':
+          description: |
+            Caller is authenticated but not authorized to view this job.
+            Common causes:
+            - Advisor requesting a job whose team is not in their advisee list
+              (errorCode: FORBIDDEN_TEAM_ACCESS)
+            - Caller role is not allowed to access P7 (errorCode: FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Job not found.
+          description: Job not found (errorCode: JOB_NOT_FOUND).
           content:
             application/json:
               schema:
@@ -219,15 +247,95 @@ paths:
                 $ref: '#/components/schemas/TriggerValidationResponse'
         '400':
           description: |
-            Job cannot be retried. Possible causes:
+            Job cannot be retried (errorCode: JOB_NOT_RETRYABLE). Possible causes:
             - Job is still running (QUEUED / IN_PROGRESS)
-            - Job already COMPLETED (nothing to retry)
+            - Job already COMPLETED, nothing to retry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Coordinator role required (errorCode: FORBIDDEN).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Job not found.
+          description: Job not found (errorCode: JOB_NOT_FOUND).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            A retry for this parent job is already running.
+            Only one active retry per parent job is allowed
+            (errorCode: JOB_RETRY_ALREADY_RUNNING).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  #  7.1  —  Active Job Discovery
+  # ═══════════════════════════════════════════
+  /ai-validation/sprints/{sprintId}/active-job:
+    parameters:
+      - $ref: '#/components/parameters/sprintIdParam'
+
+    get:
+      tags:
+        - "7.1 Trigger & Jobs"
+      summary: "Get the active validation job for a sprint, if any"
+      description: |
+        Returns the currently active (QUEUED or IN_PROGRESS) validation job
+        for the given sprint, if one exists.
+
+        ## Why this endpoint?
+        A validation job can be started by either:
+          - A Coordinator clicking "Run AI Validation" on the sprint page, or
+          - The system itself, when the P6 completion handler triggers P7
+            asynchronously (see `POST /ai-validation/sprints/{sprintId}/trigger`).
+
+        In the second case, the frontend has no `jobId` of its own. Without a
+        discovery endpoint, the user would have to click "Run" and rely on the
+        409 VALIDATION_ALREADY_RUNNING toast to find out a job is already in
+        flight — bad UX. The sprint detail page calls this endpoint on mount
+        and, if a job is active, renders the JobProgress component directly
+        instead of the trigger button.
+
+        ## Response semantics
+        - `200`: an active job exists; payload is identical to GET /jobs/{jobId}.
+        - `204`: no active job for this sprint (button is shown).
+        - `404`: sprint with the given ID does not exist.
+
+        The `204` vs `404` split lets the frontend tell apart "nothing running"
+        from "wrong URL".
+
+        ## Authorization
+        - **Coordinator**: Can query for any sprint.
+        - **Advisor**: Can query for sprints containing their advisee teams.
+      operationId: getActiveJobForSprint
+      responses:
+        '200':
+          description: An active job exists for this sprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+        '204':
+          description: No active validation job for this sprint.
+        '403':
+          description: |
+            Caller is not authorized to query this sprint
+            (errorCode: FORBIDDEN_TEAM_ACCESS or FORBIDDEN).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            Sprint with the given ID does not exist (errorCode: SPRINT_NOT_FOUND).
           content:
             application/json:
               schema:
@@ -277,6 +385,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SprintValidationResultsResponse'
+        '403':
+          description: |
+            Caller is not authorized to view these results. Common causes:
+            - Advisor requesting a `teamId` that is not in their advisee list
+              (errorCode: FORBIDDEN_TEAM_ACCESS)
+            - Caller role is not allowed to access P7 (errorCode: FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Sprint not found or no validation results exist yet.
           content:
@@ -326,6 +444,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/IssueValidationDetailResponse'
+        '403':
+          description: |
+            Caller is not authorized to view this issue. Common causes:
+            - Advisor requesting an issue whose team is not in their advisee list
+              (errorCode: FORBIDDEN_TEAM_ACCESS)
+            - Caller role is not allowed to access P7 (errorCode: FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Issue not found or not yet validated.
           content:
@@ -355,6 +483,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidationConfigResponse'
+        '403':
+          description: Coordinator role required (errorCode: FORBIDDEN).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     put:
       tags:
@@ -378,11 +512,13 @@ paths:
               $ref: '#/components/schemas/ValidationConfigRequest'
       responses:
         '200':
-          description: Configuration updated.
+          description: |
+            Configuration updated. Response body returns the new configuration
+            so clients can refresh local state without a follow-up GET.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: '#/components/schemas/ValidationConfigResponse'
         '400':
           description: |
             Validation error. Possible causes:
@@ -498,14 +634,45 @@ components:
         errorCode:
           type: string
           example: SPRINT_NOT_READY
+          enum:
+            # 7.1 Trigger / Jobs
+            - SPRINT_NOT_READY
+            - SPRINT_NOT_FOUND
+            - NO_ISSUES_IN_SPRINT
+            - VALIDATION_ALREADY_RUNNING
+            - JOB_NOT_FOUND
+            - JOB_NOT_RETRYABLE
+            - JOB_RETRY_ALREADY_RUNNING
+            # 7.6 Results
+            - SPRINT_HAS_NO_RESULTS
+            - ISSUE_NOT_FOUND
+            - ISSUE_NOT_VALIDATED
+            - FORBIDDEN_TEAM_ACCESS
+            # 7.0 Config
+            - INVALID_WEIGHTS
+            - INVALID_MAX_DIFF_LINES
+            - INVALID_OPENAI_MODEL
+            # External integrations
+            - GITHUB_RATE_LIMITED
+            - OPENAI_ERROR
+            # Generic auth
+            - UNAUTHORIZED
+            - FORBIDDEN
           description: |
-            Machine-readable error codes:
-            - SPRINT_NOT_READY: P6 has not completed for this sprint
-            - SPRINT_NOT_FOUND: Sprint does not exist
-            - VALIDATION_ALREADY_RUNNING: Active job exists for this sprint
-            - GITHUB_RATE_LIMITED: GitHub API rate limit exceeded
-            - OPENAI_ERROR: OpenAI API returned an error
-            - JOB_NOT_RETRYABLE: Job status does not allow retry
+            Machine-readable error code. Closed enum — clients MUST switch on this
+            field rather than on `message` (which is human-readable and may change
+            without notice). Each code maps to one, and only one, cause.
+
+            Mapping of code → typical HTTP status:
+            - 400: SPRINT_NOT_READY, NO_ISSUES_IN_SPRINT, JOB_NOT_RETRYABLE,
+                   INVALID_WEIGHTS, INVALID_MAX_DIFF_LINES, INVALID_OPENAI_MODEL
+            - 401: UNAUTHORIZED
+            - 403: FORBIDDEN, FORBIDDEN_TEAM_ACCESS
+            - 404: SPRINT_NOT_FOUND, JOB_NOT_FOUND, ISSUE_NOT_FOUND,
+                   ISSUE_NOT_VALIDATED, SPRINT_HAS_NO_RESULTS
+            - 409: VALIDATION_ALREADY_RUNNING, JOB_RETRY_ALREADY_RUNNING
+            - 502 / 503: GITHUB_RATE_LIMITED, OPENAI_ERROR (surfaced inside job
+              `failureReason`, not as request-time errors)
 
     TriggerValidationResponse:
       type: object
