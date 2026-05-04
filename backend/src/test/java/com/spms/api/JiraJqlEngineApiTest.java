@@ -78,7 +78,7 @@ public class JiraJqlEngineApiTest extends BaseApiTest {
     @Test
     @DisplayName("POST /initialize → 200: bağlantı başarılı (AC1)")
     void initialize_success_returns200() {
-        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString()))
+        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(true);
 
         RestAssured.given()
@@ -97,7 +97,7 @@ public class JiraJqlEngineApiTest extends BaseApiTest {
     @Test
     @DisplayName("POST /initialize → 200: bağlantı başarısız (credentials hatalı)")
     void initialize_failure_returnsConnectedFalse() {
-        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString()))
+        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(false);
 
         RestAssured.given()

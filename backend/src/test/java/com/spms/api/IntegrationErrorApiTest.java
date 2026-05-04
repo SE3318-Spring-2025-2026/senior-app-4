@@ -118,13 +118,14 @@ public class IntegrationErrorApiTest extends BaseApiTest {
     @Test
     @DisplayName("POST /jira → 400: Invalid URL or Connection Failure")
     void bindJira_connectionFailure_returns400() {
-        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString()))
+        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(false);
 
         RestAssured.given()
             .header("Authorization", "Bearer " + leaderToken)
             .body(Map.of(
                 "jiraSpaceUrl", "http://invalid-jira-url",
+                "email", "test@atlassian.net",
                 "projectKey", "PROJ",
                 "apiKey", "some-key"
             ))
@@ -154,7 +155,7 @@ public class IntegrationErrorApiTest extends BaseApiTest {
 
         // GitHub succeeds, JIRA fails
         when(githubApiClient.validateOrganizationAccess(anyString(), anyString())).thenReturn(true);
-        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString())).thenReturn(false);
+        when(jiraApiClient.validateSpaceConnection(anyString(), anyString(), anyString(), anyString())).thenReturn(false);
 
         RestAssured.given()
             .header("Authorization", "Bearer " + leaderToken)

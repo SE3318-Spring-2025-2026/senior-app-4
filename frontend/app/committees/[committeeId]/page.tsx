@@ -13,9 +13,7 @@ export default function CommitteeDetailPage() {
     const params = useParams();
     const committeeId = Number(params.committeeId);
 
-    const currentUser = getUser();
-    const isCoordinator = currentUser?.role === "coordinator";
-
+    const [isCoordinator, setIsCoordinator] = useState(false);
     const [committee, setCommittee] = useState<CommitteeDetail | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -41,6 +39,8 @@ export default function CommitteeDetailPage() {
                 }
             }
         }
+
+        setIsCoordinator(getUser()?.role === "coordinator");
 
         if (!Number.isNaN(committeeId)) {
             loadCommittee();

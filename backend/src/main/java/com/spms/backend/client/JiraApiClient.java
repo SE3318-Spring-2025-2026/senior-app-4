@@ -30,7 +30,7 @@ public class JiraApiClient {
         this.restClient = restClientBuilder.build();
     }
 
-    public boolean validateSpaceConnection(String jiraSpaceUrl, String projectKey, String apiKey) {
+    public boolean validateSpaceConnection(String jiraSpaceUrl, String projectKey, String email, String apiKey) {
         String normalizedBaseUrl = jiraSpaceUrl != null ? jiraSpaceUrl.trim() : "";
         String normalizedProjectKey = projectKey != null ? projectKey.trim() : "";
 
@@ -40,18 +40,23 @@ public class JiraApiClient {
                 .build()
                 .toUriString();
 
+        logger.info("JIRA validation → URL: {}, email: {}", validationUrl, email);
         try {
             RestClient.RequestHeadersSpec<?> request = restClient.get()
                     .uri(validationUrl)
                     .accept(MediaType.APPLICATION_JSON);
 
-            if (StringUtils.hasText(apiKey)) {
+            if (StringUtils.hasText(email) && StringUtils.hasText(apiKey)) {
+                request = request.header(HttpHeaders.AUTHORIZATION, buildBasicAuthHeader(email, apiKey));
+            } else if (StringUtils.hasText(apiKey)) {
                 request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey.trim());
             }
 
             request.retrieve().toBodilessEntity();
+            logger.info("JIRA validation → SUCCESS");
             return true;
         } catch (RestClientException exception) {
+            logger.warn("JIRA validation → FAILED: {}", exception.getMessage());
             return false;
         }
     }
