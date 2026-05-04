@@ -28,4 +28,6 @@ boot_error.log
 # Local notes
 PENDING_FIXES.md
 YONERGE.MD
+yonerge.md
 ISSUE_*_IMPLEMENTATION_PLAN.md
+*-plan.md

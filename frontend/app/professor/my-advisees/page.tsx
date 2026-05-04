@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getToken, getUser } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
+import IntegrationStatusIndicator from "@/components/IntegrationStatusIndicator";
+import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import {
     fetchAdvisorAssignments,
     releaseAdviseeGroup,
@@ -214,7 +216,7 @@ function AdviseesTable() {
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px]">
+                    <table className="w-full min-w-[1100px]">
                         <thead>
                             <tr className="border-b border-white/5">
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Group</th>
@@ -222,68 +224,19 @@ function AdviseesTable() {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Integrations</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                            {advisees.map((assignment) => {
-                                const status = assignment.status?.toUpperCase() ?? "UNKNOWN";
-                                const canRelease = status === "ADVISED";
-
-                                return (
-                                    <tr key={assignment.teamId} className="hover:bg-white/[0.02] transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-                                                    <span className="text-xs font-bold text-blue-400 uppercase">
-                                                        {getInitials(assignment.teamName)}
-                                                    </span>
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-sm font-medium text-white truncate">{assignment.teamName}</p>
-                                                    <p className="text-xs text-gray-600">Group #{assignment.teamId}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-300">
-                                            {assignment.leaderName || "Not available"}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <StatusPill status={status} />
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-400">
-                                            {assignment.assignedAt ? formatRelativeDate(assignment.assignedAt) : "Not tracked"}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <AssignmentTypePill assignmentType={assignment.assignmentType} />
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button
-                                                onClick={() => setConfirmGroupId(assignment.teamId)}
-                                                disabled={releasingId === assignment.teamId || !canRelease}
-                                                title={canRelease ? "Release this advisee group" : "Only advised groups can be released"}
-                                                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium ml-auto
-                                                           bg-red-600/10 border border-red-500/30 text-red-400
-                                                           hover:bg-red-600/20 hover:border-red-500/50 active:scale-95
-                                                           transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                {releasingId === assignment.teamId ? (
-                                                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                    </svg>
-                                                ) : (
-                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H9m0 0l3-3m-3 3l3 3" />
-                                                    </svg>
-                                                )}
-                                                Release
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
+                            {advisees.map((assignment) => (
+                                <AdviseeRow
+                                    key={assignment.teamId}
+                                    assignment={assignment}
+                                    releasingId={releasingId}
+                                    onReleaseClick={() => setConfirmGroupId(assignment.teamId)}
+                                />
+                            ))}
                         </tbody>
                     </table>
                 </div>
@@ -298,6 +251,92 @@ function AdviseesTable() {
                 />
             )}
         </>
+    );
+}
+
+function AdviseeRow({
+    assignment,
+    releasingId,
+    onReleaseClick,
+}: {
+    assignment: AdvisorAssignment;
+    releasingId: number | null;
+    onReleaseClick: () => void;
+}) {
+    const status = assignment.status?.toUpperCase() ?? "UNKNOWN";
+    const canRelease = status === "ADVISED";
+    const { status: integrationStatus, loading: integrationLoading } = useIntegrationStatus(assignment.teamId);
+
+    return (
+        <tr className="hover:bg-white/[0.02] transition-colors">
+            <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-blue-400 uppercase">
+                            {getInitials(assignment.teamName)}
+                        </span>
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{assignment.teamName}</p>
+                        <p className="text-xs text-gray-600">Group #{assignment.teamId}</p>
+                    </div>
+                </div>
+            </td>
+            <td className="px-6 py-4 text-sm text-gray-300">
+                {assignment.leaderName || "Not available"}
+            </td>
+            <td className="px-6 py-4">
+                <StatusPill status={status} />
+            </td>
+            <td className="px-6 py-4 text-sm text-gray-400">
+                {assignment.assignedAt ? formatRelativeDate(assignment.assignedAt) : "Not tracked"}
+            </td>
+            <td className="px-6 py-4">
+                <AssignmentTypePill assignmentType={assignment.assignmentType} />
+            </td>
+            <td className="px-6 py-4">
+                <div className="flex flex-col gap-1.5 min-w-[200px]">
+                    <IntegrationStatusIndicator
+                        label="GitHub"
+                        connected={integrationStatus?.github.connected ?? false}
+                        connectedAt={integrationStatus?.github.connectedAt ?? null}
+                        loading={integrationLoading}
+                        data-testid={`integration-github-group-${assignment.teamId}`}
+                    />
+                    <IntegrationStatusIndicator
+                        label="JIRA"
+                        connected={integrationStatus?.jira.connected ?? false}
+                        connectedAt={integrationStatus?.jira.connectedAt ?? null}
+                        loading={integrationLoading}
+                        data-testid={`integration-jira-group-${assignment.teamId}`}
+                    />
+                </div>
+            </td>
+            <td className="px-6 py-4 text-right">
+                <button
+                    onClick={onReleaseClick}
+                    disabled={releasingId === assignment.teamId || !canRelease}
+                    title={canRelease ? "Release this advisee group" : "Only advised groups can be released"}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium ml-auto
+                               bg-red-600/10 border border-red-500/30 text-red-400
+                               hover:bg-red-600/20 hover:border-red-500/50 active:scale-95
+                               transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {releasingId === assignment.teamId ? (
+                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                    ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H9m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                    )}
+                    Release
+                </button>
+            </td>
+        </tr>
     );
 }
 
