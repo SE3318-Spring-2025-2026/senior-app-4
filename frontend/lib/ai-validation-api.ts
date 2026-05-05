@@ -1,12 +1,7 @@
-// TODO(parallel: #298, @you, 2026-05-05): GET/PUT /ai-validation/config frontend page
-//   Affects: app/coordinator/ai-validation/config/page.tsx
-//   Coordinate before editing: check with team
-
 import { API_BASE, buildHeaders, parseError } from "@/lib/api-utils";
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// ── Config Types ───────────────────────────────────────────────────────────
 
-/** Spec: ValidationConfigResponse.data */
 export interface ValidationConfigData {
   reviewWeight: number;
   implementationWeight: number;
@@ -15,13 +10,11 @@ export interface ValidationConfigData {
   excludedFilePatterns: string[];
 }
 
-/** Spec: ValidationConfigResponse envelope */
 export interface ValidationConfigResponse {
   status: string;
   data: ValidationConfigData;
 }
 
-/** Spec: ValidationConfigRequest (required: reviewWeight, implementationWeight) */
 export interface ValidationConfigRequest {
   reviewWeight: number;
   implementationWeight: number;
@@ -30,34 +23,74 @@ export interface ValidationConfigRequest {
   excludedFilePatterns?: string[];
 }
 
-// ── API functions ──────────────────────────────────────────────────────────
+// ── Trigger & Job Types ────────────────────────────────────────────────────
 
-/**
- * GET /api/v1/ai-validation/config
- * Coordinator only. Returns the current AI validation configuration.
- */
+export interface TriggerValidationRequest {
+  teamId?: string;
+  issueKeys?: string[];
+}
+
+export interface TriggerValidationData {
+  jobId: number;
+  sprintId: number;
+  teamId: number | null;
+  issueCount: number;
+  status: string;
+  createdAt: string;
+}
+
+export interface TriggerValidationResponse {
+  status: string;
+  message: string;
+  data: TriggerValidationData;
+}
+
+export type JobStatus =
+  | "QUEUED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "PARTIALLY_COMPLETED"
+  | "FAILED";
+
+export type JobCurrentStep =
+  | "LOADING_CONTEXT"
+  | "FETCHING_PR_DETAILS"
+  | "FETCHING_DIFFS"
+  | "AI_REVIEW_VERIFICATION"
+  | "AI_IMPLEMENTATION_VALIDATION"
+  | "STORING_RESULTS"
+  | null;
+
+export interface JobStatusData {
+  jobId: number;
+  sprintId: number;
+  jobStatus: JobStatus;
+  currentStep: JobCurrentStep;
+  progressPercentage: number;
+  message: string;
+  issuesTotal: number;
+  issuesCompleted: number;
+  issuesFailed: number;
+  failureReason: string | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export interface JobStatusResponse {
+  status: string;
+  data: JobStatusData;
+}
+
+// ── API — Config ───────────────────────────────────────────────────────────
+
 export async function fetchValidationConfig(): Promise<ValidationConfigResponse> {
   const res = await fetch(`${API_BASE}/ai-validation/config`, {
     headers: buildHeaders(),
   });
-
-  if (!res.ok) {
-    const msg = await parseError(res);
-    throw new Error(msg);
-  }
-
+  if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
-/**
- * PUT /api/v1/ai-validation/config
- * Coordinator only. Updates and returns the new AI validation configuration.
- *
- * Business rules enforced server-side:
- * - reviewWeight + implementationWeight must equal 100 → INVALID_WEIGHTS
- * - maxDiffLines (if provided) must be ≥ 1 → INVALID_MAX_DIFF_LINES
- * - openaiModel (if provided) must be one of gpt-4o, gpt-4o-mini, gpt-4-turbo → INVALID_OPENAI_MODEL
- */
 export async function updateValidationConfig(
   payload: ValidationConfigRequest
 ): Promise<ValidationConfigResponse> {
@@ -66,11 +99,69 @@ export async function updateValidationConfig(
     headers: buildHeaders(),
     body: JSON.stringify(payload),
   });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
 
+// ── API — Trigger & Jobs ───────────────────────────────────────────────────
+
+/** POST /ai-validation/sprints/{sprintId}/trigger → 202 */
+export async function triggerValidation(
+  sprintId: string,
+  body?: TriggerValidationRequest
+): Promise<TriggerValidationResponse> {
+  const res = await fetch(`${API_BASE}/ai-validation/sprints/${sprintId}/trigger`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: body ? JSON.stringify(body) : undefined,
+  });
   if (!res.ok) {
-    const msg = await parseError(res);
-    throw new Error(msg);
+    const data = await res.json().catch(() => ({})) as { message?: string; error?: string; existingJobId?: number };
+    throw Object.assign(new Error(data.message || "Failed to trigger validation."), {
+      errorCode: data.error,
+      existingJobId: data.existingJobId ?? null,
+    });
   }
+  return res.json();
+}
 
+/** GET /ai-validation/jobs/{jobId} */
+export async function getJobStatus(jobId: number): Promise<JobStatusResponse> {
+  const res = await fetch(`${API_BASE}/ai-validation/jobs/${jobId}`, {
+    headers: buildHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+/** POST /ai-validation/jobs/{jobId}/retry → 202 */
+export async function retryJob(jobId: number): Promise<TriggerValidationResponse> {
+  const res = await fetch(`${API_BASE}/ai-validation/jobs/${jobId}/retry`, {
+    method: "POST",
+    headers: buildHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+/**
+ * GET /ai-validation/sprints/{sprintId}/active-job
+ * Returns null on 204 (no active job).
+ * Throws with .httpStatus on 403/404.
+ */
+export async function getActiveJobForSprint(
+  sprintId: string
+): Promise<JobStatusResponse | null> {
+  const res = await fetch(`${API_BASE}/ai-validation/sprints/${sprintId}/active-job`, {
+    headers: buildHeaders(),
+  });
+  if (res.status === 204) return null;
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { message?: string; error?: string };
+    throw Object.assign(new Error(data.message || "Failed to fetch active job."), {
+      errorCode: data.error,
+      httpStatus: res.status,
+    });
+  }
   return res.json();
 }

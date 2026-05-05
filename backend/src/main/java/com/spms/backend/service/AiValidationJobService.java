@@ -66,11 +66,12 @@ public class AiValidationJobService {
             throw new P7ApiException(HttpStatus.BAD_REQUEST, "NO_MATCHING_ISSUES", "No issues match the given teamId or issueKeys filter.");
         }
 
-        boolean activeExists = teamId == null
-                ? validationJobRepository.existsBySprint_IdAndTeamIsNullAndJobStatusIn(sprintId, ACTIVE)
-                : validationJobRepository.existsBySprint_IdAndTeam_IdAndJobStatusIn(sprintId, teamId, ACTIVE);
-        if (activeExists) {
-            throw new P7ApiException(HttpStatus.CONFLICT, "VALIDATION_ALREADY_RUNNING", "Validation already running for this sprint/team.");
+        Optional<ValidationJob> existingActive = teamId == null
+                ? validationJobRepository.findFirstBySprint_IdAndTeamIsNullAndJobStatusInOrderByStartedAtDesc(sprintId, ACTIVE)
+                : validationJobRepository.findFirstBySprint_IdAndTeam_IdAndJobStatusInOrderByStartedAtDesc(sprintId, teamId, ACTIVE);
+        if (existingActive.isPresent()) {
+            throw new P7ApiException(HttpStatus.CONFLICT, "VALIDATION_ALREADY_RUNNING",
+                    "Validation already running for this sprint/team.", existingActive.get().getJobId());
         }
 
         ValidationJob job = new ValidationJob();
@@ -97,6 +98,13 @@ public class AiValidationJobService {
     public ValidationJob get(Long jobId) {
         return validationJobRepository.findById(jobId)
                 .orElseThrow(() -> new P7ApiException(HttpStatus.NOT_FOUND, "JOB_NOT_FOUND", "Validation job not found."));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<ValidationJob> getActiveJob(Long sprintId) {
+        sprintRepository.findById(sprintId)
+                .orElseThrow(() -> new P7ApiException(HttpStatus.NOT_FOUND, "SPRINT_NOT_FOUND", "Sprint not found."));
+        return validationJobRepository.findFirstBySprint_IdAndJobStatusInOrderByStartedAtDesc(sprintId, ACTIVE);
     }
 
     @Transactional
