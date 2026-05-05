@@ -325,4 +325,93 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .statusCode(403)
                 .body("error", equalTo("FORBIDDEN"));
     }
+
+    @Test
+    void activeJobReturns204WhenNoActiveJob() {
+        given()
+                .header("Authorization", "Bearer " + coordinatorToken)
+                .when()
+                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    void activeJobReturns200WithJobStatusWhenActive() {
+        ValidationJob active = new ValidationJob();
+        active.setSprint(sprint);
+        active.setTeam(group);
+        active.setJobStatus(ValidationJobStatus.IN_PROGRESS);
+        active.setCurrentStep(ValidationJobStep.AI_REVIEW_VERIFICATION);
+        active.setProgressPercentage(60);
+        active.setIssuesTotal(5);
+        active.setIssuesCompleted(3);
+        active.setIssuesFailed(0);
+        active.setStartedAt(Instant.now());
+        validationJobRepository.save(active);
+
+        given()
+                .header("Authorization", "Bearer " + coordinatorToken)
+                .when()
+                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
+                .then()
+                .statusCode(200)
+                .body("status", equalTo("success"))
+                .body("data.jobStatus", equalTo("IN_PROGRESS"))
+                .body("data.currentStep", equalTo("AI_REVIEW_VERIFICATION"))
+                .body("data.progressPercentage", equalTo(60));
+    }
+
+    @Test
+    void activeJobReturns404WhenSprintNotFound() {
+        given()
+                .header("Authorization", "Bearer " + coordinatorToken)
+                .when()
+                .get("/api/v1/ai-validation/sprints/999999/active-job")
+                .then()
+                .statusCode(404)
+                .body("error", equalTo("SPRINT_NOT_FOUND"));
+    }
+
+    @Test
+    void activeJobReturns403ForStudent() {
+        given()
+                .header("Authorization", "Bearer " + studentToken)
+                .when()
+                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
+                .then()
+                .statusCode(403)
+                .body("error", equalTo("FORBIDDEN"));
+    }
+
+    @Test
+    void activeJobReturns403ForAdvisorOnNonAdviseeTeam() {
+        User otherAdvisor = new User();
+        otherAdvisor.setFullName("Other Advisor");
+        otherAdvisor.setEmail("other-advisor2-" + System.nanoTime() + "@spms.com");
+        otherAdvisor.setRole("advisor");
+        otherAdvisor.setCreatedAt(Instant.now());
+        otherAdvisor = userRepository.save(otherAdvisor);
+        String otherToken = tokenService.generateToken(otherAdvisor);
+
+        ValidationJob active = new ValidationJob();
+        active.setSprint(sprint);
+        active.setTeam(group);
+        active.setJobStatus(ValidationJobStatus.QUEUED);
+        active.setCurrentStep(ValidationJobStep.LOADING_CONTEXT);
+        active.setProgressPercentage(0);
+        active.setIssuesTotal(3);
+        active.setIssuesCompleted(0);
+        active.setIssuesFailed(0);
+        active.setStartedAt(Instant.now());
+        validationJobRepository.save(active);
+
+        given()
+                .header("Authorization", "Bearer " + otherToken)
+                .when()
+                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
+                .then()
+                .statusCode(403)
+                .body("error", equalTo("FORBIDDEN_TEAM_ACCESS"));
+    }
 }
