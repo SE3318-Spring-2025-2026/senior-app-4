@@ -14,6 +14,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -139,6 +141,71 @@ public class GithubApiClient {
             return Optional.of(new PrCheckResult(prNumber, merged, authorLogin));
         } catch (RestClientException exception) {
             return Optional.empty();
+        }
+    }
+
+    /**
+     * Fetch PR review comments (review threads) for a given PR number.
+     * Returns raw review objects: [{id, user.login, body, state}]
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> fetchPrReviews(String orgName, String repoName, long prNumber, String pat) {
+        String url = String.format("https://api.github.com/repos/%s/%s/pulls/%d/reviews",
+                orgName, repoName, prNumber);
+        try {
+            List<Map<String, Object>> reviews = restClient.get()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + pat)
+                    .header(HttpHeaders.ACCEPT, "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .retrieve()
+                    .body((Class<List<Map<String, Object>>>) (Class<?>) List.class);
+            return reviews != null ? reviews : Collections.emptyList();
+        } catch (RestClientException ex) {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Fetch the unified diff of changed files for a PR.
+     * Returns raw file objects: [{filename, patch, status}]
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> fetchPrFiles(String orgName, String repoName, long prNumber, String pat) {
+        String url = String.format("https://api.github.com/repos/%s/%s/pulls/%d/files",
+                orgName, repoName, prNumber);
+        try {
+            List<Map<String, Object>> files = restClient.get()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + pat)
+                    .header(HttpHeaders.ACCEPT, "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .retrieve()
+                    .body((Class<List<Map<String, Object>>>) (Class<?>) List.class);
+            return files != null ? files : Collections.emptyList();
+        } catch (RestClientException ex) {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Fetch PR review comments (inline comments on code) for a given PR.
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> fetchPrReviewComments(String orgName, String repoName, long prNumber, String pat) {
+        String url = String.format("https://api.github.com/repos/%s/%s/pulls/%d/comments",
+                orgName, repoName, prNumber);
+        try {
+            List<Map<String, Object>> comments = restClient.get()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + pat)
+                    .header(HttpHeaders.ACCEPT, "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .retrieve()
+                    .body((Class<List<Map<String, Object>>>) (Class<?>) List.class);
+            return comments != null ? comments : Collections.emptyList();
+        } catch (RestClientException ex) {
+            return Collections.emptyList();
         }
     }
 }

@@ -10,9 +10,11 @@ import com.spms.backend.repository.ValidationJobRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -97,6 +99,13 @@ public class AiValidationJobService {
     public ValidationJob get(Long jobId) {
         return validationJobRepository.findById(jobId)
                 .orElseThrow(() -> new P7ApiException(HttpStatus.NOT_FOUND, "JOB_NOT_FOUND", "Validation job not found."));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<ValidationJob> getActiveJobForSprint(Long sprintId) {
+        sprintRepository.findById(sprintId)
+                .orElseThrow(() -> new P7ApiException(HttpStatus.NOT_FOUND, "SPRINT_NOT_FOUND", "Sprint not found."));
+        return validationJobRepository.findFirstBySprint_IdAndJobStatusIn(sprintId, ACTIVE);
     }
 
     @Transactional
