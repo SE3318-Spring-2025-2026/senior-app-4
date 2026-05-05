@@ -8,6 +8,7 @@ import com.spms.backend.dto.request.SystemLogCreateRequestDto;
 import com.spms.backend.exception.P7ApiException;
 import com.spms.backend.model.*;
 import com.spms.backend.repository.*;
+import com.spms.backend.service.EncryptionService;
 import com.spms.backend.service.SystemLogService;
 import com.spms.backend.service.ValidationJobWriteService;
 import com.spms.backend.service.ValidationPipelineOrchestrator;
@@ -21,6 +22,7 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.LinkedHashMap;
 
 @Service
 public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrchestrator {
@@ -39,6 +41,7 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
     private final OpenAiValidationClient openAiValidationClient;
     private final SystemLogService systemLogService;
     private final ValidationJobWriteService writeService;
+    private final EncryptionService encryptionService;
     private final ObjectMapper objectMapper;
 
     public ValidationPipelineOrchestratorImpl(
@@ -50,6 +53,7 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
             OpenAiValidationClient openAiValidationClient,
             SystemLogService systemLogService,
             ValidationJobWriteService writeService,
+            EncryptionService encryptionService,
             ObjectMapper objectMapper) {
         this.sprintIssueTrackingRepository = sprintIssueTrackingRepository;
         this.issueValidationResultRepository = issueValidationResultRepository;
@@ -59,6 +63,7 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         this.openAiValidationClient = openAiValidationClient;
         this.systemLogService = systemLogService;
         this.writeService = writeService;
+        this.encryptionService = encryptionService;
         this.objectMapper = objectMapper;
     }
 
@@ -169,7 +174,7 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         }
 
         GithubIntegration gh = ghOpt.get();
-        String pat = gh.getGithubPatEncrypted();
+        String pat = encryptionService.decrypt(gh.getGithubPatEncrypted());
         String org = gh.getOrganizationName();
         String repo = gh.getRepositoryName();
 
@@ -327,16 +332,23 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
     private void logD9Subprocess(Long jobId, Long parentJobId, Long sprintId, Long teamId,
                                   String issueKey, String subProcess, long durationMs,
                                   String outcome, String errorCode) {
-        String message = String.format(
-                "{\"jobId\":%d,\"parentJobId\":%s,\"sprintId\":%s,\"teamId\":%s," +
-                "\"issueKey\":\"%s\",\"subProcess\":\"%s\",\"durationMs\":%d," +
-                "\"outcome\":\"%s\",\"errorCode\":%s}",
-                jobId,
-                parentJobId != null ? parentJobId.toString() : "null",
-                sprintId != null ? sprintId.toString() : "null",
-                teamId != null ? teamId.toString() : "null",
-                issueKey, subProcess, durationMs, outcome,
-                errorCode != null ? "\"" + errorCode + "\"" : "null");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("jobId", jobId);
+        payload.put("parentJobId", parentJobId);
+        payload.put("sprintId", sprintId);
+        payload.put("teamId", teamId);
+        payload.put("issueKey", issueKey);
+        payload.put("subProcess", subProcess);
+        payload.put("durationMs", durationMs);
+        payload.put("outcome", outcome);
+        payload.put("errorCode", errorCode);
+
+        String message;
+        try {
+            message = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            message = "{\"jobId\":" + jobId + ",\"subProcess\":\"" + subProcess + "\",\"outcome\":\"" + outcome + "\"}";
+        }
 
         SystemLogCreateRequestDto req = new SystemLogCreateRequestDto();
         req.setEventType("P7_SUBPROCESS");
@@ -349,14 +361,22 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
                                    int completed, int failed) {
         String outcome = failed < 0 ? "FAILED" : (failed == 0 ? "COMPLETED" : "PARTIALLY_COMPLETED");
         String eventType = failed < 0 ? "P7_VALIDATION_FAILED" : "P7_VALIDATION_COMPLETED";
-        String message = String.format(
-                "{\"jobId\":%d,\"parentJobId\":%s,\"sprintId\":%s,\"teamId\":%s," +
-                "\"outcome\":\"%s\",\"completed\":%d,\"failed\":%d}",
-                jobId,
-                parentJobId != null ? parentJobId.toString() : "null",
-                sprintId != null ? sprintId.toString() : "null",
-                teamId != null ? teamId.toString() : "null",
-                outcome, completed, Math.max(failed, 0));
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("jobId", jobId);
+        payload.put("parentJobId", parentJobId);
+        payload.put("sprintId", sprintId);
+        payload.put("teamId", teamId);
+        payload.put("outcome", outcome);
+        payload.put("completed", completed);
+        payload.put("failed", Math.max(failed, 0));
+
+        String message;
+        try {
+            message = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            message = "{\"jobId\":" + jobId + ",\"outcome\":\"" + outcome + "\"}";
+        }
 
         SystemLogCreateRequestDto req = new SystemLogCreateRequestDto();
         req.setEventType(eventType);
