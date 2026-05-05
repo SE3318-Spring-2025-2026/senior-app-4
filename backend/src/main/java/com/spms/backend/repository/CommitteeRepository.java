@@ -11,7 +11,6 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
- import org.springframework.data.repository.query.Param;
 
 public interface CommitteeRepository extends JpaRepository<Committee, Long> {
     Optional<Committee> findByCommitteeId(Long committeeId);
@@ -34,7 +33,8 @@ public interface CommitteeRepository extends JpaRepository<Committee, Long> {
     Page<Committee> findByStatusWithDetails(@Param("status") CommitteeStatus status, Pageable pageable);
     @Query("SELECT c FROM Committee c WHERE " +
        "(:status IS NULL OR c.status = :status) AND " +
-       "(:search IS NULL OR LOWER(c.committeeName) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+       "(:search IS NULL OR LOWER(c.committeeName) LIKE LOWER(CONCAT('%', :search, '%'))) AND " +
+       "(:sort IS NULL OR :sort IS NOT NULL) " +
        "ORDER BY " +
        "CASE WHEN :sort = 'name_asc' THEN c.committeeName END ASC, " +
        "CASE WHEN :sort = 'name_desc' THEN c.committeeName END DESC, " +

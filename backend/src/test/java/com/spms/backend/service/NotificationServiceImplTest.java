@@ -22,6 +22,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
@@ -42,6 +44,8 @@ class NotificationServiceImplTest {
     private ScheduleRepository scheduleRepository;
     @Mock
     private MemberService memberService;
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
 
     private NotificationServiceImpl notificationService;
 
@@ -52,7 +56,8 @@ class NotificationServiceImplTest {
                 userRepository,
                 groupRepository,
                 scheduleRepository,
-                memberService
+                memberService,
+                messagingTemplate
         );
     }
 

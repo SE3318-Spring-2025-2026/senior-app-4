@@ -23,6 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.List;
 import java.util.Optional;
@@ -45,13 +46,15 @@ class NotificationServiceIssue91Test {
     private ScheduleRepository scheduleRepository;
     @Mock
     private MemberService memberService;
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
 
     private NotificationServiceImpl notificationService;
     private Pageable pageable;
 
     @BeforeEach
     void setUp() {
-        notificationService = new NotificationServiceImpl(notificationRepository, userRepository, groupRepository, scheduleRepository, memberService);
+        notificationService = new NotificationServiceImpl(notificationRepository, userRepository, groupRepository, scheduleRepository, memberService, messagingTemplate);
         pageable = PageRequest.of(0, 10);
     }
 

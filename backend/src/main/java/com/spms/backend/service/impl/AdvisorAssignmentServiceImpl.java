@@ -217,6 +217,10 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
             throw new BadRequestException("Advisor already assigned to this committee");
         }
 
+        if (committee.getAdvisors().size() >= 5) {
+            throw new BadRequestException("Committee cannot have more than 5 advisors");
+        }
+
         CommitteeAdvisor committeeAdvisor = new CommitteeAdvisor(committee, advisor, role, assignedBy);
         committee.getAdvisors().add(committeeAdvisor);
         committeeRepository.save(committee);
