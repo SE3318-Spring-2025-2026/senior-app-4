@@ -7,7 +7,11 @@ import com.spms.backend.model.notification.NotificationStatus;
 import com.spms.backend.model.User;
 import com.spms.backend.repository.NotificationRepository;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.repository.GroupRepository;
+import com.spms.backend.repository.ScheduleRepository;
+import com.spms.backend.service.MemberService;
 import com.spms.backend.service.impl.NotificationServiceImpl;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +38,14 @@ public class NotificationServiceProcess5Test {
 
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private GroupRepository groupRepository;
+    @Mock
+    private ScheduleRepository scheduleRepository;
+    @Mock
+    private MemberService memberService;
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
     private NotificationServiceImpl notificationService;

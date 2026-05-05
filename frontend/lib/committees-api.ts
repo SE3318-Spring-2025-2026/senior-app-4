@@ -646,3 +646,66 @@ export async function removeAdvisor(
 
     if (!res.ok) throw new Error(await parseError(res));
 }
+
+export async function assignJury(
+    committeeId: number,
+    professorId: number,
+    juryType: string
+): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/committees/${committeeId}/jury`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({ juryMemberId: professorId, juryType }),
+    });
+
+    if (!res.ok) throw new Error(await parseError(res));
+}
+
+export async function removeJury(
+    committeeId: number,
+    professorId: number
+): Promise<void> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/committees/${committeeId}/jury/${professorId}`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) throw new Error(await parseError(res));
+}
+
+export type ValidationRules = {
+    minAdvisors?: number;
+    maxAdvisors?: number;
+    minJury?: number;
+    maxJury?: number;
+    scheduleWindow?: string;
+    explicitRules?: string[];
+    [key: string]: any;
+};
+
+export async function fetchValidationRules(
+    committeeId: number
+): Promise<ValidationRules> {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/committees/${committeeId}/validation-rules`, {
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        cache: "no-store",
+    });
+
+    if (!res.ok) throw new Error(await parseError(res));
+    const data = await res.json();
+    // backend may wrap in { data: {...} } or return directly
+    return data?.data ?? data;
+}

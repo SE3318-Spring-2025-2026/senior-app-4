@@ -80,6 +80,11 @@ public class JuryAssignmentServiceImpl implements JuryAssignmentService {
             throw new ConflictException(duplicateResult.reason());
         }
 
+        // Enforce max jury limit (matches ValidationService rules: max 2)
+        if (committee.getJuryMembers() != null && committee.getJuryMembers().size() >= 2) {
+            throw new com.spms.backend.exception.BadRequestException("Committee cannot have more than 2 jury members");
+        }
+
         CommitteeJury committeeJury = new CommitteeJury(committee, juryMember, juryType.toUpperCase(), assignedBy);
         committee.getJuryMembers().add(committeeJury);
         committeeRepository.save(committee);
