@@ -85,7 +85,10 @@ export default function GroupDetailPage() {
 
     const isLeader =
         Number.isFinite(currentUserId) &&
-        Number(group?.leaderId) === currentUserId;
+        group?.leaderId != null &&
+        Number(group.leaderId) === currentUserId;
+
+    const isCoordinator = currentUser?.role?.toLowerCase() === "coordinator";
 
     const isStudent = currentUser?.role?.toLowerCase() === "student";
 
@@ -536,7 +539,7 @@ export default function GroupDetailPage() {
                         </div>
                     )}
 
-                    {isLeader && (
+                    {(isLeader || isCoordinator) && (
                         <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-7 shadow-lg shadow-black/20 backdrop-blur mb-6">
                             <h2 className="text-xl font-semibold mb-1 text-red-400">Danger Zone: Disband Group</h2>
                             <p className="text-sm text-gray-400 mb-5">

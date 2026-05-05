@@ -29,26 +29,6 @@ export default function CoordinatorCommitteesPage() {
     const [apiError, setApiError] = useState("");
     const [totalPages, setTotalPages] = useState(1);
 
-    const updateUrlParams = useCallback((updates: Record<string, string | number>) => {
-        const params = new URLSearchParams(searchParams.toString());
-
-        Object.entries(updates).forEach(([key, value]) => {
-            if (
-                value === "" ||
-                value === "ALL" ||
-                value === "created_desc" ||
-                value === 1 ||
-                value === 10
-            ) {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-
-        const query = params.toString();
-        router.replace(query ? `${pathname}?${query}` : pathname);
-    }, [searchParams, router, pathname]);
     const editId = searchParams.get("edit");
 
     const initialStatus = searchParams.get("status") || "ALL";
@@ -67,13 +47,13 @@ export default function CoordinatorCommitteesPage() {
     const currentUser = getUser();
     const coordinatorId = currentUser?.userId ?? 1;
 
-    async function loadCommittees(
+    const loadCommittees = useCallback(async (
         nextPage = page,
         nextStatus = statusFilter,
         nextSearch = searchQuery,
         nextSort = sortOption,
         nextSize = pageSize
-    ) {
+    ) => {
         setLoading(true);
         try {
             const response = await fetchCoordinatorCommittees(
@@ -94,21 +74,27 @@ export default function CoordinatorCommitteesPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [coordinatorId]);
 
     useEffect(() => {
         loadCommittees(1, statusFilter, searchQuery, sortOption, pageSize);
-    }, [statusFilter, searchQuery, sortOption, pageSize]);
+    }, [statusFilter, searchQuery, sortOption, pageSize, loadCommittees]);
 
     useEffect(() => {
         const timeout = setTimeout(() => {
             setPage(1);
             setSearchQuery(searchInput);
-            updateUrlParams({ search: searchInput, page: 1 });
+            const params = new URLSearchParams();
+            if (searchInput) params.set("search", searchInput);
+            if (statusFilter !== "ALL") params.set("status", statusFilter);
+            if (sortOption !== "created_desc") params.set("sort", sortOption);
+            if (pageSize !== 10) params.set("size", String(pageSize));
+            const query = params.toString();
+            router.replace(query ? `${pathname}?${query}` : pathname);
         }, 300);
 
         return () => clearTimeout(timeout);
-    }, [searchInput, updateUrlParams]);
+    }, [searchInput]);
 
     useEffect(() => {
         if (!editId) return;
@@ -190,7 +176,14 @@ export default function CoordinatorCommitteesPage() {
         if (nextPage < 1 || nextPage > totalPages) return;
 
         setPage(nextPage);
-        updateUrlParams({ page: nextPage });
+        const params = new URLSearchParams();
+        if (searchQuery) params.set("search", searchQuery);
+        if (statusFilter !== "ALL") params.set("status", statusFilter);
+        if (sortOption !== "created_desc") params.set("sort", sortOption);
+        if (pageSize !== 10) params.set("size", String(pageSize));
+        if (nextPage !== 1) params.set("page", String(nextPage));
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname);
         loadCommittees(nextPage, statusFilter, searchQuery, sortOption, pageSize);
     }
 
@@ -264,9 +257,16 @@ export default function CoordinatorCommitteesPage() {
                             <select
                                 value={statusFilter}
                                 onChange={(e) => {
+                                    const newStatus = e.target.value;
                                     setPage(1);
-                                    setStatusFilter(e.target.value);
-                                    updateUrlParams({ status: e.target.value, page: 1 });
+                                    setStatusFilter(newStatus);
+                                    const params = new URLSearchParams();
+                                    if (searchQuery) params.set("search", searchQuery);
+                                    if (newStatus !== "ALL") params.set("status", newStatus);
+                                    if (sortOption !== "created_desc") params.set("sort", sortOption);
+                                    if (pageSize !== 10) params.set("size", String(pageSize));
+                                    const query = params.toString();
+                                    router.replace(query ? `${pathname}?${query}` : pathname);
                                 }}
                                 className="rounded-xl border border-white/10 bg-gray-950 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
                             >
@@ -279,9 +279,16 @@ export default function CoordinatorCommitteesPage() {
                             <select
                                 value={sortOption}
                                 onChange={(e) => {
+                                    const newSort = e.target.value;
                                     setPage(1);
-                                    setSortOption(e.target.value);
-                                    updateUrlParams({ sort: e.target.value, page: 1 });
+                                    setSortOption(newSort);
+                                    const params = new URLSearchParams();
+                                    if (searchQuery) params.set("search", searchQuery);
+                                    if (statusFilter !== "ALL") params.set("status", statusFilter);
+                                    if (newSort !== "created_desc") params.set("sort", newSort);
+                                    if (pageSize !== 10) params.set("size", String(pageSize));
+                                    const query = params.toString();
+                                    router.replace(query ? `${pathname}?${query}` : pathname);
                                 }}
                                 className="rounded-xl border border-white/10 bg-gray-950 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
                             >
@@ -297,7 +304,13 @@ export default function CoordinatorCommitteesPage() {
                                     const nextSize = Number(e.target.value);
                                     setPage(1);
                                     setPageSize(nextSize);
-                                    updateUrlParams({ size: nextSize, page: 1 });
+                                    const params = new URLSearchParams();
+                                    if (searchQuery) params.set("search", searchQuery);
+                                    if (statusFilter !== "ALL") params.set("status", statusFilter);
+                                    if (sortOption !== "created_desc") params.set("sort", sortOption);
+                                    if (nextSize !== 10) params.set("size", String(nextSize));
+                                    const query = params.toString();
+                                    router.replace(query ? `${pathname}?${query}` : pathname);
                                 }}
                                 className="rounded-xl border border-white/10 bg-gray-950 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
                             >

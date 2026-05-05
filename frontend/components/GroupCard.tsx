@@ -2,14 +2,43 @@ import Link from "next/link";
 import Image from "next/image";
 import { Group } from "@/lib/group-types";
 import StatusBadge from "@/components/StatusBadge";
+import { deleteGroupApi } from "@/lib/groups-api";
+import { useState } from "react";
+import { showToast } from "@/components/toast/ToastContext";
 
 
 type Props = {
     group: Group;
     isOwnGroup?: boolean;
+    isLeader?: boolean;
+    onDisbanded?: () => void;
 };
 
-export default function GroupCard({ group, isOwnGroup = false }: Props) {
+export default function GroupCard({ group, isOwnGroup = false, isLeader = false, onDisbanded }: Props) {
+    const [disbanding, setDisbanding] = useState(false);
+
+    const handleDisband = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const confirmed = window.confirm(
+            "Are you sure you want to disband this group? This action cannot be undone."
+        );
+        if (!confirmed) return;
+
+        setDisbanding(true);
+        try {
+            await deleteGroupApi(group.groupId);
+            showToast("Group disbanded successfully!", "success");
+            onDisbanded?.();
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to disband group.";
+            showToast(message, "error");
+        } finally {
+            setDisbanding(false);
+        }
+    };
+
     return (
         <Link href={`/groups/${group.groupId}`}>
             <div
@@ -76,6 +105,18 @@ export default function GroupCard({ group, isOwnGroup = false }: Props) {
                         </span>
                     </div>
                 </div>
+
+                {isLeader && (
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                        <button
+                            onClick={handleDisband}
+                            disabled={disbanding}
+                            className="w-full rounded-lg bg-red-600/20 text-red-400 border border-red-500/30 px-3 py-2 text-xs font-medium hover:bg-red-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {disbanding ? "Disbanding..." : "Disband Group"}
+                        </button>
+                    </div>
+                )}
             </div>
         </Link>
     );

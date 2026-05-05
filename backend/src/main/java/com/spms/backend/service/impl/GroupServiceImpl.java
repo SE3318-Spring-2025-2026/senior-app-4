@@ -237,6 +237,14 @@ public class GroupServiceImpl implements GroupService {
             userRepository.save(user);
         }
 
+        // Advisor varsa temizle ve sayıyı azalt
+        if (group.getAdvisor() != null) {
+            User advisor = group.getAdvisor();
+            group.setAdvisor(null);
+            advisor.setCurrentAdviseeCount(Math.max(0, advisor.getCurrentAdviseeCount() - 1));
+            userRepository.save(advisor);
+        }
+
         // JPA cascade/orphanRemoval çakışmasını önlemek için önce in-memory koleksiyonu temizle
         group.getMembers().clear();
 

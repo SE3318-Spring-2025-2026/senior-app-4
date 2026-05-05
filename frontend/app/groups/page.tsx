@@ -16,7 +16,7 @@ import {
     fetchJiraIntegration,
 } from "@/lib/integrations-api";
 import { Group } from "@/lib/group-types";
-import { getUser } from "@/lib/auth";
+import { getUser, getToken, decodeToken } from "@/lib/auth";
 import { showToast } from "@/components/toast/ToastContext";
 
 function isIntegrationConnected(data?: {
@@ -88,6 +88,23 @@ function GroupsContent() {
 
     const pageSize = 6;
     const currentUser = getUser();
+    const token = getToken();
+    const decoded = token ? decodeToken(token) : null;
+    const currentUserId = Number(
+        decoded?.userId ??
+        decoded?.jwt_userId ??
+        decoded?.user_id ??
+        decoded?.id ??
+        decoded?.sub
+    );
+
+    const handleGroupDisbanded = async () => {
+        const response = await fetchGroups(0, pageSize, statusFilter, searchQuery, advisorFilter);
+        const mappedGroups = response.content?.map(mapApiGroupToUiGroup) || [];
+        setGroups(mappedGroups);
+        const fetchedTotalPages = response.totalPages ?? (response as any).page?.totalPages ?? 1;
+        setTotalPages(Math.max(fetchedTotalPages, 1));
+    };
 
 
     useEffect(() => {
@@ -363,6 +380,8 @@ function GroupsContent() {
                                         key={group.groupId}
                                         group={group}
                                         isOwnGroup={group.groupId === ownGroupId}
+                                        isLeader={Number(group.leaderId) === currentUserId}
+                                        onDisbanded={handleGroupDisbanded}
                                     />
                                 ))}
                             </div>
