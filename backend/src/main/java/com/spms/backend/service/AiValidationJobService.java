@@ -49,7 +49,7 @@ public class AiValidationJobService {
         Long teamId = request != null ? request.teamId() : null;
         if (teamId != null) {
             team = groupRepository.findById(teamId)
-                    .orElseThrow(() -> new P7ApiException(HttpStatus.NOT_FOUND, "SPRINT_NOT_FOUND", "Sprint context not found for team."));
+                    .orElseThrow(() -> new P7ApiException(HttpStatus.NOT_FOUND, "TEAM_NOT_FOUND", "Team not found."));
         }
 
         List<SprintIssueTracking> allIssues = sprintIssueTrackingRepository.findBySprint_Id(sprintId);
@@ -59,11 +59,11 @@ public class AiValidationJobService {
                         || request.issueKeys().contains(it.getIssueKey()))
                 .collect(Collectors.toList());
 
+        if (allIssues.isEmpty()) {
+            throw new P7ApiException(HttpStatus.BAD_REQUEST, "NO_ISSUES_IN_SPRINT", "No issues found in sprint context.");
+        }
         if (filtered.isEmpty()) {
-            if (allIssues.isEmpty()) {
-                throw new P7ApiException(HttpStatus.BAD_REQUEST, "NO_ISSUES_IN_SPRINT", "No issues found in sprint context.");
-            }
-            throw new P7ApiException(HttpStatus.BAD_REQUEST, "SPRINT_NOT_READY", "Sprint context is not ready for validation.");
+            throw new P7ApiException(HttpStatus.BAD_REQUEST, "NO_MATCHING_ISSUES", "No issues match the given teamId or issueKeys filter.");
         }
 
         boolean activeExists = teamId == null

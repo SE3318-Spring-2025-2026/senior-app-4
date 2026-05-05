@@ -1,5 +1,7 @@
-package com.spms.api;
+package com.spms.backend.api;
 
+import com.spms.api.BaseApiTest;
+import com.spms.api.TestDataFactory;
 import com.spms.backend.model.*;
 import com.spms.backend.repository.*;
 import com.spms.backend.service.TokenService;
@@ -14,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class AiValidationJobsApiTest extends BaseApiTest {
@@ -82,8 +84,8 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .post("/api/v1/ai-validation/sprints/999999/trigger")
                 .then()
                 .statusCode(404)
-                .body("errorCode", equalTo("SPRINT_NOT_FOUND"))
-                .body("status", equalTo("error"));
+                .body("error", equalTo("SPRINT_NOT_FOUND"))
+                .body("message", equalTo("Sprint not found."));
     }
 
     @Test
@@ -95,7 +97,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
                 .then()
                 .statusCode(400)
-                .body("errorCode", equalTo("NO_ISSUES_IN_SPRINT"));
+                .body("error", equalTo("NO_ISSUES_IN_SPRINT"));
     }
 
     @Test
@@ -142,7 +144,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
                 .then()
                 .statusCode(409)
-                .body("errorCode", equalTo("VALIDATION_ALREADY_RUNNING"));
+                .body("error", equalTo("VALIDATION_ALREADY_RUNNING"));
     }
 
     @Test
@@ -174,7 +176,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .get("/api/v1/ai-validation/jobs/" + job.getJobId())
                 .then()
                 .statusCode(403)
-                .body("errorCode", equalTo("FORBIDDEN_TEAM_ACCESS"));
+                .body("error", equalTo("FORBIDDEN_TEAM_ACCESS"));
     }
 
     @Test
@@ -217,7 +219,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .get("/api/v1/ai-validation/jobs/999999")
                 .then()
                 .statusCode(404)
-                .body("errorCode", equalTo("JOB_NOT_FOUND"));
+                .body("error", equalTo("JOB_NOT_FOUND"));
     }
 
     @Test
@@ -238,7 +240,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .post("/api/v1/ai-validation/jobs/" + completed.getJobId() + "/retry")
                 .then()
                 .statusCode(400)
-                .body("errorCode", equalTo("JOB_NOT_RETRYABLE"));
+                .body("error", equalTo("JOB_NOT_RETRYABLE"));
 
         ValidationJob failed = new ValidationJob();
         failed.setSprint(sprint);
@@ -266,7 +268,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .post("/api/v1/ai-validation/jobs/" + failed.getJobId() + "/retry")
                 .then()
                 .statusCode(409)
-                .body("errorCode", equalTo("JOB_RETRY_ALREADY_RUNNING"));
+                .body("error", equalTo("JOB_RETRY_ALREADY_RUNNING"));
 
         Long failedJobId = failed.getJobId();
         List<ValidationJob> jobs = validationJobRepository.findAll().stream()
@@ -288,7 +290,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
                 .then()
                 .statusCode(403)
-                .body("errorCode", equalTo("FORBIDDEN"));
+                .body("error", equalTo("FORBIDDEN"));
 
         given()
                 .contentType(ContentType.JSON)
@@ -298,7 +300,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
                 .then()
                 .statusCode(403)
-                .body("errorCode", equalTo("FORBIDDEN"));
+                .body("error", equalTo("FORBIDDEN"));
     }
 
     @Test
@@ -321,6 +323,6 @@ public class AiValidationJobsApiTest extends BaseApiTest {
                 .post("/api/v1/ai-validation/jobs/" + failed.getJobId() + "/retry")
                 .then()
                 .statusCode(403)
-                .body("errorCode", equalTo("FORBIDDEN"));
+                .body("error", equalTo("FORBIDDEN"));
     }
 }

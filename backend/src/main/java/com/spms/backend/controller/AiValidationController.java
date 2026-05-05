@@ -1,8 +1,8 @@
 package com.spms.backend.controller;
 
 import com.spms.backend.dto.request.TriggerValidationRequest;
+import com.spms.backend.dto.response.ErrorResponse;
 import com.spms.backend.dto.response.JobStatusResponse;
-import com.spms.backend.dto.response.P7ErrorResponse;
 import com.spms.backend.dto.response.TriggerValidationResponse;
 import com.spms.backend.exception.P7ApiException;
 import com.spms.backend.model.ValidationJob;
@@ -42,7 +42,7 @@ public class AiValidationController {
             ));
         } catch (P7ApiException ex) {
             return ResponseEntity.status(ex.getStatus())
-                    .body(new P7ErrorResponse("error", ex.getMessage(), ex.getErrorCode()));
+                    .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
         }
     }
 
@@ -74,7 +74,7 @@ public class AiValidationController {
             ));
         } catch (P7ApiException ex) {
             return ResponseEntity.status(ex.getStatus())
-                    .body(new P7ErrorResponse("error", ex.getMessage(), ex.getErrorCode()));
+                    .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
         }
     }
 
@@ -100,7 +100,7 @@ public class AiValidationController {
             ));
         } catch (P7ApiException ex) {
             return ResponseEntity.status(ex.getStatus())
-                    .body(new P7ErrorResponse("error", ex.getMessage(), ex.getErrorCode()));
+                    .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
         }
     }
 
