@@ -8,6 +8,7 @@ import { deleteCommittee, fetchCommitteeById } from "@/lib/committees-api";
 import { getUser } from "@/lib/auth";
 import { CommitteeDetail } from "@/lib/committee-types";
 import { showToast } from "@/components/toast/ToastContext";
+import CommitteeAssignmentManager from "@/components/committees/CommitteeAssignmentManager";
 
 export default function CommitteeDetailPage() {
     const params = useParams();
@@ -170,7 +171,6 @@ export default function CommitteeDetailPage() {
 
                             <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6">
                                 <h2 className="text-xl font-semibold">Committee Details</h2>
-
                                 <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <Info label="Committee ID" value={String(committee.committeeId)} />
                                     <Info label="Created By" value={`User #${committee.createdBy}`} />
@@ -192,59 +192,13 @@ export default function CommitteeDetailPage() {
                                     />
                                 </div>
                             </div>
-                            <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6">
-                                <h2 className="text-xl font-semibold">Advisors</h2>
 
-                                <div className="mt-4 space-y-3">
-                                    {committee.advisors.length === 0 ? (
-                                        <p className="text-gray-400 text-sm">No advisors assigned.</p>
-                                    ) : (
-                                        committee.advisors.map((advisor) => (
-                                            <div
-                                                key={advisor.id}
-                                                className="flex justify-between items-center border border-white/10 rounded-lg p-3 bg-white/5"
-                                            >
-                                                <div>
-                                                    <p className="font-medium">{advisor.name}</p>
-                                                    <p className="text-sm text-gray-400">{advisor.email}</p>
-                                                </div>
-
-                                                <p className="text-xs text-gray-400">
-                                                    {new Date(advisor.assignedAt).toLocaleString()}
-                                                </p>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
+                            <div className="mt-2">
+                                <CommitteeAssignmentManager committeeId={committeeId} />
                             </div>
-                            <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6">
-                                <h2 className="text-xl font-semibold">Jury</h2>
 
-                                <div className="mt-4 space-y-3">
-                                    {committee.jury.length === 0 ? (
-                                        <p className="text-gray-400 text-sm">No jury members assigned.</p>
-                                    ) : (
-                                        committee.jury.map((member) => (
-                                            <div
-                                                key={member.id}
-                                                className="flex justify-between items-center border border-white/10 rounded-lg p-3 bg-white/5"
-                                            >
-                                                <div>
-                                                    <p className="font-medium">{member.name}</p>
-                                                    <p className="text-sm text-gray-400">{member.email}</p>
-                                                </div>
-
-                                                <p className="text-xs text-gray-400">
-                                                    {new Date(member.assignedAt).toLocaleString()}
-                                                </p>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
                             <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6">
                                 <h2 className="text-xl font-semibold">Assigned Groups</h2>
-
                                 <div className="mt-4 space-y-3">
                                     {committee.groups.length === 0 ? (
                                         <p className="text-gray-400 text-sm">No groups assigned.</p>
@@ -260,7 +214,6 @@ export default function CommitteeDetailPage() {
                                                         Members: {group.membersCount}
                                                     </p>
                                                 </div>
-
                                                 <div className="text-right text-sm text-gray-400">
                                                     <p>{group.status}</p>
                                                     <p>
