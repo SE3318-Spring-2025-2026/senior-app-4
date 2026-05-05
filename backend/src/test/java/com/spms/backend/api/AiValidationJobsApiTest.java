@@ -6,14 +6,17 @@ import com.spms.backend.model.*;
 import com.spms.backend.repository.*;
 import com.spms.backend.service.TokenService;
 import io.restassured.http.ContentType;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
@@ -27,18 +30,69 @@ public class AiValidationJobsApiTest extends BaseApiTest {
     @Autowired private SprintIssueTrackingRepository sprintIssueTrackingRepository;
     @Autowired private ValidationJobRepository validationJobRepository;
     @Autowired private SystemLogRepository systemLogRepository;
+    @Autowired private IssueValidationResultRepository issueValidationResultRepository;
     @Autowired private TokenService tokenService;
 
     private String coordinatorToken;
     private String advisorToken;
     private String studentToken;
+    private User coordinator;
     private User advisor;
+    private User student;
     private Group group;
     private Sprint sprint;
+    private final List<Long> extraUserIds = new ArrayList<>();
+
+    @AfterEach
+    void cleanup() {
+        if (sprint == null) return;
+        Long sprintId = sprint.getId();
+
+        // 1. Find all jobs for this sprint
+        List<ValidationJob> jobs = validationJobRepository.findAll().stream()
+                .filter(j -> j.getSprint() != null && sprintId.equals(j.getSprint().getId()))
+                .collect(Collectors.toList());
+        List<Long> jobIds = jobs.stream().map(ValidationJob::getJobId).collect(Collectors.toList());
+
+        // 2. Delete issue_validation_results first (FK child of validation_jobs)
+        jobIds.forEach(id ->
+                issueValidationResultRepository.deleteAll(
+                        issueValidationResultRepository.findByJob_JobId(id)));
+
+        // 3. Nullify self-referencing parent_job_id before bulk delete to avoid FK violations
+        jobs.forEach(j -> j.setParentJob(null));
+        validationJobRepository.saveAll(jobs);
+        validationJobRepository.deleteAll(jobs);
+
+        // 2. Sprint issue tracking
+        sprintIssueTrackingRepository.deleteAll(
+                sprintIssueTrackingRepository.findBySprint_Id(sprintId));
+
+        // 3. Group (unset FK references first)
+        if (group != null) {
+            group.setAdvisor(null);
+            group.setLeader(null);
+            groupRepository.save(group);
+            groupRepository.deleteById(group.getId());
+        }
+
+        // 4. Sprint
+        sprintRepository.deleteById(sprintId);
+
+        // 5. Core users created in @BeforeEach
+        if (student != null)      userRepository.deleteById(student.getUserId());
+        if (advisor != null)      userRepository.deleteById(advisor.getUserId());
+        if (coordinator != null)  userRepository.deleteById(coordinator.getUserId());
+
+        // 6. Extra users created inside individual test methods
+        extraUserIds.forEach(id -> userRepository.deleteById(id));
+    }
 
     @BeforeEach
     void setupData() {
-        User coordinator = new User();
+        extraUserIds.clear();
+
+        coordinator = new User();
         coordinator.setFullName("Coord");
         coordinator.setEmail("coord-" + System.nanoTime() + "@spms.com");
         coordinator.setRole("coordinator");
@@ -54,7 +108,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
         advisor = userRepository.save(advisor);
         advisorToken = tokenService.generateToken(advisor);
 
-        User student = new User();
+        student = new User();
         student.setFullName("Student");
         student.setEmail("student-" + System.nanoTime() + "@spms.com");
         student.setRole("student");
@@ -155,6 +209,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
         otherAdvisor.setRole("advisor");
         otherAdvisor.setCreatedAt(Instant.now());
         otherAdvisor = userRepository.save(otherAdvisor);
+        extraUserIds.add(otherAdvisor.getUserId());
         String otherAdvisorToken = tokenService.generateToken(otherAdvisor);
 
         ValidationJob job = new ValidationJob();
@@ -392,6 +447,7 @@ public class AiValidationJobsApiTest extends BaseApiTest {
         otherAdvisor.setRole("advisor");
         otherAdvisor.setCreatedAt(Instant.now());
         otherAdvisor = userRepository.save(otherAdvisor);
+        extraUserIds.add(otherAdvisor.getUserId());
         String otherToken = tokenService.generateToken(otherAdvisor);
 
         ValidationJob active = new ValidationJob();
