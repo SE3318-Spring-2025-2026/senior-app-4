@@ -9,14 +9,15 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 import java.util.Map;
 
 /**
  * Thin HTTP client for OpenAI Chat Completions API.
- * Uses structured JSON output (response_format: json_object) for deterministic parsing.
- * DFD 7.4 (review verification) and 7.5 (implementation validation).
+ * Makes a single call per invocation — retry logic lives in the orchestrator
+ * so each attempt can be independently logged to D9.
  */
 @Component
 public class OpenAiValidationClient {
@@ -36,11 +37,9 @@ public class OpenAiValidationClient {
     }
 
     /**
-     * 7.4 — AI Review Verification.
-     * Returns parsed map with: score, reviewQuality, hasChangeRequests,
-     * hasSubstantiveComments, reviewerCount, aiFeedback.
+     * 7.4 — AI Review Verification. Single attempt; caller handles retry.
      */
-    public Map<String, Object> verifyReview(String model, String reviewsJson) {
+    public OpenAiCallResult verifyReview(String model, String reviewsJson) {
         String systemPrompt = """
                 You are an expert code review auditor. Evaluate whether a genuine, substantive code review occurred on a pull request.
                 Return ONLY a valid JSON object with these fields:
@@ -51,17 +50,14 @@ public class OpenAiValidationClient {
                 - reviewerCount (integer): number of distinct reviewers
                 - aiFeedback (string): one or two sentence explanation
                 """;
-        String userMessage = "PR reviews data (JSON):\n" + reviewsJson;
-        return callOpenAi(model, systemPrompt, userMessage);
+        return callOpenAi(model, systemPrompt, "PR reviews data (JSON):\n" + reviewsJson);
     }
 
     /**
-     * 7.5 — AI Implementation Validation.
-     * Returns parsed map with: score, isValid, coverageAreas, missingRequirements,
-     * aiFeedback, filesAnalyzed, diffTruncated.
+     * 7.5 — AI Implementation Validation. Single attempt; caller handles retry.
      */
-    public Map<String, Object> validateImplementation(String model, String issueDescription, String diffText,
-                                                      int filesAnalyzed, boolean diffTruncated) {
+    public OpenAiCallResult validateImplementation(String model, String issueDescription, String diffText,
+                                                   int filesAnalyzed, boolean diffTruncated) {
         String systemPrompt = """
                 You are a senior software engineer validating whether code changes match a given issue description.
                 Return ONLY a valid JSON object with these fields:
@@ -80,13 +76,7 @@ public class OpenAiValidationClient {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> callOpenAi(String model, String systemPrompt, String userMessage) {
-        return callOpenAiWithRetry(model, systemPrompt, userMessage, 1);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> callOpenAiWithRetry(String model, String systemPrompt, String userMessage,
-                                                     int retriesLeft) {
+    private OpenAiCallResult callOpenAi(String model, String systemPrompt, String userMessage) {
         Map<String, Object> body = Map.of(
                 "model", model,
                 "response_format", Map.of("type", "json_object"),
@@ -116,16 +106,34 @@ public class OpenAiValidationClient {
 
             Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
             String content = (String) message.get("content");
-            return objectMapper.readValue(content, (Class<Map<String, Object>>) (Class<?>) Map.class);
+            Map<String, Object> parsed = objectMapper.readValue(
+                    content, (Class<Map<String, Object>>) (Class<?>) Map.class);
 
+            return new OpenAiCallResult(parsed, 200, extractTokenCount(response));
+
+        } catch (RestClientResponseException ex) {
+            throw new P7ApiException(HttpStatus.BAD_GATEWAY, "OPENAI_ERROR",
+                    "OpenAI API error: HTTP " + ex.getStatusCode().value());
         } catch (RestClientException ex) {
-            if (retriesLeft > 0) return callOpenAiWithRetry(model, systemPrompt, userMessage, retriesLeft - 1);
             throw new P7ApiException(HttpStatus.BAD_GATEWAY, "OPENAI_ERROR",
-                    "OpenAI API call failed after retry");
+                    "OpenAI API call failed");
+        } catch (P7ApiException ex) {
+            throw ex;
         } catch (Exception ex) {
-            if (retriesLeft > 0) return callOpenAiWithRetry(model, systemPrompt, userMessage, retriesLeft - 1);
             throw new P7ApiException(HttpStatus.BAD_GATEWAY, "OPENAI_ERROR",
-                    "Failed to parse OpenAI response after retry");
+                    "Failed to parse OpenAI response");
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private int extractTokenCount(Map<String, Object> response) {
+        try {
+            Map<String, Object> usage = (Map<String, Object>) response.get("usage");
+            if (usage != null) {
+                Object tokens = usage.get("completion_tokens");
+                if (tokens instanceof Number n) return n.intValue();
+            }
+        } catch (Exception ignored) {}
+        return 0;
     }
 }

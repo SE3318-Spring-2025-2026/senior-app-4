@@ -3,6 +3,7 @@ package com.spms.backend.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.client.GithubApiClient;
+import com.spms.backend.client.OpenAiCallResult;
 import com.spms.backend.client.OpenAiValidationClient;
 import com.spms.backend.dto.request.SystemLogCreateRequestDto;
 import com.spms.backend.exception.P7ApiException;
@@ -22,7 +23,6 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.LinkedHashMap;
 
 @Service
 public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrchestrator {
@@ -30,19 +30,19 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
     private static final Logger logger = LoggerFactory.getLogger(ValidationPipelineOrchestratorImpl.class);
 
     private static final String STATUS_VALIDATED = "VALIDATED";
-    private static final String STATUS_FAILED = "FAILED";
-    private static final String STATUS_SKIPPED = "SKIPPED";
+    private static final String STATUS_FAILED    = "FAILED";
+    private static final String STATUS_SKIPPED   = "SKIPPED";
 
-    private final SprintIssueTrackingRepository sprintIssueTrackingRepository;
-    private final IssueValidationResultRepository issueValidationResultRepository;
-    private final GithubIntegrationRepository githubIntegrationRepository;
-    private final ValidationConfigRepository validationConfigRepository;
-    private final GithubApiClient githubApiClient;
-    private final OpenAiValidationClient openAiValidationClient;
-    private final SystemLogService systemLogService;
-    private final ValidationJobWriteService writeService;
-    private final EncryptionService encryptionService;
-    private final ObjectMapper objectMapper;
+    private final SprintIssueTrackingRepository    sprintIssueTrackingRepository;
+    private final IssueValidationResultRepository  issueValidationResultRepository;
+    private final GithubIntegrationRepository      githubIntegrationRepository;
+    private final ValidationConfigRepository       validationConfigRepository;
+    private final GithubApiClient                  githubApiClient;
+    private final OpenAiValidationClient           openAiValidationClient;
+    private final SystemLogService                 systemLogService;
+    private final ValidationJobWriteService        writeService;
+    private final EncryptionService                encryptionService;
+    private final ObjectMapper                     objectMapper;
 
     public ValidationPipelineOrchestratorImpl(
             SprintIssueTrackingRepository sprintIssueTrackingRepository,
@@ -55,24 +55,24 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
             ValidationJobWriteService writeService,
             EncryptionService encryptionService,
             ObjectMapper objectMapper) {
-        this.sprintIssueTrackingRepository = sprintIssueTrackingRepository;
+        this.sprintIssueTrackingRepository   = sprintIssueTrackingRepository;
         this.issueValidationResultRepository = issueValidationResultRepository;
-        this.githubIntegrationRepository = githubIntegrationRepository;
-        this.validationConfigRepository = validationConfigRepository;
-        this.githubApiClient = githubApiClient;
-        this.openAiValidationClient = openAiValidationClient;
-        this.systemLogService = systemLogService;
-        this.writeService = writeService;
-        this.encryptionService = encryptionService;
-        this.objectMapper = objectMapper;
+        this.githubIntegrationRepository     = githubIntegrationRepository;
+        this.validationConfigRepository      = validationConfigRepository;
+        this.githubApiClient                 = githubApiClient;
+        this.openAiValidationClient          = openAiValidationClient;
+        this.systemLogService                = systemLogService;
+        this.writeService                    = writeService;
+        this.encryptionService               = encryptionService;
+        this.objectMapper                    = objectMapper;
     }
 
     @Async
     @Override
     public void runAsync(ValidationJob job, boolean retryOnlyFailedIssues) {
-        Long jobId = job.getJobId();
-        Long sprintId = job.getSprint() != null ? job.getSprint().getId() : null;
-        Long teamId = job.getTeam() != null ? job.getTeam().getId() : null;
+        Long jobId      = job.getJobId();
+        Long sprintId   = job.getSprint() != null   ? job.getSprint().getId()       : null;
+        Long teamId     = job.getTeam()   != null   ? job.getTeam().getId()         : null;
         Long parentJobId = job.getParentJob() != null ? job.getParentJob().getJobId() : null;
 
         logger.info("P7 pipeline starting. jobId={}, retry={}", jobId, retryOnlyFailedIssues);
@@ -86,7 +86,7 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
             List<SprintIssueTracking> issues = resolveIssues(job, retryOnlyFailedIssues);
 
             int completed = 0;
-            int failed = 0;
+            int failed    = 0;
 
             for (SprintIssueTracking sit : issues) {
                 String errorCode = null;
@@ -103,10 +103,6 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
                     logger.warn("P7 issue failed [INTERNAL_ERROR]. jobId={}, issueKey={}: {}", jobId, sit.getIssueKey(), ex.getMessage());
                     writeService.saveFailedIssue(jobId, sit, errorCode);
                     failed++;
-                }
-                if (errorCode != null) {
-                    logD9Subprocess(jobId, parentJobId, sprintId, teamId, sit.getIssueKey(),
-                            "7.6", 0, "FAILED", errorCode);
                 }
                 writeService.updateProgress(jobId, issues.size(), completed, failed);
             }
@@ -144,6 +140,7 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
     private void processIssue(Long jobId, Long sprintId, Long teamId, Long parentJobId,
                                SprintIssueTracking sit, ValidationConfig config) throws JsonProcessingException {
         String issueKey = sit.getIssueKey();
+
         IssueValidationResult result = new IssueValidationResult();
         ValidationJob jobRef = new ValidationJob();
         jobRef.setJobId(jobId);
@@ -151,6 +148,8 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         result.setIssueKey(issueKey);
         result.setAssignee(sit.getAssigneeGithubUsername());
         result.setEvaluatedAt(Instant.now());
+        result.setSprintId(sprintId);
+        result.setTeamId(teamId);
 
         // 7.2 — fetch PR details
         writeService.updateStep(jobId, ValidationJobStep.FETCHING_PR_DETAILS);
@@ -160,7 +159,7 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
             result.setValidationStatus(STATUS_SKIPPED);
             writeService.saveResult(result);
             logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.2",
-                    elapsed(stepStart), "SKIPPED", null);
+                    elapsed(stepStart), "SKIPPED", null, null);
             return;
         }
 
@@ -173,9 +172,9 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
             throw new IllegalStateException("No GitHub integration for group " + sit.getGroup().getId());
         }
 
-        GithubIntegration gh = ghOpt.get();
-        String pat = encryptionService.decrypt(gh.getGithubPatEncrypted());
-        String org = gh.getOrganizationName();
+        GithubIntegration gh  = ghOpt.get();
+        String pat  = encryptionService.decrypt(gh.getGithubPatEncrypted());
+        String org  = gh.getOrganizationName();
         String repo = gh.getRepositoryName();
 
         if (org == null || repo == null) {
@@ -183,59 +182,105 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         }
 
         result.setPrUrl(String.format("https://github.com/%s/%s/pull/%d", org, repo, prNumber));
-        logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.2", elapsed(stepStart), "SUCCESS", null);
+        logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.2",
+                elapsed(stepStart), "SUCCESS", null,
+                githubMeta(200, 0));
 
         // 7.3 — fetch file diffs and apply filters
         writeService.updateStep(jobId, ValidationJobStep.FETCHING_DIFFS);
         stepStart = System.currentTimeMillis();
-        List<Map<String, Object>> files = githubApiClient.fetchPrFiles(org, repo, prNumber, pat);
-        String filteredDiff = buildFilteredDiff(files, config);
-        boolean diffTruncated = wasTruncated(filteredDiff, config.getMaxDiffLines());
-        int filesAnalyzed = countAnalyzedFiles(files, config);
-        logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.3", elapsed(stepStart), "SUCCESS", null);
+        List<Map<String, Object>> files;
+        try {
+            files = githubApiClient.fetchPrFiles(org, repo, prNumber, pat);
+        } catch (P7ApiException ex) {
+            logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.3",
+                    elapsed(stepStart), "FAILED", ex.getErrorCode(),
+                    githubMeta(429, 0));
+            throw ex;
+        }
+        int preTruncationLines = countTotalDiffLines(files, config);
+        String filteredDiff    = buildFilteredDiff(files, config);
+        boolean diffTruncated  = wasTruncated(filteredDiff, config.getMaxDiffLines());
+        int filesAnalyzed      = countAnalyzedFiles(files, config);
+        logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.3",
+                elapsed(stepStart), "SUCCESS", null,
+                githubMetaWithLines(200, 0, preTruncationLines));
 
-        // 7.4 — AI review verification
+        // 7.4 — AI review verification (1 retry, each attempt logged to D9)
         writeService.updateStep(jobId, ValidationJobStep.AI_REVIEW_VERIFICATION);
-        stepStart = System.currentTimeMillis();
-        List<Map<String, Object>> reviews = githubApiClient.fetchPrReviews(org, repo, prNumber, pat);
+        List<Map<String, Object>> reviews  = githubApiClient.fetchPrReviews(org, repo, prNumber, pat);
         List<Map<String, Object>> comments = githubApiClient.fetchPrReviewComments(org, repo, prNumber, pat);
         String reviewsJson = objectMapper.writeValueAsString(buildReviewPayload(reviews, comments));
-        Map<String, Object> reviewResult = openAiValidationClient.verifyReview(config.getOpenaiModel(), reviewsJson);
-        applyReviewResult(result, reviewResult);
-        logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.4", elapsed(stepStart), "SUCCESS", null);
 
-        // 7.5 — AI implementation validation
+        OpenAiCallResult reviewAiResult = callOpenAiWithD9Retry(
+                jobId, parentJobId, sprintId, teamId, issueKey, "7.4",
+                () -> openAiValidationClient.verifyReview(config.getOpenaiModel(), reviewsJson));
+        applyReviewResult(result, reviewAiResult.parsed());
+
+        // 7.5 — AI implementation validation (1 retry, each attempt logged to D9)
         writeService.updateStep(jobId, ValidationJobStep.AI_IMPLEMENTATION_VALIDATION);
-        stepStart = System.currentTimeMillis();
         String issueDescription = "Issue: " + issueKey;
-        Map<String, Object> implResult = openAiValidationClient.validateImplementation(
-                config.getOpenaiModel(), issueDescription, filteredDiff, filesAnalyzed, diffTruncated);
-        applyImplResult(result, implResult, filesAnalyzed, diffTruncated);
-        logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.5", elapsed(stepStart), "SUCCESS", null);
+        OpenAiCallResult implAiResult = callOpenAiWithD9Retry(
+                jobId, parentJobId, sprintId, teamId, issueKey, "7.5",
+                () -> openAiValidationClient.validateImplementation(
+                        config.getOpenaiModel(), issueDescription, filteredDiff, filesAnalyzed, diffTruncated));
+        applyImplResult(result, implAiResult.parsed(), filesAnalyzed, diffTruncated);
 
         // 7.6 — compute composite score and persist
         writeService.updateStep(jobId, ValidationJobStep.STORING_RESULTS);
-        BigDecimal composite = computeComposite(result, config);
-        result.setCompositeScore(composite);
+        result.setCompositeScore(computeComposite(result, config));
         result.setValidationStatus(STATUS_VALIDATED);
         writeService.saveResult(result);
     }
+
+    /**
+     * Calls the OpenAI supplier once; on failure retries once more.
+     * Each attempt (success or failure) is logged independently to D9,
+     * with externalCallMeta.retryCount reflecting the attempt index.
+     */
+    private OpenAiCallResult callOpenAiWithD9Retry(
+            Long jobId, Long parentJobId, Long sprintId, Long teamId,
+            String issueKey, String subProcess,
+            OpenAiSupplier supplier) {
+
+        P7ApiException lastEx = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            long start = System.currentTimeMillis();
+            try {
+                OpenAiCallResult r = supplier.call();
+                logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, subProcess,
+                        elapsed(start), "SUCCESS", null,
+                        openAiMeta(r.httpStatus(), r.tokenCount(), attempt));
+                return r;
+            } catch (P7ApiException ex) {
+                logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, subProcess,
+                        elapsed(start), attempt < 1 ? "RETRY" : "FAILED", ex.getErrorCode(),
+                        openAiMeta(500, 0, attempt));
+                lastEx = ex;
+            }
+        }
+        throw lastEx;
+    }
+
+    @FunctionalInterface
+    private interface OpenAiSupplier {
+        OpenAiCallResult call();
+    }
+
+    // ── Diff helpers ──────────────────────────────────────────────────────
 
     private String buildFilteredDiff(List<Map<String, Object>> files, ValidationConfig config) {
         List<String> patterns = config.getExcludedFilePatterns();
         StringBuilder sb = new StringBuilder();
         int lineCount = 0;
-        int maxLines = config.getMaxDiffLines();
+        int maxLines  = config.getMaxDiffLines();
 
         for (Map<String, Object> file : files) {
             String filename = (String) file.getOrDefault("filename", "");
             if (isExcluded(filename, patterns)) continue;
-
             String patch = (String) file.get("patch");
             if (patch == null) continue;
-
-            String[] lines = patch.split("\n");
-            for (String line : lines) {
+            for (String line : patch.split("\n")) {
                 if (lineCount >= maxLines) break;
                 sb.append(line).append("\n");
                 lineCount++;
@@ -243,6 +288,18 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
             if (lineCount >= maxLines) break;
         }
         return sb.toString();
+    }
+
+    private int countTotalDiffLines(List<Map<String, Object>> files, ValidationConfig config) {
+        List<String> patterns = config.getExcludedFilePatterns();
+        int total = 0;
+        for (Map<String, Object> file : files) {
+            String filename = (String) file.getOrDefault("filename", "");
+            if (isExcluded(filename, patterns)) continue;
+            String patch = (String) file.get("patch");
+            if (patch != null) total += patch.split("\n").length;
+        }
+        return total;
     }
 
     private boolean isExcluded(String filename, List<String> patterns) {
@@ -276,16 +333,16 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
             Map<String, Object> userMap = (Map<String, Object>) r.get("user");
             payload.add(Map.of(
                     "reviewer", userMap != null ? userMap.getOrDefault("login", "") : "",
-                    "body", r.getOrDefault("body", ""),
-                    "state", r.getOrDefault("state", "")
+                    "body",     r.getOrDefault("body", ""),
+                    "state",    r.getOrDefault("state", "")
             ));
         }
         for (Map<String, Object> c : comments) {
             Map<String, Object> userMap = (Map<String, Object>) c.get("user");
             payload.add(Map.of(
                     "reviewer", userMap != null ? userMap.getOrDefault("login", "") : "",
-                    "body", c.getOrDefault("body", ""),
-                    "state", "COMMENT"
+                    "body",     c.getOrDefault("body", ""),
+                    "state",    "COMMENT"
             ));
         }
         return payload;
@@ -308,22 +365,17 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         result.setFilesAnalyzed(filesAnalyzed);
         result.setDiffTruncated(diffTruncated);
 
-        Object missing = ai.get("missingRequirements");
-        if (missing != null) {
-            result.setImplMissingRequirements(objectMapper.writeValueAsString(missing));
-        }
+        Object missing  = ai.get("missingRequirements");
+        if (missing  != null) result.setImplMissingRequirements(objectMapper.writeValueAsString(missing));
         Object coverage = ai.get("coverageAreas");
-        if (coverage != null) {
-            result.setImplCoverageAreas(objectMapper.writeValueAsString(coverage));
-        }
+        if (coverage != null) result.setImplCoverageAreas(objectMapper.writeValueAsString(coverage));
     }
 
     private BigDecimal computeComposite(IssueValidationResult result, ValidationConfig config) {
-        BigDecimal reviewScore = result.getReviewScore() != null ? result.getReviewScore() : BigDecimal.ZERO;
-        BigDecimal implScore = result.getImplScore() != null ? result.getImplScore() : BigDecimal.ZERO;
-        BigDecimal rw = BigDecimal.valueOf(config.getReviewWeight());
-        BigDecimal iw = BigDecimal.valueOf(config.getImplementationWeight());
-        return reviewScore.multiply(rw).add(implScore.multiply(iw))
+        BigDecimal rScore = result.getReviewScore() != null ? result.getReviewScore() : BigDecimal.ZERO;
+        BigDecimal iScore = result.getImplScore()   != null ? result.getImplScore()   : BigDecimal.ZERO;
+        return rScore.multiply(BigDecimal.valueOf(config.getReviewWeight()))
+                .add(iScore.multiply(BigDecimal.valueOf(config.getImplementationWeight())))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
@@ -331,17 +383,19 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
 
     private void logD9Subprocess(Long jobId, Long parentJobId, Long sprintId, Long teamId,
                                   String issueKey, String subProcess, long durationMs,
-                                  String outcome, String errorCode) {
+                                  String outcome, String errorCode,
+                                  Map<String, Object> externalCallMeta) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("jobId", jobId);
-        payload.put("parentJobId", parentJobId);
-        payload.put("sprintId", sprintId);
-        payload.put("teamId", teamId);
-        payload.put("issueKey", issueKey);
-        payload.put("subProcess", subProcess);
-        payload.put("durationMs", durationMs);
-        payload.put("outcome", outcome);
-        payload.put("errorCode", errorCode);
+        payload.put("jobId",            jobId);
+        payload.put("parentJobId",      parentJobId);
+        payload.put("sprintId",         sprintId);
+        payload.put("teamId",           teamId);
+        payload.put("issueKey",         issueKey);
+        payload.put("subProcess",       subProcess);
+        payload.put("durationMs",       durationMs);
+        payload.put("outcome",          outcome);
+        payload.put("errorCode",        errorCode);
+        payload.put("externalCallMeta", externalCallMeta);
 
         String message;
         try {
@@ -359,17 +413,17 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
 
     private void logD9JobComplete(Long jobId, Long parentJobId, Long sprintId, Long teamId,
                                    int completed, int failed) {
-        String outcome = failed < 0 ? "FAILED" : (failed == 0 ? "COMPLETED" : "PARTIALLY_COMPLETED");
+        String outcome   = failed < 0 ? "FAILED" : (failed == 0 ? "COMPLETED" : "PARTIALLY_COMPLETED");
         String eventType = failed < 0 ? "P7_VALIDATION_FAILED" : "P7_VALIDATION_COMPLETED";
 
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("jobId", jobId);
+        payload.put("jobId",      jobId);
         payload.put("parentJobId", parentJobId);
-        payload.put("sprintId", sprintId);
-        payload.put("teamId", teamId);
-        payload.put("outcome", outcome);
-        payload.put("completed", completed);
-        payload.put("failed", Math.max(failed, 0));
+        payload.put("sprintId",   sprintId);
+        payload.put("teamId",     teamId);
+        payload.put("outcome",    outcome);
+        payload.put("completed",  completed);
+        payload.put("failed",     Math.max(failed, 0));
 
         String message;
         try {
@@ -385,14 +439,36 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         systemLogService.logEventAsync(req);
     }
 
-    private long elapsed(long startMs) {
-        return System.currentTimeMillis() - startMs;
+    // ── externalCallMeta builders ─────────────────────────────────────────
+
+    private Map<String, Object> githubMeta(int httpStatus, int retryCount) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("provider",   "github");
+        m.put("httpStatus", httpStatus);
+        m.put("retryCount", retryCount);
+        return m;
+    }
+
+    private Map<String, Object> githubMetaWithLines(int httpStatus, int retryCount, int preTruncationLines) {
+        Map<String, Object> m = githubMeta(httpStatus, retryCount);
+        m.put("preTruncationLines", preTruncationLines);
+        return m;
+    }
+
+    private Map<String, Object> openAiMeta(int httpStatus, int tokenCount, int retryCount) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("provider",   "openai");
+        m.put("httpStatus", httpStatus);
+        m.put("tokenCount", tokenCount);
+        m.put("retryCount", retryCount);
+        return m;
     }
 
     // ── Type helpers ──────────────────────────────────────────────────────
 
+    private long elapsed(long startMs) { return System.currentTimeMillis() - startMs; }
+
     private BigDecimal toBigDecimal(Object val) {
-        if (val == null) return null;
         if (val instanceof Number n) return BigDecimal.valueOf(n.doubleValue()).setScale(2, RoundingMode.HALF_UP);
         return null;
     }

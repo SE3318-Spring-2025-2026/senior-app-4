@@ -2,6 +2,7 @@ package com.spms.backend.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.client.GithubApiClient;
+import com.spms.backend.client.OpenAiCallResult;
 import com.spms.backend.client.OpenAiValidationClient;
 import com.spms.backend.dto.request.SystemLogCreateRequestDto;
 import com.spms.backend.exception.P7ApiException;
@@ -150,8 +151,8 @@ class ValidationPipelineOrchestratorTest {
         when(githubApiClient.fetchPrFiles(any(), any(), anyLong(), any())).thenReturn(List.of());
         when(githubApiClient.fetchPrReviews(any(), any(), anyLong(), any())).thenReturn(List.of());
         when(githubApiClient.fetchPrReviewComments(any(), any(), anyLong(), any())).thenReturn(List.of());
-        when(openAiValidationClient.verifyReview(any(), any())).thenReturn(reviewAi);
-        when(openAiValidationClient.validateImplementation(any(), any(), any(), anyInt(), anyBoolean())).thenReturn(implAi);
+        when(openAiValidationClient.verifyReview(any(), any())).thenReturn(new OpenAiCallResult(reviewAi, 200, 100));
+        when(openAiValidationClient.validateImplementation(any(), any(), any(), anyInt(), anyBoolean())).thenReturn(new OpenAiCallResult(implAi, 200, 150));
 
         orchestrator.runAsync(job, false);
 
@@ -203,10 +204,10 @@ class ValidationPipelineOrchestratorTest {
         implAi.put("filesAnalyzed", 1);
         implAi.put("diffTruncated", false);
 
-        when(openAiValidationClient.verifyReview(any(), any())).thenReturn(reviewAi);
+        when(openAiValidationClient.verifyReview(any(), any())).thenReturn(new OpenAiCallResult(reviewAi, 200, 50));
         ArgumentCaptor<String> diffCaptor = ArgumentCaptor.forClass(String.class);
         when(openAiValidationClient.validateImplementation(any(), any(), diffCaptor.capture(), anyInt(), anyBoolean()))
-                .thenReturn(implAi);
+                .thenReturn(new OpenAiCallResult(implAi, 200, 80));
 
         orchestrator.runAsync(job, false);
 
@@ -286,9 +287,9 @@ class ValidationPipelineOrchestratorTest {
         when(githubApiClient.fetchPrFiles(any(), any(), anyLong(), any())).thenReturn(List.of());
         when(githubApiClient.fetchPrReviews(any(), any(), anyLong(), any())).thenReturn(List.of());
         when(githubApiClient.fetchPrReviewComments(any(), any(), anyLong(), any())).thenReturn(List.of());
-        when(openAiValidationClient.verifyReview(any(), any())).thenReturn(reviewAi);
+        when(openAiValidationClient.verifyReview(any(), any())).thenReturn(new OpenAiCallResult(reviewAi, 200, 60));
         when(openAiValidationClient.validateImplementation(any(), any(), any(), anyInt(), anyBoolean()))
-                .thenReturn(implAi);
+                .thenReturn(new OpenAiCallResult(implAi, 200, 90));
 
         orchestrator.runAsync(job, false);
 

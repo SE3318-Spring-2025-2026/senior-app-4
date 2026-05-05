@@ -86,6 +86,12 @@ public class IssueValidationResult {
     @Column(name = "evaluated_at", nullable = false)
     private Instant evaluatedAt;
 
+    @Column(name = "sprint_id")
+    private Long sprintId;
+
+    @Column(name = "team_id")
+    private Long teamId;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public ValidationJob getJob() { return job; }
@@ -134,4 +140,8 @@ public class IssueValidationResult {
     public void setValidationStatus(String validationStatus) { this.validationStatus = validationStatus; }
     public Instant getEvaluatedAt() { return evaluatedAt; }
     public void setEvaluatedAt(Instant evaluatedAt) { this.evaluatedAt = evaluatedAt; }
+    public Long getSprintId() { return sprintId; }
+    public void setSprintId(Long sprintId) { this.sprintId = sprintId; }
+    public Long getTeamId() { return teamId; }
+    public void setTeamId(Long teamId) { this.teamId = teamId; }
 }
