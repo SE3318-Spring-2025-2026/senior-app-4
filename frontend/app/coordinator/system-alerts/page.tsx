@@ -3,11 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { buildHeaders } from "@/lib/api-utils";
+import { buildHeaders, API_BASE } from "@/lib/api-utils";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import Sidebar from "@/components/Sidebar";
-
-const API = process.env.NEXT_PUBLIC_API_URL;
 
 interface AffectedGroup {
   groupId: number;
@@ -76,7 +74,7 @@ function SystemAlertsLayout() {
   const loadAlerts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/coordinator/system-alerts`, { headers: buildHeaders() });
+      const res = await fetch(`${API_BASE}/coordinator/system-alerts`, { headers: buildHeaders() });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data: SystemAlertListResponse = await res.json();
       setAlerts(data.alerts || []);

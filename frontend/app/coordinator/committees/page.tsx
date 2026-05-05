@@ -2,7 +2,7 @@
 
 import Sidebar from "@/components/Sidebar";
 import CommitteeForm from "@/components/committee/CommitteeForm";
-import { showToast } from "@/components/toast/ToastContext";
+import { toast } from "sonner";
 import {
     createCommittee,
     deleteCommittee,
@@ -11,12 +11,16 @@ import {
 } from "@/lib/committees-api";
 import { Committee, CommitteeFormValues } from "@/lib/committee-types";
 import { getUser } from "@/lib/auth";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function CoordinatorCommitteesPage() {
     const authStatus = useAuthGuard("coordinator");
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
+
     const [committees, setCommittees] = useState<Committee[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
@@ -25,7 +29,7 @@ export default function CoordinatorCommitteesPage() {
     const [apiError, setApiError] = useState("");
     const [totalPages, setTotalPages] = useState(1);
 
-    function updateUrlParams(updates: Record<string, string | number>) {
+    const updateUrlParams = useCallback((updates: Record<string, string | number>) => {
         const params = new URLSearchParams(searchParams.toString());
 
         Object.entries(updates).forEach(([key, value]) => {
@@ -44,11 +48,7 @@ export default function CoordinatorCommitteesPage() {
 
         const query = params.toString();
         router.replace(query ? `${pathname}?${query}` : pathname);
-    }
-
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const pathname = usePathname();
+    }, [searchParams, router, pathname]);
     const editId = searchParams.get("edit");
 
     const initialStatus = searchParams.get("status") || "ALL";
@@ -88,9 +88,8 @@ export default function CoordinatorCommitteesPage() {
             setCommittees(response.content);
             setTotalPages(response.totalPages);
         } catch (err) {
-            showToast(
-                err instanceof Error ? err.message : "Failed to load committees.",
-                "error"
+            toast.error(
+                err instanceof Error ? err.message : "Failed to load committees."
             );
         } finally {
             setLoading(false);
@@ -109,7 +108,7 @@ export default function CoordinatorCommitteesPage() {
         }, 300);
 
         return () => clearTimeout(timeout);
-    }, [searchInput]);
+    }, [searchInput, updateUrlParams]);
 
     useEffect(() => {
         if (!editId) return;
@@ -125,7 +124,7 @@ export default function CoordinatorCommitteesPage() {
 
             router.replace(pathname);
         }
-    }, [editId, committees]);
+    }, [editId, committees, router, pathname]);
 
     async function handleCreate(values: CommitteeFormValues) {
         setSubmitting(true);
@@ -133,14 +132,14 @@ export default function CoordinatorCommitteesPage() {
 
         try {
             await createCommittee(values);
-            showToast("Committee created successfully.", "success");
+            toast.success("Committee created successfully.");
             setShowCreate(false);
             await loadCommittees(1, statusFilter, searchQuery, sortOption, pageSize);
         } catch (err) {
             const message =
                 err instanceof Error ? err.message : "Failed to create committee.";
             setApiError(message);
-            showToast(message, "error");
+            toast.error(message);
         } finally {
             setSubmitting(false);
         }
@@ -155,14 +154,14 @@ export default function CoordinatorCommitteesPage() {
 
         try {
             await updateCommittee(editingCommittee.committeeId, values);
-            showToast("Committee updated successfully.", "success");
+            toast.success("Committee updated successfully.");
             setEditingCommittee(null);
             await loadCommittees(page, statusFilter, searchQuery, sortOption, pageSize);
         } catch (err) {
             const message =
                 err instanceof Error ? err.message : "Failed to update committee.";
             setApiError(message);
-            showToast(message, "error");
+            toast.error(message);
         } finally {
             setSubmitting(false);
         }
@@ -177,7 +176,7 @@ export default function CoordinatorCommitteesPage() {
 
         try {
             await deleteCommittee(committeeId);
-            showToast("Committee deleted successfully.", "success");
+            toast.success("Committee deleted successfully.");
             await loadCommittees(page, statusFilter, searchQuery, sortOption, pageSize);
         } catch (err) {
             showToast(

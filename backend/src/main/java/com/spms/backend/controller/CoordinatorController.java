@@ -37,8 +37,11 @@ public class CoordinatorController {
 
     @Operation(summary = "Get current deadline schedule (D11)")
     @GetMapping("/schedule")
-    public ResponseEntity<ScheduleResponse> getSchedule() {
-        // 404 fırlatılırsa GlobalExceptionHandler yakalar
+    public ResponseEntity<ScheduleResponse> getSchedule(HttpServletRequest httpReq) {
+        String role = (String) httpReq.getAttribute("jwt_role");
+        if (!"coordinator".equals(role)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         ScheduleResponse response = scheduleService.getLatestSchedule();
         return ResponseEntity.ok(response);
     }
@@ -98,6 +101,9 @@ public class CoordinatorController {
     @GetMapping("/reports/group-formation")
     public ResponseEntity<com.spms.backend.dto.response.GroupFormationReportDto> getGroupFormationReport(HttpServletRequest httpReq) {
         String role = (String) httpReq.getAttribute("jwt_role");
+        if (!"coordinator".equals(role)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         return ResponseEntity.ok(groupService.getGroupFormationReport(role));
     }
 }

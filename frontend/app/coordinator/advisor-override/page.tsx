@@ -6,13 +6,12 @@ import { getToken } from "@/lib/auth";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import Sidebar from "@/components/Sidebar";
 import { UserRole } from "@/types/enums";
+import { API_BASE } from "@/lib/api-utils";
 import {
     fetchAdvisorAssignments,
     overrideAdvisorAssignment,
     type AdvisorAssignment,
 } from "@/lib/advisor-requests-api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
 
 type Professor = { userId: number; fullName: string; email: string };
 

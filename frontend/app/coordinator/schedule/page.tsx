@@ -5,8 +5,7 @@ import { toast } from "sonner";
 import { getToken } from "@/lib/auth";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import Sidebar from "@/components/Sidebar";
-
-const API = process.env.NEXT_PUBLIC_API_URL;
+import { API_BASE } from "@/lib/api-utils";
 
 interface ScheduleData {
   id: number;
@@ -91,7 +90,7 @@ function ScheduleCard() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API}/coordinator/schedule`, { headers: buildHeaders() });
+        const res = await fetch(`${API_BASE}/coordinator/schedule`, { headers: buildHeaders() });
         if (res.status === 404) { setLoading(false); return; }
         if (!res.ok) throw new Error("Failed to load schedule");
         const data: ScheduleData = await res.json();
@@ -126,7 +125,7 @@ function ScheduleCard() {
         groupFormationDeadline: new Date(formationDeadline).toISOString(),
         advisorAssignmentDeadline: new Date(advisorDeadline).toISOString(),
       };
-      const res = await fetch(`${API}/coordinator/schedule`, {
+      const res = await fetch(`${API_BASE}/coordinator/schedule`, {
         method: "PUT",
         headers: buildHeaders(),
         body: JSON.stringify(body),

@@ -1,7 +1,7 @@
 "use client";
 
 import Sidebar from "@/components/Sidebar";
-import { showToast } from "@/components/toast/ToastContext";
+import { toast } from "sonner";
 import { fetchCommitteeAuditLogs } from "@/lib/committees-api";
 import { CommitteeAuditLog } from "@/lib/committee-types";
 import { useEffect, useMemo, useState } from "react";
@@ -35,9 +35,8 @@ export default function CommitteeAuditLogsPage() {
             setLogs(response.content);
             setTotalPages(response.totalPages);
         } catch (err) {
-            showToast(
-                err instanceof Error ? err.message : "Failed to load audit logs.",
-                "error"
+            toast.error(
+                err instanceof Error ? err.message : "Failed to load audit logs."
             );
         } finally {
             setLoading(false);
@@ -51,6 +50,10 @@ export default function CommitteeAuditLogsPage() {
 
     const csvContent = useMemo(() => {
         const header = ["timestamp", "user", "action", "entityType", "description"];
+
+        if (!logs || !Array.isArray(logs) || logs.length === 0) {
+            return header.join(",");
+        }
 
         const rows = logs.map((log) => [
             new Date(log.timestamp).toLocaleString(),

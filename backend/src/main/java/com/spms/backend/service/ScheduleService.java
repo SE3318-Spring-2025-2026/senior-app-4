@@ -108,7 +108,7 @@ public class ScheduleService {
                     affectedGroups.add(new AffectedGroup(g.getId(), g.getGroupName(), count));
                 }
             } else if ("advisor_deadline_missed".equals(alertType)) {
-                List<Group> advGroups = groupRepository.findByStatus(com.spms.backend.model.GroupStatus.FORMING); // Assuming forming groups need advisors
+                List<Group> advGroups = groupRepository.findByAdvisorIsNullAndStatusNot(com.spms.backend.model.GroupStatus.DISBANDED);
                 for (Group g : advGroups) {
                     int count = g.getMembers().size();
                     affectedGroups.add(new AffectedGroup(g.getId(), g.getGroupName(), count));
@@ -146,7 +146,7 @@ public class ScheduleService {
     private String resolveAlertType(String message) {
         if (message == null) return "unknown";
         if (message.contains("formation")) return "formation_deadline_missed";
-        if (message.contains("dvisor")) return "advisor_deadline_missed";
+        if (message.contains("advisor")) return "advisor_deadline_missed";
         return "system_alert";
     }
 
