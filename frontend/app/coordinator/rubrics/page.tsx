@@ -3,10 +3,8 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import Sidebar from "@/components/Sidebar";
-import { buildHeaders } from "@/lib/api-utils";
+import { buildHeaders, API_BASE } from "@/lib/api-utils";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
-
-const API = process.env.NEXT_PUBLIC_API_URL;
 
 type DeliverableType = "PROPOSAL" | "REVISED_PROPOSAL" | "STATEMENT_OF_WORK";
 
@@ -108,7 +106,7 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
             setLoadingExisting(true);
             try {
                 const res = await fetch(
-                    `${API}/grading-criteria?deliverableType=${deliverableType}`,
+                    `${API_BASE}/grading-criteria?deliverableType=${deliverableType}`,
                     { headers: buildHeaders() }
                 );
                 if (!res.ok) throw new Error();
@@ -155,7 +153,7 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
         try {
             await Promise.all(
                 valid.map((r) =>
-                    fetch(`${API}/grading-criteria`, {
+                    fetch(`${API_BASE}/grading-criteria`, {
                         method: "POST",
                         headers: buildHeaders(),
                         body: JSON.stringify({
@@ -172,7 +170,7 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
             toast.success(`${valid.length} criteria saved successfully.`);
             // Reload existing
             const res = await fetch(
-                `${API}/grading-criteria?deliverableType=${deliverableType}`,
+                `${API_BASE}/grading-criteria?deliverableType=${deliverableType}`,
                 { headers: buildHeaders() }
             );
             if (res.ok) {

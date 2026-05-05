@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import Sidebar from "@/components/Sidebar";
+import { API_BASE } from "@/lib/api-utils";
 
 interface UploadResponse {
   message: string;
@@ -111,7 +112,7 @@ function UploadCard() {
       const token = typeof window !== "undefined" ? localStorage.getItem("spms_token") : null;
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students/ids/upload`, { method: "POST", headers, body: formData });
+      const res = await fetch(`${API_BASE}/students/ids/upload`, { method: "POST", headers, body: formData });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || `Upload failed (${res.status})`); }
       const data: UploadResponse = await res.json();
       setResult(data); setStatus("success");
@@ -260,7 +261,7 @@ function StudentList() {
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/student-ids`, { 
+        const res = await fetch(`${API_BASE}/student-ids`, { 
         method: "GET",
         headers,
         });

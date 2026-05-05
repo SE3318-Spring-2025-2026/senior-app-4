@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getUser, getToken, clearAuth } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
-import SystemLogsTable from "@/components/audit-logs/SystemLogsTable";
 import LeaderboardTable from "@/components/LeaderboardTable";
 
 export default function DashboardPage() {
@@ -63,11 +62,6 @@ export default function DashboardPage() {
         {(user.role === "professor" || user.role === "coordinator" || user.role === "admin") ? (
           <div className="flex-1 p-8 space-y-8 overflow-y-auto">
             <LeaderboardTable />
-            
-            {/* System Logs are only for Coordinators and Admins */}
-            {(user.role === "coordinator" || user.role === "admin") && (
-              <SystemLogsTable />
-            )}
           </div>
         ) : (
           <div className="flex-1 p-8 flex items-center justify-center">

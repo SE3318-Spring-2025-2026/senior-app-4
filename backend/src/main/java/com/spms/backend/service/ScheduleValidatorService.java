@@ -90,11 +90,8 @@ public class ScheduleValidatorService {
             handleGroupFormationDeadline();
         }
 
-        // 2. Danışman atama deadline kontrolü
-        if (now.isAfter(schedule.getAdvisorAssignmentDeadline())) {
-            log.info("[ScheduleValidator] Advisor assignment deadline has passed.");
-            handleAdvisorAssignmentDeadline();
-        }
+        // 2. Advisor deadline disbandment is handled exclusively by AdvisorDeadlineDisbandService
+        //    to prevent duplicate disbandment and duplicate notifications.
 
         // 3. Schedule conflict kontrolü
         checkScheduleConflicts();

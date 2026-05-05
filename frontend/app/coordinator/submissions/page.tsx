@@ -195,7 +195,7 @@ function SubmissionsDashboard() {
               <div className="flex items-center gap-2">
                 <button
                   disabled={pagination.currentPage === 0}
-                  onClick={() => setFilters((p) => ({ ...p, page: (p.page ?? 1) - 1 }))}
+                  onClick={() => setFilters((p) => ({ ...p, page: (p.page ?? 0) - 1 }))}
                   className="px-3 py-1.5 rounded-lg text-xs border border-white/10 text-gray-400
                              hover:text-white hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >

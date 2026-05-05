@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Download, Filter, Search, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { getAuditLogs, AuditLog, AuditLogFilterParams, PaginationInfo } from '@/lib/audit-logs-api';
 import { format } from 'date-fns';
 
@@ -66,7 +67,7 @@ export default function AuditLogsViewer() {
       const exportData = await fetchLogs(true);
       
       if (!exportData || exportData.length === 0) {
-        alert('No data to export.');
+        toast.error('No data to export.');
         return;
       }
 
