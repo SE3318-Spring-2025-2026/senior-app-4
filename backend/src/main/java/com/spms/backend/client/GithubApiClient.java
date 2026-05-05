@@ -5,7 +5,9 @@ import com.spms.backend.dto.PrCheckResult;
 import com.spms.backend.dto.external.GithubAccessTokenResponse;
 import com.spms.backend.dto.external.GithubUserResponse;
 import com.spms.backend.exception.GithubAuthenticationException;
+import com.spms.backend.exception.P7ApiException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -13,6 +15,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -161,6 +164,13 @@ public class GithubApiClient {
                     .retrieve()
                     .body((Class<List<Map<String, Object>>>) (Class<?>) List.class);
             return reviews != null ? reviews : Collections.emptyList();
+        } catch (RestClientResponseException ex) {
+            int status = ex.getStatusCode().value();
+            if (status == 429 || status == 403) {
+                throw new P7ApiException(HttpStatus.BAD_GATEWAY, "GITHUB_RATE_LIMITED",
+                        "GitHub API rate limited (HTTP " + status + ")");
+            }
+            return Collections.emptyList();
         } catch (RestClientException ex) {
             return Collections.emptyList();
         }
@@ -183,6 +193,13 @@ public class GithubApiClient {
                     .retrieve()
                     .body((Class<List<Map<String, Object>>>) (Class<?>) List.class);
             return files != null ? files : Collections.emptyList();
+        } catch (RestClientResponseException ex) {
+            int status = ex.getStatusCode().value();
+            if (status == 429 || status == 403) {
+                throw new P7ApiException(HttpStatus.BAD_GATEWAY, "GITHUB_RATE_LIMITED",
+                        "GitHub API rate limited (HTTP " + status + ")");
+            }
+            return Collections.emptyList();
         } catch (RestClientException ex) {
             return Collections.emptyList();
         }
@@ -204,6 +221,13 @@ public class GithubApiClient {
                     .retrieve()
                     .body((Class<List<Map<String, Object>>>) (Class<?>) List.class);
             return comments != null ? comments : Collections.emptyList();
+        } catch (RestClientResponseException ex) {
+            int status = ex.getStatusCode().value();
+            if (status == 429 || status == 403) {
+                throw new P7ApiException(HttpStatus.BAD_GATEWAY, "GITHUB_RATE_LIMITED",
+                        "GitHub API rate limited (HTTP " + status + ")");
+            }
+            return Collections.emptyList();
         } catch (RestClientException ex) {
             return Collections.emptyList();
         }

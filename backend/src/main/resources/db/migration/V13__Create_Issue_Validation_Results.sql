@@ -29,3 +29,5 @@ CREATE TABLE IF NOT EXISTS issue_validation_results (
 
     UNIQUE (job_id, issue_key)
 );
+
+CREATE INDEX IF NOT EXISTS idx_ivr_job_id ON issue_validation_results(job_id);

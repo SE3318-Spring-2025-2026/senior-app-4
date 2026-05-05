@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.client.GithubApiClient;
 import com.spms.backend.client.OpenAiValidationClient;
 import com.spms.backend.dto.request.SystemLogCreateRequestDto;
+import com.spms.backend.exception.P7ApiException;
 import com.spms.backend.model.*;
 import com.spms.backend.repository.*;
 import com.spms.backend.service.impl.ValidationPipelineOrchestratorImpl;
@@ -11,9 +12,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -26,7 +27,6 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class ValidationPipelineOrchestratorTest {
 
-    @Mock private ValidationJobRepository validationJobRepository;
     @Mock private SprintIssueTrackingRepository sprintIssueTrackingRepository;
     @Mock private IssueValidationResultRepository issueValidationResultRepository;
     @Mock private GithubIntegrationRepository githubIntegrationRepository;
@@ -34,10 +34,9 @@ class ValidationPipelineOrchestratorTest {
     @Mock private GithubApiClient githubApiClient;
     @Mock private OpenAiValidationClient openAiValidationClient;
     @Mock private SystemLogService systemLogService;
+    @Mock private ValidationJobWriteService writeService;
 
-    @InjectMocks
     private ValidationPipelineOrchestratorImpl orchestrator;
-
     private ObjectMapper objectMapper = new ObjectMapper();
 
     private ValidationJob job;
@@ -48,10 +47,15 @@ class ValidationPipelineOrchestratorTest {
     @BeforeEach
     void setUp() {
         orchestrator = new ValidationPipelineOrchestratorImpl(
-                validationJobRepository, sprintIssueTrackingRepository,
-                issueValidationResultRepository, githubIntegrationRepository,
-                validationConfigRepository, githubApiClient, openAiValidationClient,
-                systemLogService, objectMapper);
+                sprintIssueTrackingRepository,
+                issueValidationResultRepository,
+                githubIntegrationRepository,
+                validationConfigRepository,
+                githubApiClient,
+                openAiValidationClient,
+                systemLogService,
+                writeService,
+                objectMapper);
 
         sprint = new Sprint("Sprint-1", LocalDate.now().minusDays(7), LocalDate.now(), "COMPLETED");
         sprint.setId(1L);
@@ -85,15 +89,13 @@ class ValidationPipelineOrchestratorTest {
     @Test
     void issueWithNoPrIsMarkedSkipped() {
         SprintIssueTracking sit = issueSit("PROJ-1", null);
-        when(validationJobRepository.findById(99L)).thenReturn(Optional.of(job));
         when(validationConfigRepository.findById(1L)).thenReturn(Optional.of(config));
         when(sprintIssueTrackingRepository.findBySprint_Id(1L)).thenReturn(List.of(sit));
-        when(issueValidationResultRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         orchestrator.runAsync(job, false);
 
         ArgumentCaptor<IssueValidationResult> captor = ArgumentCaptor.forClass(IssueValidationResult.class);
-        verify(issueValidationResultRepository, atLeastOnce()).save(captor.capture());
+        verify(writeService, atLeastOnce()).saveResult(captor.capture());
         IssueValidationResult saved = captor.getAllValues().stream()
                 .filter(r -> "PROJ-1".equals(r.getIssueKey())).findFirst().orElseThrow();
         assertEquals("SKIPPED", saved.getValidationStatus());
@@ -103,19 +105,13 @@ class ValidationPipelineOrchestratorTest {
     @Test
     void issueWithMissingGithubIntegrationIsMarkedFailed() {
         SprintIssueTracking sit = issueSit("PROJ-2", 42L);
-        when(validationJobRepository.findById(99L)).thenReturn(Optional.of(job));
         when(validationConfigRepository.findById(1L)).thenReturn(Optional.of(config));
         when(sprintIssueTrackingRepository.findBySprint_Id(1L)).thenReturn(List.of(sit));
         when(githubIntegrationRepository.findByGroup_Id(10L)).thenReturn(Optional.empty());
-        when(issueValidationResultRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         orchestrator.runAsync(job, false);
 
-        ArgumentCaptor<IssueValidationResult> captor = ArgumentCaptor.forClass(IssueValidationResult.class);
-        verify(issueValidationResultRepository, atLeastOnce()).save(captor.capture());
-        IssueValidationResult saved = captor.getAllValues().stream()
-                .filter(r -> "PROJ-2".equals(r.getIssueKey())).findFirst().orElseThrow();
-        assertEquals("FAILED", saved.getValidationStatus());
+        verify(writeService, atLeastOnce()).saveFailedIssue(eq(99L), eq(sit), anyString());
     }
 
     @Test
@@ -144,7 +140,6 @@ class ValidationPipelineOrchestratorTest {
         implAi.put("filesAnalyzed", 3);
         implAi.put("diffTruncated", false);
 
-        when(validationJobRepository.findById(99L)).thenReturn(Optional.of(job));
         when(validationConfigRepository.findById(1L)).thenReturn(Optional.of(config));
         when(sprintIssueTrackingRepository.findBySprint_Id(1L)).thenReturn(List.of(sit));
         when(githubIntegrationRepository.findByGroup_Id(10L)).thenReturn(Optional.of(gh));
@@ -153,12 +148,11 @@ class ValidationPipelineOrchestratorTest {
         when(githubApiClient.fetchPrReviewComments(any(), any(), anyLong(), any())).thenReturn(List.of());
         when(openAiValidationClient.verifyReview(any(), any())).thenReturn(reviewAi);
         when(openAiValidationClient.validateImplementation(any(), any(), any(), anyInt(), anyBoolean())).thenReturn(implAi);
-        when(issueValidationResultRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         orchestrator.runAsync(job, false);
 
         ArgumentCaptor<IssueValidationResult> captor = ArgumentCaptor.forClass(IssueValidationResult.class);
-        verify(issueValidationResultRepository, atLeastOnce()).save(captor.capture());
+        verify(writeService, atLeastOnce()).saveResult(captor.capture());
         IssueValidationResult saved = captor.getAllValues().stream()
                 .filter(r -> "PROJ-3".equals(r.getIssueKey())).findFirst().orElseThrow();
 
@@ -185,7 +179,6 @@ class ValidationPipelineOrchestratorTest {
         excludedFile.put("filename", "package-lock.json");
         excludedFile.put("patch", "+excluded");
 
-        when(validationJobRepository.findById(99L)).thenReturn(Optional.of(job));
         when(validationConfigRepository.findById(1L)).thenReturn(Optional.of(config));
         when(sprintIssueTrackingRepository.findBySprint_Id(1L)).thenReturn(List.of(sit));
         when(githubIntegrationRepository.findByGroup_Id(10L)).thenReturn(Optional.of(gh));
@@ -210,7 +203,6 @@ class ValidationPipelineOrchestratorTest {
         ArgumentCaptor<String> diffCaptor = ArgumentCaptor.forClass(String.class);
         when(openAiValidationClient.validateImplementation(any(), any(), diffCaptor.capture(), anyInt(), anyBoolean()))
                 .thenReturn(implAi);
-        when(issueValidationResultRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         orchestrator.runAsync(job, false);
 
@@ -221,22 +213,15 @@ class ValidationPipelineOrchestratorTest {
 
     @Test
     void jobIsMarkedFailedWhenConfigIsMissing() {
-        when(validationJobRepository.findById(99L)).thenReturn(Optional.of(job));
         when(validationConfigRepository.findById(1L)).thenReturn(Optional.empty());
 
         orchestrator.runAsync(job, false);
 
-        ArgumentCaptor<ValidationJob> captor = ArgumentCaptor.forClass(ValidationJob.class);
-        verify(validationJobRepository, atLeastOnce()).save(captor.capture());
-        ValidationJob saved = captor.getAllValues().stream()
-                .filter(j -> j.getJobStatus() == ValidationJobStatus.FAILED)
-                .findFirst().orElse(null);
-        assertNotNull(saved, "Job must be marked FAILED when config is missing");
+        verify(writeService).markJobFailed(eq(99L), any());
     }
 
     @Test
     void d9LogIsWrittenOnCompletion() {
-        when(validationJobRepository.findById(99L)).thenReturn(Optional.of(job));
         when(validationConfigRepository.findById(1L)).thenReturn(Optional.of(config));
         when(sprintIssueTrackingRepository.findBySprint_Id(1L)).thenReturn(List.of());
 
@@ -249,7 +234,92 @@ class ValidationPipelineOrchestratorTest {
         assertTrue(hasCompletedLog, "D9 audit log must be written when pipeline finishes");
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────
+    @Test
+    void githubRateLimitCausesIssueFailedWithCorrectErrorCode() {
+        SprintIssueTracking sit = issueSit("PROJ-5", 10L);
+
+        GithubIntegration gh = new GithubIntegration();
+        gh.setOrganizationName("org");
+        gh.setRepositoryName("repo");
+        gh.setGithubPatEncrypted("pat");
+
+        when(validationConfigRepository.findById(1L)).thenReturn(Optional.of(config));
+        when(sprintIssueTrackingRepository.findBySprint_Id(1L)).thenReturn(List.of(sit));
+        when(githubIntegrationRepository.findByGroup_Id(10L)).thenReturn(Optional.of(gh));
+        when(githubApiClient.fetchPrFiles(any(), any(), anyLong(), any()))
+                .thenThrow(new P7ApiException(HttpStatus.BAD_GATEWAY, "GITHUB_RATE_LIMITED",
+                        "GitHub API rate limited (HTTP 429)"));
+
+        orchestrator.runAsync(job, false);
+
+        verify(writeService).saveFailedIssue(eq(99L), eq(sit), eq("GITHUB_RATE_LIMITED"));
+    }
+
+    @Test
+    void allSixCurrentStepsAreSetDuringSuccessfulRun() {
+        SprintIssueTracking sit = issueSit("PROJ-6", 3L);
+
+        GithubIntegration gh = new GithubIntegration();
+        gh.setOrganizationName("org");
+        gh.setRepositoryName("repo");
+        gh.setGithubPatEncrypted("pat");
+
+        Map<String, Object> reviewAi = Map.of("score", 60, "reviewQuality", "SUFFICIENT",
+                "hasChangeRequests", false, "hasSubstantiveComments", true,
+                "reviewerCount", 1, "aiFeedback", "ok");
+        Map<String, Object> implAi = new HashMap<>();
+        implAi.put("score", 60);
+        implAi.put("isValid", true);
+        implAi.put("coverageAreas", List.of());
+        implAi.put("missingRequirements", List.of());
+        implAi.put("aiFeedback", "ok");
+        implAi.put("filesAnalyzed", 1);
+        implAi.put("diffTruncated", false);
+
+        when(validationConfigRepository.findById(1L)).thenReturn(Optional.of(config));
+        when(sprintIssueTrackingRepository.findBySprint_Id(1L)).thenReturn(List.of(sit));
+        when(githubIntegrationRepository.findByGroup_Id(10L)).thenReturn(Optional.of(gh));
+        when(githubApiClient.fetchPrFiles(any(), any(), anyLong(), any())).thenReturn(List.of());
+        when(githubApiClient.fetchPrReviews(any(), any(), anyLong(), any())).thenReturn(List.of());
+        when(githubApiClient.fetchPrReviewComments(any(), any(), anyLong(), any())).thenReturn(List.of());
+        when(openAiValidationClient.verifyReview(any(), any())).thenReturn(reviewAi);
+        when(openAiValidationClient.validateImplementation(any(), any(), any(), anyInt(), anyBoolean()))
+                .thenReturn(implAi);
+
+        orchestrator.runAsync(job, false);
+
+        ArgumentCaptor<ValidationJobStep> stepCaptor = ArgumentCaptor.forClass(ValidationJobStep.class);
+        verify(writeService).markJobInProgress(99L);
+        verify(writeService, atLeast(4)).updateStep(eq(99L), stepCaptor.capture());
+
+        Set<ValidationJobStep> usedSteps = new HashSet<>(stepCaptor.getAllValues());
+        assertTrue(usedSteps.contains(ValidationJobStep.FETCHING_PR_DETAILS));
+        assertTrue(usedSteps.contains(ValidationJobStep.FETCHING_DIFFS));
+        assertTrue(usedSteps.contains(ValidationJobStep.AI_REVIEW_VERIFICATION));
+        assertTrue(usedSteps.contains(ValidationJobStep.AI_IMPLEMENTATION_VALIDATION));
+        assertTrue(usedSteps.contains(ValidationJobStep.STORING_RESULTS));
+    }
+
+    @Test
+    void d9SubprocessLogsAreWrittenPerIssue() {
+        SprintIssueTracking sit1 = issueSit("PROJ-7", null);
+        SprintIssueTracking sit2 = issueSit("PROJ-8", null);
+
+        when(validationConfigRepository.findById(1L)).thenReturn(Optional.of(config));
+        when(sprintIssueTrackingRepository.findBySprint_Id(1L)).thenReturn(List.of(sit1, sit2));
+
+        orchestrator.runAsync(job, false);
+
+        ArgumentCaptor<SystemLogCreateRequestDto> captor = ArgumentCaptor.forClass(SystemLogCreateRequestDto.class);
+        verify(systemLogService, atLeast(3)).logEventAsync(captor.capture());
+
+        long subprocessLogs = captor.getAllValues().stream()
+                .filter(r -> "P7_SUBPROCESS".equals(r.getEventType()))
+                .count();
+        assertTrue(subprocessLogs >= 2, "Expected at least one D9 subprocess log per issue");
+    }
+
+    // ── helpers ───────────────────────────────────────────────────────────
 
     private SprintIssueTracking issueSit(String issueKey, Long prNumber) {
         SprintIssueTracking sit = new SprintIssueTracking(group, sprint, issueKey);

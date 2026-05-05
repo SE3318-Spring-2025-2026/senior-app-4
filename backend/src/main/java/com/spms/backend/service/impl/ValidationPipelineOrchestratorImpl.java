@@ -5,16 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.client.GithubApiClient;
 import com.spms.backend.client.OpenAiValidationClient;
 import com.spms.backend.dto.request.SystemLogCreateRequestDto;
+import com.spms.backend.exception.P7ApiException;
 import com.spms.backend.model.*;
 import com.spms.backend.repository.*;
 import com.spms.backend.service.SystemLogService;
+import com.spms.backend.service.ValidationJobWriteService;
 import com.spms.backend.service.ValidationPipelineOrchestrator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -31,7 +31,6 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
     private static final String STATUS_FAILED = "FAILED";
     private static final String STATUS_SKIPPED = "SKIPPED";
 
-    private final ValidationJobRepository validationJobRepository;
     private final SprintIssueTrackingRepository sprintIssueTrackingRepository;
     private final IssueValidationResultRepository issueValidationResultRepository;
     private final GithubIntegrationRepository githubIntegrationRepository;
@@ -39,10 +38,10 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
     private final GithubApiClient githubApiClient;
     private final OpenAiValidationClient openAiValidationClient;
     private final SystemLogService systemLogService;
+    private final ValidationJobWriteService writeService;
     private final ObjectMapper objectMapper;
 
     public ValidationPipelineOrchestratorImpl(
-            ValidationJobRepository validationJobRepository,
             SprintIssueTrackingRepository sprintIssueTrackingRepository,
             IssueValidationResultRepository issueValidationResultRepository,
             GithubIntegrationRepository githubIntegrationRepository,
@@ -50,8 +49,8 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
             GithubApiClient githubApiClient,
             OpenAiValidationClient openAiValidationClient,
             SystemLogService systemLogService,
+            ValidationJobWriteService writeService,
             ObjectMapper objectMapper) {
-        this.validationJobRepository = validationJobRepository;
         this.sprintIssueTrackingRepository = sprintIssueTrackingRepository;
         this.issueValidationResultRepository = issueValidationResultRepository;
         this.githubIntegrationRepository = githubIntegrationRepository;
@@ -59,6 +58,7 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         this.githubApiClient = githubApiClient;
         this.openAiValidationClient = openAiValidationClient;
         this.systemLogService = systemLogService;
+        this.writeService = writeService;
         this.objectMapper = objectMapper;
     }
 
@@ -66,10 +66,14 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
     @Override
     public void runAsync(ValidationJob job, boolean retryOnlyFailedIssues) {
         Long jobId = job.getJobId();
+        Long sprintId = job.getSprint() != null ? job.getSprint().getId() : null;
+        Long teamId = job.getTeam() != null ? job.getTeam().getId() : null;
+        Long parentJobId = job.getParentJob() != null ? job.getParentJob().getJobId() : null;
+
         logger.info("P7 pipeline starting. jobId={}, retry={}", jobId, retryOnlyFailedIssues);
 
         try {
-            markJobInProgress(jobId);
+            writeService.markJobInProgress(jobId);
 
             ValidationConfig config = validationConfigRepository.findById(1L)
                     .orElseThrow(() -> new IllegalStateException("ValidationConfig singleton not found"));
@@ -80,22 +84,36 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
             int failed = 0;
 
             for (SprintIssueTracking sit : issues) {
+                String errorCode = null;
                 try {
-                    processIssue(jobId, sit, config);
+                    processIssue(jobId, sprintId, teamId, parentJobId, sit, config);
                     completed++;
+                } catch (P7ApiException ex) {
+                    errorCode = ex.getErrorCode();
+                    logger.warn("P7 issue failed [{}]. jobId={}, issueKey={}", errorCode, jobId, sit.getIssueKey());
+                    writeService.saveFailedIssue(jobId, sit, errorCode);
+                    failed++;
                 } catch (Exception ex) {
-                    logger.warn("P7 issue failed. jobId={}, issueKey={}: {}", jobId, sit.getIssueKey(), ex.getMessage());
-                    saveFailedIssue(jobId, sit, ex.getMessage());
+                    errorCode = "INTERNAL_ERROR";
+                    logger.warn("P7 issue failed [INTERNAL_ERROR]. jobId={}, issueKey={}: {}", jobId, sit.getIssueKey(), ex.getMessage());
+                    writeService.saveFailedIssue(jobId, sit, errorCode);
                     failed++;
                 }
-                updateProgress(jobId, issues.size(), completed, failed);
+                if (errorCode != null) {
+                    logD9Subprocess(jobId, parentJobId, sprintId, teamId, sit.getIssueKey(),
+                            "7.6", 0, "FAILED", errorCode);
+                }
+                writeService.updateProgress(jobId, issues.size(), completed, failed);
             }
 
-            finalizeJob(jobId, completed, failed);
+            writeService.finalizeJob(jobId, completed, failed);
+            logD9JobComplete(jobId, parentJobId, sprintId, teamId, completed, failed);
+            logger.info("P7 pipeline completed. jobId={}, completed={}, failed={}", jobId, completed, failed);
 
         } catch (Exception ex) {
             logger.error("P7 pipeline fatal error. jobId={}: {}", jobId, ex.getMessage(), ex);
-            markJobFailed(jobId, ex.getMessage());
+            writeService.markJobFailed(jobId, ex.getMessage());
+            logD9JobComplete(jobId, parentJobId, sprintId, teamId, 0, -1);
         }
     }
 
@@ -117,20 +135,27 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         return all;
     }
 
-    // 7.2 → 7.5: full pipeline for a single issue
-    private void processIssue(Long jobId, SprintIssueTracking sit, ValidationConfig config) throws JsonProcessingException {
+    // 7.2 → 7.6: full pipeline for a single issue
+    private void processIssue(Long jobId, Long sprintId, Long teamId, Long parentJobId,
+                               SprintIssueTracking sit, ValidationConfig config) throws JsonProcessingException {
+        String issueKey = sit.getIssueKey();
         IssueValidationResult result = new IssueValidationResult();
         ValidationJob jobRef = new ValidationJob();
         jobRef.setJobId(jobId);
         result.setJob(jobRef);
-        result.setIssueKey(sit.getIssueKey());
+        result.setIssueKey(issueKey);
         result.setAssignee(sit.getAssigneeGithubUsername());
         result.setEvaluatedAt(Instant.now());
 
         // 7.2 — fetch PR details
+        writeService.updateStep(jobId, ValidationJobStep.FETCHING_PR_DETAILS);
+        long stepStart = System.currentTimeMillis();
+
         if (sit.getPrNumber() == null) {
             result.setValidationStatus(STATUS_SKIPPED);
-            saveResult(result);
+            writeService.saveResult(result);
+            logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.2",
+                    elapsed(stepStart), "SKIPPED", null);
             return;
         }
 
@@ -153,32 +178,42 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         }
 
         result.setPrUrl(String.format("https://github.com/%s/%s/pull/%d", org, repo, prNumber));
+        logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.2", elapsed(stepStart), "SUCCESS", null);
 
         // 7.3 — fetch file diffs and apply filters
+        writeService.updateStep(jobId, ValidationJobStep.FETCHING_DIFFS);
+        stepStart = System.currentTimeMillis();
         List<Map<String, Object>> files = githubApiClient.fetchPrFiles(org, repo, prNumber, pat);
         String filteredDiff = buildFilteredDiff(files, config);
-        boolean diffTruncated = wasTruncated(files, filteredDiff, config.getMaxDiffLines());
+        boolean diffTruncated = wasTruncated(filteredDiff, config.getMaxDiffLines());
         int filesAnalyzed = countAnalyzedFiles(files, config);
+        logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.3", elapsed(stepStart), "SUCCESS", null);
 
         // 7.4 — AI review verification
+        writeService.updateStep(jobId, ValidationJobStep.AI_REVIEW_VERIFICATION);
+        stepStart = System.currentTimeMillis();
         List<Map<String, Object>> reviews = githubApiClient.fetchPrReviews(org, repo, prNumber, pat);
         List<Map<String, Object>> comments = githubApiClient.fetchPrReviewComments(org, repo, prNumber, pat);
         String reviewsJson = objectMapper.writeValueAsString(buildReviewPayload(reviews, comments));
         Map<String, Object> reviewResult = openAiValidationClient.verifyReview(config.getOpenaiModel(), reviewsJson);
         applyReviewResult(result, reviewResult);
+        logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.4", elapsed(stepStart), "SUCCESS", null);
 
         // 7.5 — AI implementation validation
-        String issueDescription = "Issue: " + sit.getIssueKey();
+        writeService.updateStep(jobId, ValidationJobStep.AI_IMPLEMENTATION_VALIDATION);
+        stepStart = System.currentTimeMillis();
+        String issueDescription = "Issue: " + issueKey;
         Map<String, Object> implResult = openAiValidationClient.validateImplementation(
                 config.getOpenaiModel(), issueDescription, filteredDiff, filesAnalyzed, diffTruncated);
         applyImplResult(result, implResult, filesAnalyzed, diffTruncated);
+        logD9Subprocess(jobId, parentJobId, sprintId, teamId, issueKey, "7.5", elapsed(stepStart), "SUCCESS", null);
 
-        // 7.6 — compute composite score
+        // 7.6 — compute composite score and persist
+        writeService.updateStep(jobId, ValidationJobStep.STORING_RESULTS);
         BigDecimal composite = computeComposite(result, config);
         result.setCompositeScore(composite);
         result.setValidationStatus(STATUS_VALIDATED);
-
-        saveResult(result);
+        writeService.saveResult(result);
     }
 
     private String buildFilteredDiff(List<Map<String, Object>> files, ValidationConfig config) {
@@ -216,7 +251,7 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         return false;
     }
 
-    private boolean wasTruncated(List<Map<String, Object>> files, String filteredDiff, int maxLines) {
+    private boolean wasTruncated(String filteredDiff, int maxLines) {
         return filteredDiff.split("\n").length >= maxLines;
     }
 
@@ -287,82 +322,42 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void saveResult(IssueValidationResult result) {
-        issueValidationResultRepository.save(result);
+    // ── D9 Audit Logging ──────────────────────────────────────────────────
+
+    private void logD9Subprocess(Long jobId, Long parentJobId, Long sprintId, Long teamId,
+                                  String issueKey, String subProcess, long durationMs,
+                                  String outcome, String errorCode) {
+        String message = String.format(
+                "{\"jobId\":%d,\"parentJobId\":%s,\"sprintId\":%s,\"teamId\":%s," +
+                "\"issueKey\":\"%s\",\"subProcess\":\"%s\",\"durationMs\":%d," +
+                "\"outcome\":\"%s\",\"errorCode\":%s}",
+                jobId,
+                parentJobId != null ? parentJobId.toString() : "null",
+                sprintId != null ? sprintId.toString() : "null",
+                teamId != null ? teamId.toString() : "null",
+                issueKey, subProcess, durationMs, outcome,
+                errorCode != null ? "\"" + errorCode + "\"" : "null");
+
+        SystemLogCreateRequestDto req = new SystemLogCreateRequestDto();
+        req.setEventType("P7_SUBPROCESS");
+        req.setMessage(message);
+        req.setStackTrace(null);
+        systemLogService.logEventAsync(req);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void saveFailedIssue(Long jobId, SprintIssueTracking sit, String reason) {
-        IssueValidationResult result = new IssueValidationResult();
-        ValidationJob jobRef = new ValidationJob();
-        jobRef.setJobId(jobId);
-        result.setJob(jobRef);
-        result.setIssueKey(sit.getIssueKey());
-        result.setAssignee(sit.getAssigneeGithubUsername());
-        result.setValidationStatus(STATUS_FAILED);
-        result.setReviewAiFeedback(reason);
-        result.setEvaluatedAt(Instant.now());
-        issueValidationResultRepository.save(result);
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void markJobInProgress(Long jobId) {
-        validationJobRepository.findById(jobId).ifPresent(job -> {
-            job.setJobStatus(ValidationJobStatus.IN_PROGRESS);
-            job.setCurrentStep(ValidationJobStep.LOADING_CONTEXT);
-            validationJobRepository.save(job);
-        });
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void updateProgress(Long jobId, int total, int completed, int failed) {
-        validationJobRepository.findById(jobId).ifPresent(job -> {
-            int progress = total > 0 ? (completed + failed) * 100 / total : 100;
-            job.setProgressPercentage(progress);
-            job.setIssuesCompleted(completed);
-            job.setIssuesFailed(failed);
-            job.setCurrentStep(ValidationJobStep.STORING_RESULTS);
-            validationJobRepository.save(job);
-        });
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void finalizeJob(Long jobId, int completed, int failed) {
-        validationJobRepository.findById(jobId).ifPresent(job -> {
-            if (failed == 0) {
-                job.setJobStatus(ValidationJobStatus.COMPLETED);
-            } else if (completed > 0) {
-                job.setJobStatus(ValidationJobStatus.PARTIALLY_COMPLETED);
-                job.setFailureReason(failed + " issue(s) could not be validated.");
-            } else {
-                job.setJobStatus(ValidationJobStatus.FAILED);
-                job.setFailureReason("All issues failed validation.");
-            }
-            job.setProgressPercentage(100);
-            job.setCompletedAt(Instant.now());
-            validationJobRepository.save(job);
-        });
-
-        logD9(jobId, completed, failed);
-        logger.info("P7 pipeline completed. jobId={}, completed={}, failed={}", jobId, completed, failed);
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void markJobFailed(Long jobId, String reason) {
-        validationJobRepository.findById(jobId).ifPresent(job -> {
-            job.setJobStatus(ValidationJobStatus.FAILED);
-            job.setFailureReason(reason);
-            job.setCompletedAt(Instant.now());
-            validationJobRepository.save(job);
-        });
-        logD9(jobId, 0, -1);
-    }
-
-    private void logD9(Long jobId, int completed, int failed) {
+    private void logD9JobComplete(Long jobId, Long parentJobId, Long sprintId, Long teamId,
+                                   int completed, int failed) {
+        String outcome = failed < 0 ? "FAILED" : (failed == 0 ? "COMPLETED" : "PARTIALLY_COMPLETED");
         String eventType = failed < 0 ? "P7_VALIDATION_FAILED" : "P7_VALIDATION_COMPLETED";
-        String message = "P7 pipeline finished. jobId=" + jobId
-                + ", completed=" + completed + ", failed=" + Math.max(failed, 0);
+        String message = String.format(
+                "{\"jobId\":%d,\"parentJobId\":%s,\"sprintId\":%s,\"teamId\":%s," +
+                "\"outcome\":\"%s\",\"completed\":%d,\"failed\":%d}",
+                jobId,
+                parentJobId != null ? parentJobId.toString() : "null",
+                sprintId != null ? sprintId.toString() : "null",
+                teamId != null ? teamId.toString() : "null",
+                outcome, completed, Math.max(failed, 0));
+
         SystemLogCreateRequestDto req = new SystemLogCreateRequestDto();
         req.setEventType(eventType);
         req.setMessage(message);
@@ -370,7 +365,11 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         systemLogService.logEventAsync(req);
     }
 
-    // ── Type helpers ────────────────────────────────────────────────────
+    private long elapsed(long startMs) {
+        return System.currentTimeMillis() - startMs;
+    }
+
+    // ── Type helpers ──────────────────────────────────────────────────────
 
     private BigDecimal toBigDecimal(Object val) {
         if (val == null) return null;

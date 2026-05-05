@@ -2,7 +2,9 @@ package com.spms.backend.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.config.OpenAiProperties;
+import com.spms.backend.exception.P7ApiException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -79,6 +81,12 @@ public class OpenAiValidationClient {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> callOpenAi(String model, String systemPrompt, String userMessage) {
+        return callOpenAiWithRetry(model, systemPrompt, userMessage, 1);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> callOpenAiWithRetry(String model, String systemPrompt, String userMessage,
+                                                     int retriesLeft) {
         Map<String, Object> body = Map.of(
                 "model", model,
                 "response_format", Map.of("type", "json_object"),
@@ -111,9 +119,13 @@ public class OpenAiValidationClient {
             return objectMapper.readValue(content, (Class<Map<String, Object>>) (Class<?>) Map.class);
 
         } catch (RestClientException ex) {
-            throw new IllegalStateException("OpenAI API call failed: " + ex.getMessage(), ex);
+            if (retriesLeft > 0) return callOpenAiWithRetry(model, systemPrompt, userMessage, retriesLeft - 1);
+            throw new P7ApiException(HttpStatus.BAD_GATEWAY, "OPENAI_ERROR",
+                    "OpenAI API call failed after retry");
         } catch (Exception ex) {
-            throw new IllegalStateException("Failed to parse OpenAI response: " + ex.getMessage(), ex);
+            if (retriesLeft > 0) return callOpenAiWithRetry(model, systemPrompt, userMessage, retriesLeft - 1);
+            throw new P7ApiException(HttpStatus.BAD_GATEWAY, "OPENAI_ERROR",
+                    "Failed to parse OpenAI response after retry");
         }
     }
 }
