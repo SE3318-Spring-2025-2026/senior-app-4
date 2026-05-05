@@ -16,7 +16,8 @@ export type NotificationStatus =
     | "pending"
     | "accepted"
     | "rejected"
-    | "cleared";
+    | "cleared"
+    | "revoked";
 
 export type Notification = {
     id: number;

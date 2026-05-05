@@ -25,6 +25,7 @@ import com.spms.backend.service.NotificationService;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -42,18 +43,21 @@ public class NotificationServiceImpl implements NotificationService {
     private final GroupRepository groupRepository;
     private final ScheduleRepository scheduleRepository;
     private final MemberService memberService;
+    private final SimpMessagingTemplate messagingTemplate;
     private static final Logger log = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
     public NotificationServiceImpl(NotificationRepository notificationRepository,
                                    UserRepository userRepository,
                                    GroupRepository groupRepository,
                                    ScheduleRepository scheduleRepository,
-                                   @Lazy MemberService memberService) {
+                                   @Lazy MemberService memberService,
+                                   SimpMessagingTemplate messagingTemplate) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.groupRepository = groupRepository;
         this.scheduleRepository = scheduleRepository;
         this.memberService = memberService;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @Override
@@ -118,7 +122,9 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setFromUser(leader);
         notification.setToUser(professor);
 
-        return notificationRepository.save(notification).getId();
+        Notification saved = notificationRepository.save(notification);
+        pushWebSocket(professor.getUserId(), mapToDto(saved));
+        return saved.getId();
     }
 
     @Override
@@ -264,7 +270,8 @@ public class NotificationServiceImpl implements NotificationService {
             throw new BadRequestException("Invalid decision value! Only 'accept' or 'reject' are supported.");
         }
 
-        notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+        pushWebSocket(userId, mapToDto(saved));
     }
 
     @Override
@@ -285,7 +292,8 @@ public class NotificationServiceImpl implements NotificationService {
             notification.setFromUser(actor);
             notification.setToUser(recipient);
 
-            notificationRepository.save(notification);
+            Notification saved = notificationRepository.save(notification);
+            pushWebSocket(recipient.getUserId(), mapToDto(saved));
         }
     }
 
@@ -300,8 +308,9 @@ public class NotificationServiceImpl implements NotificationService {
         n.setMessage(message + (metadata != null ? " | " + metadata : ""));
         n.setStatus(NotificationStatus.PENDING);
         n.setToUser(recipient);
-        notificationRepository.save(n);
-        return n;
+        Notification saved = notificationRepository.save(n);
+        pushWebSocket(recipient.getUserId(), mapToDto(saved));
+        return saved;
     }
 
     @Override
@@ -331,6 +340,17 @@ public class NotificationServiceImpl implements NotificationService {
                 notif.getCreatedAt()
         );
     }
+    private void pushWebSocket(Long toUserId, NotificationDto dto) {
+        try {
+            messagingTemplate.convertAndSendToUser(
+                    toUserId.toString(),
+                    "/queue/notifications",
+                    dto);
+        } catch (Exception e) {
+            log.warn("[WebSocket] Push failed for userId={}: {}", toUserId, e.getMessage());
+        }
+    }
+
     @Override
     public void sendMembershipInvite(Long toUserId, Long groupId, String groupName) {
         log.info("Membership invite notification sent to user {} for group {}", toUserId, groupName);

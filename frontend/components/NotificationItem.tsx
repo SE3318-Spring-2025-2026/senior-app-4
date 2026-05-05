@@ -62,6 +62,7 @@ function StatusBadge({ status }: { status: Notification["status"] }) {
         accepted: "bg-green-500/20 text-green-300",
         rejected: "bg-red-500/20 text-red-300",
         cleared: "bg-white/10 text-gray-400",
+        revoked: "bg-orange-500/20 text-orange-300",
     };
     return (
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${classes[status] ?? "bg-white/10 text-gray-400"}`}>
