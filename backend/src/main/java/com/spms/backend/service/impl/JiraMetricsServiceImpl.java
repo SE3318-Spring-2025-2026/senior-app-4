@@ -92,6 +92,7 @@ public class JiraMetricsServiceImpl implements JiraMetricsService {
         boolean connected = jiraApiClient.validateSpaceConnection(
                 integration.getJiraSpaceUrl(),
                 integration.getProjectKey(),
+                integration.getJiraEmail(),
                 integration.getApiKey());
 
         String message = connected

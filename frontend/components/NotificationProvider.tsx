@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { Client, IMessage } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import {
-    fetchMyCommitteeNotifications,
+    fetchNotifications,
     respondNotification,
     clearNotificationApi,
 } from "@/lib/notifications-api";
@@ -25,7 +25,7 @@ import {
 import { API_BASE } from "@/lib/api-utils";
 
 // ------------------------------------------------------------------ Types
-const ENABLE_NOTIFICATIONS = false;
+const ENABLE_NOTIFICATIONS = true;
 type NotificationContextType = {
     notifications: Notification[];
     unreadOrPendingCount: number;
@@ -92,9 +92,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         async function load() {
             try {
                 setLoading(true);
-                const data = await fetchMyCommitteeNotifications();
+                const page = await fetchNotifications(0, 100);
                 if (cancelled) return;
-                const mapped = data.map(mapApiNotification);
+                const mapped = page.content.map(mapApiNotification);
                 mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                 setNotifications(mapped);
             } catch {
