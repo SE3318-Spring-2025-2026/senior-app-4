@@ -42,6 +42,10 @@ public class AiValidationController {
                     )
             ));
         } catch (P7ApiException ex) {
+            if (ex.getExistingJobId() != null) {
+                return ResponseEntity.status(ex.getStatus())
+                        .body(new ConflictWithJobResponse(ex.getErrorCode(), ex.getMessage(), ex.getExistingJobId()));
+            }
             return ResponseEntity.status(ex.getStatus())
                     .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
         }
@@ -58,10 +62,6 @@ public class AiValidationController {
             enforceReadAccess(job, role, userId);
             return ResponseEntity.ok(toJobStatusResponse(job));
         } catch (P7ApiException ex) {
-            if (ex.getExistingJobId() != null) {
-                return ResponseEntity.status(ex.getStatus())
-                        .body(new ConflictWithJobResponse(ex.getErrorCode(), ex.getMessage(), ex.getExistingJobId()));
-            }
             return ResponseEntity.status(ex.getStatus())
                     .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
         }
@@ -74,7 +74,8 @@ public class AiValidationController {
             @RequestAttribute("jwt_userId") Object userId
     ) {
         try {
-            return jobService.getActiveJob(sprintId)
+            enforceP7Access(role);
+            return jobService.getActiveJobForSprint(sprintId)
                     .map(job -> {
                         enforceReadAccess(job, role, userId);
                         return ResponseEntity.ok(toJobStatusResponse(job));
@@ -130,6 +131,12 @@ public class AiValidationController {
                         job.getCompletedAt()
                 )
         );
+    }
+
+    private void enforceP7Access(Object role) {
+        if (role != null && "student".equalsIgnoreCase(role.toString())) {
+            throw new P7ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "FORBIDDEN", "Caller role is not allowed.");
+        }
     }
 
     private void requireCoordinator(Object role) {

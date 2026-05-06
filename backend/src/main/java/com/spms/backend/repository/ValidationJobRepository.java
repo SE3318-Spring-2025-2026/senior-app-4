@@ -15,5 +15,5 @@ public interface ValidationJobRepository extends JpaRepository<ValidationJob, Lo
     Optional<ValidationJob> findFirstBySprint_IdAndTeam_IdAndJobStatusInOrderByStartedAtDesc(Long sprintId, Long teamId, Collection<ValidationJobStatus> statuses);
     Optional<ValidationJob> findFirstBySprint_IdAndTeamIsNullAndJobStatusInOrderByStartedAtDesc(Long sprintId, Collection<ValidationJobStatus> statuses);
     Optional<ValidationJob> findFirstByParentJob_JobIdAndJobStatusIn(Long parentJobId, Collection<ValidationJobStatus> statuses);
-    Optional<ValidationJob> findFirstBySprint_IdAndJobStatusInOrderByStartedAtDesc(Long sprintId, Collection<ValidationJobStatus> statuses);
+    Optional<ValidationJob> findFirstBySprint_IdAndJobStatusIn(Long sprintId, Collection<ValidationJobStatus> statuses);
 }

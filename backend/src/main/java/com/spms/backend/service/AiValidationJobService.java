@@ -101,10 +101,10 @@ public class AiValidationJobService {
     }
 
     @Transactional(readOnly = true)
-    public Optional<ValidationJob> getActiveJob(Long sprintId) {
+    public Optional<ValidationJob> getActiveJobForSprint(Long sprintId) {
         sprintRepository.findById(sprintId)
                 .orElseThrow(() -> new P7ApiException(HttpStatus.NOT_FOUND, "SPRINT_NOT_FOUND", "Sprint not found."));
-        return validationJobRepository.findFirstBySprint_IdAndJobStatusInOrderByStartedAtDesc(sprintId, ACTIVE);
+        return validationJobRepository.findFirstBySprint_IdAndJobStatusIn(sprintId, ACTIVE);
     }
 
     @Transactional

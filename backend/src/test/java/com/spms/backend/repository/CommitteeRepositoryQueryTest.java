@@ -3,8 +3,10 @@ package com.spms.backend.repository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.context.ActiveProfiles;
 
 @DataJpaTest
+@ActiveProfiles("test")
 public class CommitteeRepositoryQueryTest {
 
     /* TDD SPECIFICATION:
