@@ -12,4 +12,8 @@ public interface IssueValidationResultRepository extends JpaRepository<IssueVali
     List<IssueValidationResult> findByJob_JobId(Long jobId);
     Optional<IssueValidationResult> findByJob_JobIdAndIssueKey(Long jobId, String issueKey);
     List<IssueValidationResult> findByJob_JobIdAndValidationStatus(Long jobId, String validationStatus);
+
+    List<IssueValidationResult> findBySprintId(Long sprintId);
+    List<IssueValidationResult> findBySprintIdAndTeamId(Long sprintId, Long teamId);
+    Optional<IssueValidationResult> findTopByIssueKeyOrderByEvaluatedAtDesc(String issueKey);
 }
