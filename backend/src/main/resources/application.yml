@@ -37,3 +37,6 @@ token:
 scrum:
   sync:
     cron: ${SCRUM_SYNC_CRON:0 0 2 * * *}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}

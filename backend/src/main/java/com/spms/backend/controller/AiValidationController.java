@@ -78,6 +78,42 @@ public class AiValidationController {
         }
     }
 
+    @GetMapping("/sprints/{sprintId}/active-job")
+    public ResponseEntity<?> getActiveJob(
+            @PathVariable Long sprintId,
+            @RequestAttribute("jwt_role") Object role,
+            @RequestAttribute("jwt_userId") Object userId
+    ) {
+        try {
+            enforceP7Access(role);
+            return jobService.getActiveJobForSprint(sprintId)
+                    .map(job -> {
+                        enforceReadAccess(job, role, userId);
+                        return ResponseEntity.ok(new JobStatusResponse(
+                                "success",
+                                new JobStatusResponse.Data(
+                                        job.getJobId(),
+                                        job.getSprint().getId(),
+                                        job.getJobStatus().name(),
+                                        job.getCurrentStep() != null ? job.getCurrentStep().name() : null,
+                                        job.getProgressPercentage(),
+                                        messageForStep(job),
+                                        job.getIssuesTotal(),
+                                        job.getIssuesCompleted(),
+                                        job.getIssuesFailed(),
+                                        job.getFailureReason(),
+                                        job.getStartedAt(),
+                                        job.getCompletedAt()
+                                )
+                        ));
+                    })
+                    .orElse(ResponseEntity.noContent().build());
+        } catch (P7ApiException ex) {
+            return ResponseEntity.status(ex.getStatus())
+                    .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
+        }
+    }
+
     @PostMapping("/jobs/{jobId}/retry")
     public ResponseEntity<?> retry(
             @PathVariable Long jobId,
@@ -101,6 +137,12 @@ public class AiValidationController {
         } catch (P7ApiException ex) {
             return ResponseEntity.status(ex.getStatus())
                     .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
+        }
+    }
+
+    private void enforceP7Access(Object role) {
+        if (role != null && "student".equalsIgnoreCase(role.toString())) {
+            throw new P7ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "FORBIDDEN", "Caller role is not allowed.");
         }
     }
 
