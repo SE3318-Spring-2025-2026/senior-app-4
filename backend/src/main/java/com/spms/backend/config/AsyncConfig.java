@@ -9,7 +9,6 @@ import org.springframework.scheduling.annotation.EnableAsync;
  */
 @Configuration
 @EnableAsync
-public class
-AsyncConfig {
+public class AsyncConfig {
     // @EnableAsync is sufficient — default executor will be used
 }

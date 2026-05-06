@@ -19,12 +19,6 @@ public interface ScrumSyncService {
     ScrumSyncResponse triggerSync();
 
     /**
-     * Execute the actual synchronization (called by cron or triggerSync).
-     * Should be resilient to concurrent calls and prevent duplicate execution.
-     */
-    void executeSyncPipeline();
-
-    /**
      * Check if a sync operation is currently running.
      *
      * @return true if sync is in progress, false otherwise
