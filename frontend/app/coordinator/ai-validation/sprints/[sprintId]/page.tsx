@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import JobProgress from '@/components/ai-validation/JobProgress';
 import TriggerModal from '@/components/ai-validation/TriggerModal';
 import { getActiveJobForSprint } from '@/lib/ai-validation-api';
+import { fetchGroups } from '@/lib/groups-api';
 
 type PageState = 'loading' | 'trigger' | 'progress' | 'not_found' | 'forbidden';
 
@@ -29,6 +30,13 @@ function SprintPageLayout() {
     return raw ? Number(raw) : null;
   });
   const [showModal, setShowModal] = useState(false);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetchGroups(0, 200).then((page) => {
+      setTeams(page.content.map((g) => ({ id: String(g.id), name: g.groupName })));
+    }).catch(() => { /* teams dropdown stays empty, text input fallback */ });
+  }, []);
 
   const syncJobIdToUrl = useCallback(
     (id: number | null) => {
@@ -189,6 +197,7 @@ function SprintPageLayout() {
       {showModal && (
         <TriggerModal
           sprintId={sprintId}
+          teams={teams}
           onClose={() => setShowModal(false)}
           onJobStarted={handleJobStarted}
         />

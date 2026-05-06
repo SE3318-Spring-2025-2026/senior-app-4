@@ -99,7 +99,13 @@ export async function updateValidationConfig(
     headers: buildHeaders(),
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(await parseError(res));
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { message?: string; error?: string };
+    throw Object.assign(new Error(data.message || "Failed to save configuration."), {
+      errorCode: data.error,
+      httpStatus: res.status,
+    });
+  }
   return res.json();
 }
 
@@ -130,7 +136,13 @@ export async function getJobStatus(jobId: number): Promise<JobStatusResponse> {
   const res = await fetch(`${API_BASE}/ai-validation/jobs/${jobId}`, {
     headers: buildHeaders(),
   });
-  if (!res.ok) throw new Error(await parseError(res));
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { message?: string; error?: string };
+    throw Object.assign(new Error(data.message || "Failed to fetch job status."), {
+      errorCode: data.error,
+      httpStatus: res.status,
+    });
+  }
   return res.json();
 }
 

@@ -105,6 +105,7 @@ function ConfigForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ maxDiffLines?: string; openaiModel?: string; weights?: string }>({});
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -123,8 +124,8 @@ function ConfigForm() {
 
   useEffect(() => { loadConfig(); }, [loadConfig]);
 
-  const reviewWeightNum = parseInt(form.reviewWeight, 10) || 0;
-  const implWeightNum = parseInt(form.implementationWeight, 10) || 0;
+  const reviewWeightNum = Number.parseInt(form.reviewWeight, 10) || 0;
+  const implWeightNum = Number.parseInt(form.implementationWeight, 10) || 0;
   const weightSum = reviewWeightNum + implWeightNum;
   const weightsValid = weightSum === 100;
 
@@ -132,20 +133,26 @@ function ConfigForm() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) {
     const { name, value } = e.target;
+    if (name === 'maxDiffLines') setFieldErrors((prev) => ({ ...prev, maxDiffLines: undefined }));
+    if (name === 'openaiModel') setFieldErrors((prev) => ({ ...prev, openaiModel: undefined }));
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
+    const errors: { maxDiffLines?: string; openaiModel?: string; weights?: string } = {};
     if (!weightsValid) {
-      showToast('reviewWeight + implementationWeight must equal 100.', 'error');
+      errors.weights = 'Review weight + Implementation weight must equal 100.';
+    }
+    const maxLines = Number.parseInt(form.maxDiffLines, 10);
+    if (form.maxDiffLines !== '' && (Number.isNaN(maxLines) || maxLines < 1)) {
+      errors.maxDiffLines = 'Must be at least 1.';
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
-    const maxLines = parseInt(form.maxDiffLines, 10);
-    if (form.maxDiffLines !== '' && maxLines < 1) {
-      showToast('maxDiffLines must be at least 1.', 'error');
-      return;
-    }
+    setFieldErrors({});
     setSaving(true);
     try {
       const patterns = form.excludedFilePatterns
@@ -162,8 +169,16 @@ function ConfigForm() {
       setForm(configDataToFormState(updated.data));
       showToast('Configuration saved successfully.', 'success');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save configuration.';
-      showToast(msg, 'error');
+      const error = err as Error & { errorCode?: string };
+      if (error.errorCode === 'INVALID_WEIGHTS') {
+        setFieldErrors((prev) => ({ ...prev, weights: error.message || 'Invalid weights.' }));
+      } else if (error.errorCode === 'INVALID_MAX_DIFF_LINES') {
+        setFieldErrors((prev) => ({ ...prev, maxDiffLines: error.message || 'Must be at least 1.' }));
+      } else if (error.errorCode === 'INVALID_OPENAI_MODEL') {
+        setFieldErrors((prev) => ({ ...prev, openaiModel: error.message || 'Invalid model.' }));
+      } else {
+        showToast(error.message || 'Failed to save configuration.', 'error');
+      }
     } finally {
       setSaving(false);
     }
@@ -260,6 +275,9 @@ function ConfigForm() {
               ? 'Weights sum to 100 ✓'
               : `Weights sum to ${weightSum} — must equal 100`}
           </div>
+          {fieldErrors.weights && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.weights}</p>
+          )}
         </div>
       </div>
 
@@ -292,6 +310,9 @@ function ConfigForm() {
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
+            {fieldErrors.openaiModel && (
+              <p className="text-xs text-red-400 mt-1">{fieldErrors.openaiModel}</p>
+            )}
           </div>
         </div>
       </div>
@@ -323,7 +344,11 @@ function ConfigForm() {
               onChange={handleChange}
               className="w-full px-4 py-3 bg-gray-800 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/30 transition-all"
             />
-            <p className="text-xs text-gray-600">Maximum diff lines sent to OpenAI per PR. Excess is truncated.</p>
+            {fieldErrors.maxDiffLines ? (
+              <p className="text-xs text-red-400">{fieldErrors.maxDiffLines}</p>
+            ) : (
+              <p className="text-xs text-gray-600">Maximum diff lines sent to OpenAI per PR. Excess is truncated.</p>
+            )}
           </div>
           <div className="space-y-2">
             <label htmlFor="excludedFilePatterns" className="text-xs font-medium text-gray-400 uppercase tracking-wider">

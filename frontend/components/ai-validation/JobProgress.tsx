@@ -60,7 +60,12 @@ export default function JobProgress({ jobId, onJobIdChange }: Props) {
       if (!TERMINAL_STATES.has(res.data.jobStatus)) {
         pollRef.current = setTimeout(() => fetchStatus(id), POLL_INTERVAL_MS);
       }
-    } catch {
+    } catch (err: unknown) {
+      const error = err as Error & { httpStatus?: number };
+      const status = error.httpStatus;
+      if (status === 403 || status === 404) {
+        return;
+      }
       pollRef.current = setTimeout(() => fetchStatus(id), POLL_INTERVAL_MS);
     }
   };

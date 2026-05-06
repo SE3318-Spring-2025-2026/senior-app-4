@@ -43,7 +43,7 @@ export default function TriggerModal({ sprintId, teams = [], onClose, onJobStart
         if (error.existingJobId != null) {
           onJobStarted(error.existingJobId);
         }
-        showToast('A validation job is already running — resuming progress view.', 'error');
+        showToast('A validation job is already running — resuming progress view.', 'warning');
       } else {
         showToast(error.message || 'Failed to trigger validation.', 'error');
       }
