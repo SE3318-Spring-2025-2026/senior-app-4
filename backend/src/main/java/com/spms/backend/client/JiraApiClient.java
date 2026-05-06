@@ -269,7 +269,9 @@ public class JiraApiClient {
                         assigneeEmail = (String) assignee.get("emailAddress");
                     }
 
-                    allIssues.add(new JiraIssueData(issueKey, storyPoints, assigneeEmail));
+                    String description = extractDescription(fields);
+
+                    allIssues.add(new JiraIssueData(issueKey, storyPoints, assigneeEmail, description));
                 }
 
                 startAt += issues.size();
@@ -288,6 +290,47 @@ public class JiraApiClient {
         }
 
         return allIssues;
+    }
+
+    private String extractDescription(Map<String, Object> fields) {
+        Object description = fields.get("description");
+        if (description == null) {
+            return null;
+        }
+
+        if (description instanceof String) {
+            return (String) description;
+        }
+
+        if (description instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> descObj = (Map<String, Object>) description;
+            Object content = descObj.get("content");
+
+            if (content instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> contentList = (List<Map<String, Object>>) content;
+
+                if (!contentList.isEmpty()) {
+                    Map<String, Object> firstBlock = contentList.get(0);
+                    Object blockContent = firstBlock.get("content");
+
+                    if (blockContent instanceof List) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> blockContentList = (List<Map<String, Object>>) blockContent;
+
+                        if (!blockContentList.isEmpty()) {
+                            Object text = blockContentList.get(0).get("text");
+                            if (text instanceof String) {
+                                return (String) text;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private String buildBasicAuthHeader(String email, String apiToken) {

@@ -35,6 +35,7 @@ import com.spms.backend.client.GithubApiClient;
 import com.spms.backend.client.JiraApiClient;
 import com.spms.backend.service.NotificationService;
 import com.spms.backend.service.StudentAuthorizationService;
+import com.spms.backend.service.EncryptionService;
 import com.spms.backend.service.ValidationResult;
 import com.spms.backend.repository.UserRepository;
 import org.slf4j.Logger;
@@ -77,6 +78,7 @@ public class GroupServiceImpl implements GroupService {
     private final JiraIntegrationRepository jiraIntegrationRepository;
     private final GithubIntegrationRepository githubIntegrationRepository;
     private final JiraApiClient jiraApiClient;
+    private final EncryptionService encryptionService;
 
     private final NotificationRepository notificationRepository;
     private final AuditLogRepository auditLogRepository;
@@ -91,7 +93,8 @@ public class GroupServiceImpl implements GroupService {
                             GithubIntegrationRepository githubIntegrationRepository,
                             JiraApiClient jiraApiClient,
                             NotificationRepository notificationRepository,
-                            GithubApiClient githubApiClient) 
+                            GithubApiClient githubApiClient,
+                            EncryptionService encryptionService) 
                             {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
@@ -103,7 +106,8 @@ public class GroupServiceImpl implements GroupService {
         this.jiraApiClient = jiraApiClient;
         this.githubApiClient = githubApiClient;
         this.notificationRepository = notificationRepository;
-        this.auditLogRepository = auditLogRepository;}
+        this.auditLogRepository = auditLogRepository;
+        this.encryptionService = encryptionService;}
 
     @Override
     @Transactional
@@ -274,7 +278,15 @@ public class GroupServiceImpl implements GroupService {
         integration.setGroup(group);
         integration.setJiraSpaceUrl(request.jiraSpaceUrl().trim());
         integration.setJiraEmail(request.email() != null ? request.email().trim() : null);
-        integration.setApiKey(request.apiKey() != null ? request.apiKey().trim() : null);
+
+        try {
+            String encryptedApiKey = request.apiKey() != null ? encryptionService.encrypt(request.apiKey().trim()) : null;
+            integration.setApiKey(encryptedApiKey);
+        } catch (Exception e) {
+            log.error("Failed to encrypt JIRA API key for group {}: {}", groupId, e.getMessage());
+            throw new BadRequestException("Failed to save JIRA credentials: " + e.getMessage());
+        }
+
         integration.setProjectKey(request.projectKey().trim());
         integration.setStatus(JiraIntegrationStatus.ACTIVE);
         integration.setLastError(null);
@@ -499,10 +511,18 @@ public class GroupServiceImpl implements GroupService {
 
         GithubIntegration integration = githubIntegrationRepository.findByGroup_Id(groupId)
                 .orElseGet(GithubIntegration::new);
-        
+
         integration.setGroup(group);
         integration.setOrganizationName(request.organizationName().trim());
-        integration.setGithubPatEncrypted(request.githubPat().trim()); 
+
+        try {
+            String encryptedPat = encryptionService.encrypt(request.githubPat().trim());
+            integration.setGithubPatEncrypted(encryptedPat);
+        } catch (Exception e) {
+            log.error("Failed to encrypt GitHub PAT for group {}: {}", groupId, e.getMessage());
+            throw new BadRequestException("Failed to save GitHub credentials: " + e.getMessage());
+        }
+
         integration.setStatus(GithubIntegrationStatus.ACTIVE);
         integration.setUpdatedAt(Instant.now());
 

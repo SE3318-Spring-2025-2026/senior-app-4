@@ -24,6 +24,7 @@ public interface SprintRepository extends JpaRepository<Sprint, Long> {
      * @return Optional containing the active sprint if found
      */
     @Query("SELECT s FROM Sprint s WHERE s.status = 'Active' " +
-           "AND :currentDate >= s.startDate AND :currentDate <= s.endDate")
+           "AND :currentDate >= s.startDate AND :currentDate <= s.endDate " +
+           "ORDER BY s.id DESC LIMIT 1")
     Optional<Sprint> findActiveSprintByDate(@Param("currentDate") LocalDate currentDate);
 }

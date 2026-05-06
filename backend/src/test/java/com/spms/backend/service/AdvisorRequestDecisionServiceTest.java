@@ -45,6 +45,9 @@ class AdvisorRequestDecisionServiceTest {
     private Group group;
     private Notification request;
 
+    @Mock
+    private EncryptionService encryptionService;
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
@@ -52,7 +55,8 @@ class AdvisorRequestDecisionServiceTest {
                 groupRepository, groupMemberRepository, userRepository,
                 notificationService, auditLogRepository, authService,
                 jiraIntegrationRepository, githubIntegrationRepository,
-                jiraApiClient, notificationRepository, githubApiClient
+                jiraApiClient, notificationRepository, githubApiClient,
+                encryptionService
         );
 
         professor = new User();

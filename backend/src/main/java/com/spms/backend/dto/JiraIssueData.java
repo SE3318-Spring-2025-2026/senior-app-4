@@ -5,10 +5,12 @@ package com.spms.backend.dto;
  * @param issueKey JIRA issue key (e.g., "SPM-42")
  * @param storyPoints story point estimate (customfield_10016)
  * @param assigneeEmail assignee email address
+ * @param description issue description
  */
 public record JiraIssueData(
         String issueKey,
         Integer storyPoints,
-        String assigneeEmail
+        String assigneeEmail,
+        String description
 ) {
 }

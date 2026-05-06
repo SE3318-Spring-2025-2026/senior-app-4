@@ -60,6 +60,9 @@ class GroupServiceImplJiraIntegrationTest {
     @Mock // Ekledik ki hata vermesin
     private GithubApiClient githubApiClient;
 
+    @Mock
+    private EncryptionService encryptionService;
+
     private GroupServiceImpl groupService;
 @BeforeEach
     void setUp() {
@@ -68,13 +71,14 @@ class GroupServiceImplJiraIntegrationTest {
                 groupMemberRepository,
                 userRepository,
                 notificationService,
-                auditLogRepository,            
-                authService,                   
-                jiraIntegrationRepository,     
-                githubIntegrationRepository,   
-                jiraApiClient,                 
-                notificationRepository,        
-                githubApiClient                
+                auditLogRepository,
+                authService,
+                jiraIntegrationRepository,
+                githubIntegrationRepository,
+                jiraApiClient,
+                notificationRepository,
+                githubApiClient,
+                encryptionService
         );
     }
 

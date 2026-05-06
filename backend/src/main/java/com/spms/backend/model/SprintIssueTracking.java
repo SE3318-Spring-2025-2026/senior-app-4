@@ -36,6 +36,9 @@ public class SprintIssueTracking {
     @Column(name = "pr_merged")
     private Boolean prMerged;
 
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
     @Column(name = "synced_at", nullable = false)
     private Instant syncedAt;
 
@@ -113,6 +116,14 @@ public class SprintIssueTracking {
 
     public void setPrMerged(Boolean prMerged) {
         this.prMerged = prMerged;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public Instant getSyncedAt() {

@@ -33,6 +33,10 @@ public class EncryptionService {
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(encryptionKey.getBytes(), ALGORITHM));
             return new String(cipher.doFinal(Base64.getDecoder().decode(encryptedText)));
+        } catch (IllegalArgumentException e) {
+            // Base64 decode failed - likely plain text or malformed data
+            // Return as-is to handle legacy unencrypted data
+            return encryptedText;
         } catch (Exception e) {
             throw new RuntimeException("Error decrypting data", e);
         }

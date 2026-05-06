@@ -95,6 +95,7 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
     }
 
     @Async
+    @Transactional
     protected void executeSyncAsync(String syncId) {
         try {
             logger.info("Executing sync pipeline for syncId: {}", syncId);
@@ -132,7 +133,6 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         logger.info("Sync pipeline execution completed");
     }
 
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     protected void processSingleGroup(Group group, com.spms.backend.model.Sprint sprint) {
         logger.debug("Processing group: {} for sprint: {}", group.getId(), sprint.getId());
 
@@ -144,7 +144,24 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         }
 
         var jira = jiraIntegration.get();
-        String decryptedJiraToken = encryptionService.decrypt(jira.getApiKey());
+
+        if (jira.getApiKey() == null || jira.getApiKey().trim().isEmpty()) {
+            logger.warn("No JIRA API key configured for group: {}", group.getId());
+            return;
+        }
+
+        if (jira.getJiraEmail() == null || jira.getJiraEmail().trim().isEmpty()) {
+            logger.warn("No JIRA email configured for group: {}", group.getId());
+            return;
+        }
+
+        String decryptedJiraToken;
+        try {
+            decryptedJiraToken = encryptionService.decrypt(jira.getApiKey());
+        } catch (Exception e) {
+            logger.warn("Failed to decrypt JIRA credentials for group: {}", group.getId(), e);
+            return;
+        }
 
         List<JiraIssueData> jiraIssues;
         try {
@@ -168,15 +185,39 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         }
 
         var github = githubIntegration.get();
-        String decryptedGithubPat = encryptionService.decrypt(github.getGithubPatEncrypted());
 
-        sprintIssueTrackingRepository.deleteByGroup_IdAndSprint_Id(group.getId(), sprint.getId());
+        if (github.getGithubPatEncrypted() == null || github.getGithubPatEncrypted().trim().isEmpty()) {
+            logger.warn("No GitHub PAT configured for group: {}", group.getId());
+            return;
+        }
+
+        if (github.getOrganizationName() == null || github.getOrganizationName().trim().isEmpty()) {
+            logger.warn("No GitHub organization name configured for group: {}", group.getId());
+            return;
+        }
+
+        if (github.getRepositoryName() == null || github.getRepositoryName().trim().isEmpty()) {
+            logger.warn("No GitHub repository name configured for group: {}", group.getId());
+            return;
+        }
+
+        String decryptedGithubPat;
+        try {
+            decryptedGithubPat = encryptionService.decrypt(github.getGithubPatEncrypted());
+        } catch (Exception e) {
+            logger.warn("Failed to decrypt GitHub credentials for group: {}", group.getId(), e);
+            return;
+        }
 
         List<SprintIssueTracking> trackingLogs = new ArrayList<>();
 
         for (JiraIssueData jiraIssue : jiraIssues) {
-            SprintIssueTracking log = new SprintIssueTracking(group, sprint, jiraIssue.issueKey());
+            SprintIssueTracking log = sprintIssueTrackingRepository
+                .findByGroup_IdAndSprint_IdAndIssueKey(group.getId(), sprint.getId(), jiraIssue.issueKey())
+                .orElseGet(() -> new SprintIssueTracking(group, sprint, jiraIssue.issueKey()));
+
             log.setStoryPoints(jiraIssue.storyPoints());
+            log.setDescription(jiraIssue.description());
             log.setSyncedAt(Instant.now());
 
             try {
@@ -199,6 +240,17 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
                         log.setPrNumber(pr.prNumber());
                         log.setPrMerged(pr.merged());
                         log.setAssigneeGithubUsername(pr.authorGithubUsername());
+                    } else {
+                        Optional<PrCheckResult> anyPrResult = githubApiClient.findPrForBranch(
+                            github.getOrganizationName(),
+                            github.getRepositoryName(),
+                            branchName.get(),
+                            decryptedGithubPat
+                        );
+
+                        if (anyPrResult.isPresent()) {
+                            log.setAssigneeGithubUsername(anyPrResult.get().authorGithubUsername());
+                        }
                     }
                 }
             } catch (Exception e) {
