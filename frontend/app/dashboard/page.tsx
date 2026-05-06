@@ -6,10 +6,14 @@ import Link from "next/link";
 import { getUser, getToken, clearAuth } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
 import LeaderboardTable from "@/components/LeaderboardTable";
+import SprintAnalyticsChart, { RawSprintData } from "@/components/SprintAnalyticsChart";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<ReturnType<typeof getUser>>(null);
+  const [chartData, setChartData] = useState<RawSprintData[] | null>(null);
+  const [loadingChart, setLoadingChart] = useState(true);
+  const [chartError, setChartError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -27,6 +31,30 @@ export default function DashboardPage() {
 
     setUser(u);
   }, [router]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchSprintData = async () => {
+      try {
+        const mockData: RawSprintData[] = [
+          { category: 'Completed', storyPoints: 42 },
+          { category: 'In Progress', storyPoints: 28 },
+          { category: 'Remaining', storyPoints: 30 }
+        ];
+        
+        setTimeout(() => {
+          setChartData(mockData);
+          setLoadingChart(false);
+        }, 500);
+      } catch (err) {
+        setChartError(err instanceof Error ? err.message : 'Failed to fetch sprint data');
+        setLoadingChart(false);
+      }
+    };
+
+    fetchSprintData();
+  }, [user]);
 
   const handleLogout = () => {
     clearAuth();
@@ -46,7 +74,6 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gray-950 flex">
       <Sidebar activePage="dashboard" />
 
-      {/* Main */}
       <main className="flex-1 flex flex-col min-w-0">
         <div className="border-b border-white/5 px-8 py-4 flex items-center justify-between">
           <div>
@@ -61,6 +88,17 @@ export default function DashboardPage() {
 
         {(user.role === "professor" || user.role === "coordinator" || user.role === "admin") ? (
           <div className="flex-1 p-8 space-y-8 overflow-y-auto">
+            <div className="w-full">
+              {loadingChart ? (
+                <div className="animate-pulse h-80 bg-gray-900 rounded-xl border border-white/10" />
+              ) : chartError ? (
+                <div className="p-6 bg-red-900/20 border border-red-500/20 rounded-xl text-red-400">
+                  {chartError}
+                </div>
+              ) : (
+                <SprintAnalyticsChart data={chartData} />
+              )}
+            </div>
             <LeaderboardTable />
           </div>
         ) : (
