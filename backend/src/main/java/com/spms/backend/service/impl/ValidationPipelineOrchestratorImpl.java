@@ -173,7 +173,8 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         }
 
         GithubIntegration gh  = ghOpt.get();
-        String pat  = encryptionService.decrypt(gh.getGithubPatEncrypted());
+        // EncryptionConverter already decrypts on read — no extra decrypt needed
+        String pat  = gh.getGithubPatEncrypted();
         String org  = gh.getOrganizationName();
         String repo = gh.getRepositoryName();
 

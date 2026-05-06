@@ -7,7 +7,6 @@ import com.spms.backend.model.Group;
 import com.spms.backend.model.SprintIssueTracking;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.SprintIssueTrackingRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -18,11 +17,15 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class AdvisorSprintService {
 
     private final GroupRepository groupRepository;
     private final SprintIssueTrackingRepository sprintIssueTrackingRepository;
+
+    public AdvisorSprintService(GroupRepository groupRepository, SprintIssueTrackingRepository sprintIssueTrackingRepository) {
+        this.groupRepository = groupRepository;
+        this.sprintIssueTrackingRepository = sprintIssueTrackingRepository;
+    }
 
     public GroupSprintSummaryResponse buildSprintSummary(List<Group> advisorGroups) {
         List<GroupSprintSummaryResponse.GroupSummaryDto> groupSummaries = new ArrayList<>();

@@ -6,6 +6,7 @@ export type GithubIntegrationApiResponse = {
     data: {
         status: string;
         organizationName: string | null;
+        repositoryName: string | null;
         connectedAt: string | null;
         message: string | null;
     };
@@ -47,6 +48,7 @@ export async function fetchGithubIntegration(
             data: {
                 status: "inactive",
                 organizationName: null,
+                repositoryName: null,
                 connectedAt: null,
                 message: errorMessage || "Not connected",
             },
@@ -104,7 +106,8 @@ export type IntegrationsTestResponse = {
 export async function bindGithubIntegration(
     groupId: number,
     githubPat: string,
-    organizationName: string
+    organizationName: string,
+    repositoryName: string
 ): Promise<void> {
     const token = getToken();
 
@@ -117,6 +120,7 @@ export async function bindGithubIntegration(
         body: JSON.stringify({
             githubPat,
             organizationName,
+            repositoryName,
         }),
     });
 

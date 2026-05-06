@@ -6,7 +6,6 @@ import com.spms.backend.model.Group;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.service.AdvisorSprintService;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,11 +18,15 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/advisor")
-@RequiredArgsConstructor
 public class AdvisorSprintController {
 
     private final GroupRepository groupRepository;
     private final AdvisorSprintService advisorSprintService;
+
+    public AdvisorSprintController(GroupRepository groupRepository, AdvisorSprintService advisorSprintService) {
+        this.groupRepository = groupRepository;
+        this.advisorSprintService = advisorSprintService;
+    }
 
     /**
      * Get active sprint summary with all groups for advisor

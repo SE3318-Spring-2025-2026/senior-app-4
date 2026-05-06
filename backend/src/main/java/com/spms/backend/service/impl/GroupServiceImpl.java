@@ -337,6 +337,7 @@ public class GroupServiceImpl implements GroupService {
                 new GithubIntegrationResponse.GithubIntegrationData(
                         github.getStatus().name().toLowerCase(java.util.Locale.ROOT),
                         github.getOrganizationName(),
+                        github.getRepositoryName(),
                         github.getCreatedAt().toString(),
                         github.getLastError() != null ? github.getLastError() : "Connected successfully"
                 )
@@ -502,7 +503,8 @@ public class GroupServiceImpl implements GroupService {
         
         integration.setGroup(group);
         integration.setOrganizationName(request.organizationName().trim());
-        integration.setGithubPatEncrypted(request.githubPat().trim()); 
+        integration.setRepositoryName(request.repositoryName().trim());
+        integration.setGithubPatEncrypted(request.githubPat().trim());
         integration.setStatus(GithubIntegrationStatus.ACTIVE);
         integration.setUpdatedAt(Instant.now());
 

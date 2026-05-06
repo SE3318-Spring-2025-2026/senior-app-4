@@ -23,14 +23,11 @@ public class GithubDiscoveryService {
 
     private final RestTemplate restTemplate;
     private final GithubIntegrationRepository githubIntegrationRepository;
-    private final EncryptionService encryptionService;
 
     public GithubDiscoveryService(RestTemplateBuilder restTemplateBuilder,
-                                 GithubIntegrationRepository githubIntegrationRepository,
-                                 EncryptionService encryptionService) {
+                                 GithubIntegrationRepository githubIntegrationRepository) {
         this.restTemplate = restTemplateBuilder.build();
         this.githubIntegrationRepository = githubIntegrationRepository;
-        this.encryptionService = encryptionService;
     }
 
     public Optional<String> findBranchForIssueKey(Long groupId, String issueKey, String repositoryName) {
@@ -38,38 +35,44 @@ public class GithubDiscoveryService {
             GithubIntegration integration = githubIntegrationRepository.findByGroup_Id(groupId)
                     .orElseThrow(() -> new IllegalArgumentException("GitHub integration not found for group: " + groupId));
 
-            String decryptedPat = encryptionService.decrypt(integration.getGithubPatEncrypted());
+            // EncryptionConverter already decrypts on read — no extra decrypt needed
+            String decryptedPat = integration.getGithubPatEncrypted();
             String orgName = integration.getOrganizationName();
-
-            String url = String.format("https://api.github.com/repos/%s/%s/branches?per_page=100",
-                    orgName, repositoryName);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(decryptedPat);
             headers.set("Accept", "application/vnd.github+json");
             headers.set("X-GitHub-Api-Version", "2022-11-28");
-
             HttpEntity<Void> entity = new HttpEntity<>(headers);
-            ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.GET,
-                    entity,
-                    new ParameterizedTypeReference<List<Map<String, Object>>>() {}
-            );
 
-            List<Map<String, Object>> branches = response.getBody();
-            if (branches == null) return Optional.empty();
+            String keyLower = issueKey.toLowerCase();
+            int page = 1;
+            while (true) {
+                String url = String.format(
+                        "https://api.github.com/repos/%s/%s/branches?per_page=100&page=%d",
+                        orgName, repositoryName, page);
 
-            for (Map<String, Object> branchObj : branches) {
-                String branchName = (String) branchObj.get("name");
-                if (branchName == null) continue;
+                ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                        url, HttpMethod.GET, entity,
+                        new ParameterizedTypeReference<List<Map<String, Object>>>() {});
 
-                if (branchName.contains(issueKey + "-") ||
-                    branchName.contains(issueKey + "/") ||
-                    branchName.endsWith(issueKey) ||
-                    branchName.equals(issueKey)) {
-                    return Optional.of(branchName);
+                List<Map<String, Object>> branches = response.getBody();
+                if (branches == null || branches.isEmpty()) break;
+
+                for (Map<String, Object> branchObj : branches) {
+                    String branchName = (String) branchObj.get("name");
+                    if (branchName == null) continue;
+                    String nameLower = branchName.toLowerCase();
+                    if (nameLower.contains(keyLower + "-") ||
+                        nameLower.contains(keyLower + "/") ||
+                        nameLower.endsWith(keyLower) ||
+                        nameLower.equals(keyLower)) {
+                        return Optional.of(branchName);
+                    }
                 }
+
+                if (branches.size() < 100) break;
+                page++;
             }
             return Optional.empty();
         } catch (Exception e) {

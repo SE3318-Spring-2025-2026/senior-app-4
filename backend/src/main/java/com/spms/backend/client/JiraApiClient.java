@@ -230,6 +230,7 @@ public class JiraApiClient {
                         .pathSegment("rest", "agile", "1.0", "sprint", sprintId.toString(), "issue")
                         .queryParam("startAt", startAt)
                         .queryParam("maxResults", maxResults)
+                        .queryParam("fields", "summary,assignee,customfield_10016,customfield_10028,customfield_10004")
                         .build()
                         .toUriString();
 
@@ -257,9 +258,13 @@ public class JiraApiClient {
                     if (fields == null) continue;
 
                     Integer storyPoints = null;
-                    Object spValue = fields.get("customfield_10016");
-                    if (spValue instanceof Number) {
-                        storyPoints = ((Number) spValue).intValue();
+                    // Jira Cloud uses 10016, some instances use 10028 or 10004
+                    for (String spField : new String[]{"customfield_10016", "customfield_10028", "customfield_10004"}) {
+                        Object spValue = fields.get(spField);
+                        if (spValue instanceof Number) {
+                            storyPoints = ((Number) spValue).intValue();
+                            break;
+                        }
                     }
 
                     String assigneeEmail = null;

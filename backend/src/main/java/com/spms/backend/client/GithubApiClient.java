@@ -115,7 +115,8 @@ public class GithubApiClient {
      * @return Optional containing PR check result if PR found, empty otherwise
      */
     public Optional<PrCheckResult> findMergedPrForBranch(String orgName, String repoName, String branchName, String pat) {
-        String url = String.format("https://api.github.com/repos/%s/%s/pulls?head=%s:%s&base=main&state=closed",
+        // head filter ile tüm closed PR'ları çek, base branch fark etmez
+        String url = String.format("https://api.github.com/repos/%s/%s/pulls?head=%s:%s&state=closed&per_page=5",
                 orgName, repoName, orgName, branchName);
 
         try {
@@ -132,16 +133,20 @@ public class GithubApiClient {
                 return Optional.empty();
             }
 
-            Map<String, Object> pr = response.get(0);
-            Long prNumber = ((Number) pr.get("number")).longValue();
-            String state = (String) pr.get("state");
-            Object mergedAtObj = pr.get("merged_at");
-            boolean merged = "closed".equals(state) && mergedAtObj != null;
+            // merged_at dolu olan ilk PR'ı bul
+            for (Map<String, Object> pr : response) {
+                Object mergedAtObj = pr.get("merged_at");
+                if (mergedAtObj == null) continue;
 
-            Map<String, Object> userMap = (Map<String, Object>) pr.get("user");
-            String authorLogin = userMap != null ? (String) userMap.get("login") : "unknown";
+                Long prNumber = ((Number) pr.get("number")).longValue();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> userMap = (Map<String, Object>) pr.get("user");
+                String authorLogin = userMap != null ? (String) userMap.get("login") : "unknown";
 
-            return Optional.of(new PrCheckResult(prNumber, merged, authorLogin));
+                return Optional.of(new PrCheckResult(prNumber, true, authorLogin));
+            }
+
+            return Optional.empty();
         } catch (RestClientException exception) {
             return Optional.empty();
         }

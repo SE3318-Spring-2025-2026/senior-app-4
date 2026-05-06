@@ -7,6 +7,7 @@ public record GithubIntegrationResponse(
     public record GithubIntegrationData(
             String status,
             String organizationName,
+            String repositoryName,
             String connectedAt,
             String message
     ) {
