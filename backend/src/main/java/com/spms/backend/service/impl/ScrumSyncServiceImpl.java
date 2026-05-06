@@ -144,6 +144,15 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         }
 
         var jira = jiraIntegration.get();
+
+        // jira_email was added in V9 migration — integrations created before that have NULL here.
+        // Re-saving the integration via the bind endpoint populates it; skip until then.
+        if (jira.getJiraEmail() == null || jira.getApiKey() == null) {
+            logger.warn("Skipping JIRA sync for group {}: email or API key is null. "
+                    + "Re-save the JIRA integration for this group to fix.", group.getId());
+            return;
+        }
+
         String decryptedJiraToken = encryptionService.decrypt(jira.getApiKey());
 
         List<JiraIssueData> jiraIssues;
