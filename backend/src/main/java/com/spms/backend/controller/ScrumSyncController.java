@@ -6,7 +6,6 @@ import com.spms.backend.dto.response.ScrumSyncResponse;
 import com.spms.backend.exception.SyncAlreadyRunningException;
 import com.spms.backend.model.JiraIntegration;
 import com.spms.backend.repository.JiraIntegrationRepository;
-import com.spms.backend.service.EncryptionService;
 import com.spms.backend.service.ScrumSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -40,16 +39,13 @@ public class ScrumSyncController {
 
     private final JiraIntegrationRepository jiraIntegrationRepository;
     private final JiraApiClient jiraApiClient;
-    private final EncryptionService encryptionService;
 
     public ScrumSyncController(ScrumSyncService scrumSyncService,
                                 JiraIntegrationRepository jiraIntegrationRepository,
-                                JiraApiClient jiraApiClient,
-                                EncryptionService encryptionService) {
+                                JiraApiClient jiraApiClient) {
         this.scrumSyncService = scrumSyncService;
         this.jiraIntegrationRepository = jiraIntegrationRepository;
         this.jiraApiClient = jiraApiClient;
-        this.encryptionService = encryptionService;
     }
 
     /**
@@ -96,7 +92,7 @@ public class ScrumSyncController {
             return ResponseEntity.ok(result);
         }
         try {
-            String token = encryptionService.decrypt(jira.getApiKey());
+            String token = jira.getApiKey(); // EncryptionConverter already decrypts on entity load
             List<JiraIssueData> issues = jiraApiClient.fetchActiveSprintIssues(
                 jira.getJiraSpaceUrl(), jira.getJiraEmail(), token, jira.getProjectKey());
             result.put("fetchResult", "SUCCESS");
