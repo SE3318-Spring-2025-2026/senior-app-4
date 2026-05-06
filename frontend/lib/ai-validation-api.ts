@@ -81,6 +81,91 @@ export interface JobStatusResponse {
   data: JobStatusData;
 }
 
+export type ValidationIssueStatus = "VALIDATED" | "FAILED" | "SKIPPED";
+export type ReviewQuality = "THOROUGH" | "SUFFICIENT" | "MINIMAL" | "INSUFFICIENT";
+
+export interface IssueValidationSummary {
+  issueKey: string;
+  issueTitle?: string | null;
+  assignee?: string | null;
+  prNumber?: number | null;
+  prMerged?: boolean | null;
+  reviewVerificationScore?: number | null;
+  reviewQuality?: ReviewQuality | null;
+  implementationMatchScore?: number | null;
+  compositeScore?: number | null;
+  status: ValidationIssueStatus;
+}
+
+export interface TeamValidationResult {
+  teamId: number | string;
+  teamName: string;
+  overallSprintScore: number;
+  issueCount: number;
+  issues: IssueValidationSummary[];
+}
+
+export interface SprintValidationResultsData {
+  sprintId: number | string;
+  evaluatedAt?: string | null;
+  teams: TeamValidationResult[];
+}
+
+export interface SprintValidationResultsResponse {
+  status: string;
+  data: SprintValidationResultsData;
+}
+
+export interface CoverageArea {
+  requirement: string;
+  covered: boolean | null;
+}
+
+export interface IssueValidationDetailData {
+  issueKey: string;
+  issueDescription?: string | null;
+  prNumber?: number | null;
+  prUrl?: string | null;
+  evaluatedAt?: string | null;
+  reviewVerification: {
+    score?: number | null;
+    hasReview?: boolean | null;
+    reviewQuality?: ReviewQuality | null;
+    reviewerCount?: number | null;
+    hasChangeRequests?: boolean | null;
+    hasSubstantiveComments?: boolean | null;
+    aiFeedback?: string | null;
+  };
+  implementationValidation: {
+    score?: number | null;
+    isValid?: boolean | null;
+    coverageAreas?: CoverageArea[];
+    missingRequirements?: string[];
+    aiFeedback?: string | null;
+    filesAnalyzed?: number | null;
+    diffTruncated?: boolean | null;
+  };
+}
+
+export interface IssueValidationDetailResponse {
+  status: string;
+  data: IssueValidationDetailData;
+}
+
+interface ApiErrorBody {
+  message?: string;
+  error?: string;
+  errorCode?: string;
+}
+
+async function throwApiError(res: Response, fallback: string): Promise<never> {
+  const data = await res.json().catch(() => ({})) as ApiErrorBody;
+  throw Object.assign(new Error(data.message || data.error || fallback), {
+    errorCode: data.errorCode || data.error,
+    httpStatus: res.status,
+  });
+}
+
 // ── API — Config ───────────────────────────────────────────────────────────
 
 export async function fetchValidationConfig(): Promise<ValidationConfigResponse> {
@@ -174,6 +259,45 @@ export async function getActiveJobForSprint(
       errorCode: data.error,
       httpStatus: res.status,
     });
+  }
+  return res.json();
+}
+
+/** GET /ai-validation/sprints/{sprintId}/results */
+export async function fetchSprintValidationResults(
+  sprintId: string,
+  teamId?: string
+): Promise<SprintValidationResultsResponse> {
+  const params = new URLSearchParams();
+  if (teamId) params.set("teamId", teamId);
+  const query = params.toString();
+
+  const res = await fetch(
+    `${API_BASE}/ai-validation/sprints/${sprintId}/results${query ? `?${query}` : ""}`,
+    {
+      headers: buildHeaders(),
+      cache: "no-store",
+    }
+  );
+  if (!res.ok) {
+    await throwApiError(res, "Failed to fetch validation results.");
+  }
+  return res.json();
+}
+
+/** GET /ai-validation/issues/{issueKey}/details */
+export async function fetchIssueValidationDetails(
+  issueKey: string
+): Promise<IssueValidationDetailResponse> {
+  const res = await fetch(
+    `${API_BASE}/ai-validation/issues/${encodeURIComponent(issueKey)}/details`,
+    {
+      headers: buildHeaders(),
+      cache: "no-store",
+    }
+  );
+  if (!res.ok) {
+    await throwApiError(res, "Failed to fetch issue details.");
   }
   return res.json();
 }
