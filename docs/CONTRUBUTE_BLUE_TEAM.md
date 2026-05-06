@@ -14,6 +14,7 @@ To maintain a clean and understandable Git history in our project, we use the fo
 * **Bug Fixes:** `bugfix/short-bug-name` (e.g., `bugfix/jwt-token-error`)
 * **Documentation:** `docs/updated-document` (e.g., `docs/api-yaml-update`)
 * **Hotfixes:** `hotfix/critical-error` (Only for emergencies occurring on the main branch)
+* **Test:** `test/short-test-name` (e.g., `test/submission-e2e`)
 
 Please do not push code directly to the `main` or `develop` branches.
 

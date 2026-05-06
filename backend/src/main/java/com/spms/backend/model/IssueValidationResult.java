@@ -24,6 +24,12 @@ public class IssueValidationResult {
     @Column(name = "issue_title")
     private String issueTitle;
 
+    @Column(name = "issue_description", columnDefinition = "TEXT")
+    private String issueDescription;
+
+    @Column(name = "has_review")
+    private Boolean hasReview;
+
     @Column(name = "assignee")
     private String assignee;
 
@@ -144,4 +150,8 @@ public class IssueValidationResult {
     public void setSprintId(Long sprintId) { this.sprintId = sprintId; }
     public Long getTeamId() { return teamId; }
     public void setTeamId(Long teamId) { this.teamId = teamId; }
+    public String getIssueDescription() { return issueDescription; }
+    public void setIssueDescription(String issueDescription) { this.issueDescription = issueDescription; }
+    public Boolean getHasReview() { return hasReview; }
+    public void setHasReview(Boolean hasReview) { this.hasReview = hasReview; }
 }

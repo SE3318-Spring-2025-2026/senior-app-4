@@ -3,11 +3,14 @@ package com.spms.backend.controller;
 import com.spms.backend.dto.request.TriggerValidationRequest;
 import com.spms.backend.dto.response.ConflictWithJobResponse;
 import com.spms.backend.dto.response.ErrorResponse;
+import com.spms.backend.dto.response.IssueValidationDetailResponse;
 import com.spms.backend.dto.response.JobStatusResponse;
+import com.spms.backend.dto.response.SprintValidationResultsResponse;
 import com.spms.backend.dto.response.TriggerValidationResponse;
 import com.spms.backend.exception.P7ApiException;
 import com.spms.backend.model.ValidationJob;
 import com.spms.backend.service.AiValidationJobService;
+import com.spms.backend.service.ValidationResultReadService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,9 +18,12 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/ai-validation")
 public class AiValidationController {
     private final AiValidationJobService jobService;
+    private final ValidationResultReadService resultReadService;
 
-    public AiValidationController(AiValidationJobService jobService) {
+    public AiValidationController(AiValidationJobService jobService,
+                                  ValidationResultReadService resultReadService) {
         this.jobService = jobService;
+        this.resultReadService = resultReadService;
     }
 
     @PostMapping("/sprints/{sprintId}/trigger")
@@ -107,6 +113,51 @@ public class AiValidationController {
                             job.getStartedAt()
                     )
             ));
+        } catch (P7ApiException ex) {
+            return ResponseEntity.status(ex.getStatus())
+                    .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  7.6  —  Sprint-Level Results (Issue #296)
+    // ═══════════════════════════════════════════════════════════════════
+
+    @GetMapping("/sprints/{sprintId}/results")
+    public ResponseEntity<?> getSprintResults(
+            @PathVariable Long sprintId,
+            @RequestParam(required = false) Long teamId,
+            @RequestAttribute("jwt_role") Object role,
+            @RequestAttribute("jwt_userId") Object userId
+    ) {
+        try {
+            String userRole = role != null ? role.toString() : null;
+            Long uid = userId != null ? Long.valueOf(userId.toString()) : null;
+            SprintValidationResultsResponse response = resultReadService.getSprintResults(
+                    sprintId, teamId, userRole, uid);
+            return ResponseEntity.ok(response);
+        } catch (P7ApiException ex) {
+            return ResponseEntity.status(ex.getStatus())
+                    .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  7.6  —  Issue-Level Detail (Issue #296)
+    // ═══════════════════════════════════════════════════════════════════
+
+    @GetMapping("/issues/{issueKey}/details")
+    public ResponseEntity<?> getIssueDetails(
+            @PathVariable String issueKey,
+            @RequestAttribute("jwt_role") Object role,
+            @RequestAttribute("jwt_userId") Object userId
+    ) {
+        try {
+            String userRole = role != null ? role.toString() : null;
+            Long uid = userId != null ? Long.valueOf(userId.toString()) : null;
+            IssueValidationDetailResponse response = resultReadService.getIssueDetails(
+                    issueKey, userRole, uid);
+            return ResponseEntity.ok(response);
         } catch (P7ApiException ex) {
             return ResponseEntity.status(ex.getStatus())
                     .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
