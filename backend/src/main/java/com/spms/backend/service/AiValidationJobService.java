@@ -10,11 +10,9 @@ import com.spms.backend.repository.ValidationJobRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Optional;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -68,11 +66,12 @@ public class AiValidationJobService {
             throw new P7ApiException(HttpStatus.BAD_REQUEST, "NO_MATCHING_ISSUES", "No issues match the given teamId or issueKeys filter.");
         }
 
-        boolean activeExists = teamId == null
-                ? validationJobRepository.existsBySprint_IdAndTeamIsNullAndJobStatusIn(sprintId, ACTIVE)
-                : validationJobRepository.existsBySprint_IdAndTeam_IdAndJobStatusIn(sprintId, teamId, ACTIVE);
-        if (activeExists) {
-            throw new P7ApiException(HttpStatus.CONFLICT, "VALIDATION_ALREADY_RUNNING", "Validation already running for this sprint/team.");
+        Optional<ValidationJob> existingActive = teamId == null
+                ? validationJobRepository.findFirstBySprint_IdAndTeamIsNullAndJobStatusInOrderByStartedAtDesc(sprintId, ACTIVE)
+                : validationJobRepository.findFirstBySprint_IdAndTeam_IdAndJobStatusInOrderByStartedAtDesc(sprintId, teamId, ACTIVE);
+        if (existingActive.isPresent()) {
+            throw new P7ApiException(HttpStatus.CONFLICT, "VALIDATION_ALREADY_RUNNING",
+                    "Validation already running for this sprint/team.", existingActive.get().getJobId());
         }
 
         ValidationJob job = new ValidationJob();

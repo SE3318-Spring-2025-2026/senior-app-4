@@ -1,6 +1,7 @@
 package com.spms.backend.controller;
 
 import com.spms.backend.dto.request.TriggerValidationRequest;
+import com.spms.backend.dto.response.ConflictWithJobResponse;
 import com.spms.backend.dto.response.ErrorResponse;
 import com.spms.backend.dto.response.IssueValidationDetailResponse;
 import com.spms.backend.dto.response.JobStatusResponse;
@@ -47,6 +48,10 @@ public class AiValidationController {
                     )
             ));
         } catch (P7ApiException ex) {
+            if (ex.getExistingJobId() != null) {
+                return ResponseEntity.status(ex.getStatus())
+                        .body(new ConflictWithJobResponse(ex.getErrorCode(), ex.getMessage(), ex.getExistingJobId()));
+            }
             return ResponseEntity.status(ex.getStatus())
                     .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
         }
@@ -61,23 +66,7 @@ public class AiValidationController {
         try {
             ValidationJob job = jobService.get(jobId);
             enforceReadAccess(job, role, userId);
-            return ResponseEntity.ok(new JobStatusResponse(
-                    "success",
-                    new JobStatusResponse.Data(
-                            job.getJobId(),
-                            job.getSprint().getId(),
-                            job.getJobStatus().name(),
-                            job.getCurrentStep() != null ? job.getCurrentStep().name() : null,
-                            job.getProgressPercentage(),
-                            messageForStep(job),
-                            job.getIssuesTotal(),
-                            job.getIssuesCompleted(),
-                            job.getIssuesFailed(),
-                            job.getFailureReason(),
-                            job.getStartedAt(),
-                            job.getCompletedAt()
-                    )
-            ));
+            return ResponseEntity.ok(toJobStatusResponse(job));
         } catch (P7ApiException ex) {
             return ResponseEntity.status(ex.getStatus())
                     .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
@@ -95,23 +84,7 @@ public class AiValidationController {
             return jobService.getActiveJobForSprint(sprintId)
                     .map(job -> {
                         enforceReadAccess(job, role, userId);
-                        return ResponseEntity.ok(new JobStatusResponse(
-                                "success",
-                                new JobStatusResponse.Data(
-                                        job.getJobId(),
-                                        job.getSprint().getId(),
-                                        job.getJobStatus().name(),
-                                        job.getCurrentStep() != null ? job.getCurrentStep().name() : null,
-                                        job.getProgressPercentage(),
-                                        messageForStep(job),
-                                        job.getIssuesTotal(),
-                                        job.getIssuesCompleted(),
-                                        job.getIssuesFailed(),
-                                        job.getFailureReason(),
-                                        job.getStartedAt(),
-                                        job.getCompletedAt()
-                                )
-                        ));
+                        return ResponseEntity.ok(toJobStatusResponse(job));
                     })
                     .orElse(ResponseEntity.noContent().build());
         } catch (P7ApiException ex) {
@@ -189,6 +162,26 @@ public class AiValidationController {
             return ResponseEntity.status(ex.getStatus())
                     .body(new ErrorResponse(ex.getErrorCode(), ex.getMessage()));
         }
+    }
+
+    private JobStatusResponse toJobStatusResponse(ValidationJob job) {
+        return new JobStatusResponse(
+                "success",
+                new JobStatusResponse.Data(
+                        job.getJobId(),
+                        job.getSprint().getId(),
+                        job.getJobStatus().name(),
+                        job.getCurrentStep() != null ? job.getCurrentStep().name() : null,
+                        job.getProgressPercentage(),
+                        messageForStep(job),
+                        job.getIssuesTotal(),
+                        job.getIssuesCompleted(),
+                        job.getIssuesFailed(),
+                        job.getFailureReason(),
+                        job.getStartedAt(),
+                        job.getCompletedAt()
+                )
+        );
     }
 
     private void enforceP7Access(Object role) {

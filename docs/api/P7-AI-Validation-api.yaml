@@ -156,11 +156,11 @@ paths:
         '409':
           description: |
             A validation job is already running for this sprint.
-            Wait for the existing job to complete, or cancel it first.
+            Returns the existing job ID so the client can resume the progress view.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/ConflictWithJobResponse'
 
   # ═══════════════════════════════════════════
   #  7.1  —  Job Status Polling
@@ -621,6 +621,27 @@ components:
         message:
           type: string
           example: Operation completed successfully.
+
+    ConflictWithJobResponse:
+      type: object
+      description: |
+        Returned with HTTP 409 when a validation job is already running.
+        Contains the existing job ID so the client can resume the progress view.
+      properties:
+        error:
+          type: string
+          example: VALIDATION_ALREADY_RUNNING
+        message:
+          type: string
+          example: Validation already running for this sprint/team.
+        existingJobId:
+          type: integer
+          format: int64
+          example: 42
+      required:
+        - error
+        - message
+        - existingJobId
 
     ErrorResponse:
       type: object
