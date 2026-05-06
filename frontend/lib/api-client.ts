@@ -30,9 +30,9 @@ apiClient.interceptors.response.use(
       clearAuth();
       window.location.href = '/auth/login';
     } else if (status === 403) {
-      window.location.href = '/access-denied';
+      window.location.href = '/auth/access-denied';
     } else if (status === 404 && url.includes('/active-sprint')) {
-      // 404 active-sprint case handled silently
+      console.warn('No Active Sprint Registered');
     } else if (status >= 500) {
       toast.error('Server Failure Occurred');
     }
