@@ -1,7 +1,12 @@
 package com.spms.backend.controller;
 
+import com.spms.backend.client.JiraApiClient;
+import com.spms.backend.dto.JiraIssueData;
 import com.spms.backend.dto.response.ScrumSyncResponse;
 import com.spms.backend.exception.SyncAlreadyRunningException;
+import com.spms.backend.model.JiraIntegration;
+import com.spms.backend.repository.JiraIntegrationRepository;
+import com.spms.backend.service.EncryptionService;
 import com.spms.backend.service.ScrumSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -11,9 +16,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * ISSUE #395: Scrum Sync REST Controller
@@ -26,8 +38,18 @@ public class ScrumSyncController {
 
     private final ScrumSyncService scrumSyncService;
 
-    public ScrumSyncController(ScrumSyncService scrumSyncService) {
+    private final JiraIntegrationRepository jiraIntegrationRepository;
+    private final JiraApiClient jiraApiClient;
+    private final EncryptionService encryptionService;
+
+    public ScrumSyncController(ScrumSyncService scrumSyncService,
+                                JiraIntegrationRepository jiraIntegrationRepository,
+                                JiraApiClient jiraApiClient,
+                                EncryptionService encryptionService) {
         this.scrumSyncService = scrumSyncService;
+        this.jiraIntegrationRepository = jiraIntegrationRepository;
+        this.jiraApiClient = jiraApiClient;
+        this.encryptionService = encryptionService;
     }
 
     /**
@@ -53,6 +75,39 @@ public class ScrumSyncController {
             description = "Sync already in progress - Another synchronization process is currently running"
         )
     })
+    @GetMapping("/debug/jira/{groupId}")
+    public ResponseEntity<Map<String, Object>> debugJira(@PathVariable Long groupId) {
+        Map<String, Object> result = new HashMap<>();
+        Optional<JiraIntegration> opt = jiraIntegrationRepository.findByGroup_Id(groupId);
+        if (opt.isEmpty()) {
+            result.put("error", "No JIRA integration found for group " + groupId);
+            return ResponseEntity.ok(result);
+        }
+        JiraIntegration jira = opt.get();
+        result.put("groupId", groupId);
+        result.put("jiraSpaceUrl", jira.getJiraSpaceUrl());
+        result.put("projectKey", jira.getProjectKey());
+        result.put("jiraEmail", jira.getJiraEmail());
+        result.put("apiKeyNull", jira.getApiKey() == null);
+        result.put("status", jira.getStatus());
+
+        if (jira.getJiraEmail() == null || jira.getApiKey() == null) {
+            result.put("fetchResult", "SKIPPED: email or apiKey is null");
+            return ResponseEntity.ok(result);
+        }
+        try {
+            String token = encryptionService.decrypt(jira.getApiKey());
+            List<JiraIssueData> issues = jiraApiClient.fetchActiveSprintIssues(
+                jira.getJiraSpaceUrl(), jira.getJiraEmail(), token, jira.getProjectKey());
+            result.put("fetchResult", "SUCCESS");
+            result.put("issueCount", issues.size());
+            result.put("issues", issues);
+        } catch (Exception e) {
+            result.put("fetchResult", "ERROR: " + e.getMessage());
+        }
+        return ResponseEntity.ok(result);
+    }
+
     @PostMapping("/trigger")
     public ResponseEntity<ScrumSyncResponse> triggerSync() {
         ScrumSyncResponse response = scrumSyncService.triggerSync();
