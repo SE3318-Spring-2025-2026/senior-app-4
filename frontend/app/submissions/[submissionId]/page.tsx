@@ -18,6 +18,7 @@ import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import { getToken, getUser } from "@/lib/auth";
 import {
+  fetchCriteriaForDeliverableType,
   fetchSubmissionDetail,
   fetchSubmissionGrades,
   fetchSubmissionRevisionHistory,
@@ -25,6 +26,7 @@ import {
   updateGrade,
   type DeliverableType,
   type GradeItem,
+  type GradingCriteriaItem,
   type SubmissionDetail,
   type SubmissionGradeSummary,
   type SubmissionId,
@@ -79,6 +81,7 @@ function SubmissionDetailWorkspace() {
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
   const [revisionHistory, setRevisionHistory] = useState<SubmissionRevision[] | SubmissionRevisionNode[]>([]);
   const [gradeSummary, setGradeSummary] = useState<SubmissionGradeSummary | null>(null);
+  const [criteria, setCriteria] = useState<GradingCriteriaItem[]>([]);
   const [revisionWarning, setRevisionWarning] = useState<string | null>(null);
   const [gradeWarning, setGradeWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,10 +102,15 @@ function SubmissionDetailWorkspace() {
       setRevisionHistory(nextDetail.revisionHistory ?? []);
       setGradeSummary(nextDetail.gradeSummary ?? null);
 
-      const [revisionResult, gradesResult] = await Promise.allSettled([
+      const [revisionResult, gradesResult, criteriaData] = await Promise.allSettled([
         fetchSubmissionRevisionHistory(submissionId),
         fetchSubmissionGrades(submissionId),
+        fetchCriteriaForDeliverableType(nextDetail.deliverableType as string),
       ]);
+
+      if (criteriaData.status === "fulfilled") {
+        setCriteria(criteriaData.value);
+      }
 
       if (revisionResult.status === "fulfilled") {
         const revisions = revisionResult.value.data;
@@ -202,6 +210,7 @@ function SubmissionDetailWorkspace() {
                       <AnnotatedDocumentViewer
                         submissionId={detail.id}
                         htmlContent={detail.content}
+                        criteria={criteria.map((c) => ({ id: c.id, name: c.name }))}
                       />
                     </section>
                   )}
@@ -215,7 +224,7 @@ function SubmissionDetailWorkspace() {
 
                 <div className="space-y-6">
                   <ReviewPanel detail={detail} />
-                  <GradePanel summary={gradeSummary} warning={gradeWarning} submissionId={detail.id} onGraded={load} />
+                  <GradePanel summary={gradeSummary} warning={gradeWarning} submissionId={detail.id} criteria={criteria} onGraded={load} />
                   <FilePanel detail={detail} />
                 </div>
               </div>
@@ -411,37 +420,94 @@ function ReviewPanel({ detail }: { detail: SubmissionDetail }) {
   );
 }
 
+const SOFT_GRADE_OPTIONS = [
+  { label: "A", score: 100 },
+  { label: "B", score: 80 },
+  { label: "C", score: 60 },
+  { label: "D", score: 50 },
+  { label: "F", score: 0 },
+] as const;
+
+function letterToScore(letter: string): number {
+  return SOFT_GRADE_OPTIONS.find((o) => o.label === letter)?.score ?? 0;
+}
+
 function GradePanel({
   summary,
   warning,
   submissionId,
+  criteria,
   onGraded,
 }: {
   summary: SubmissionGradeSummary | null;
   warning: string | null;
   submissionId: SubmissionId;
+  criteria: GradingCriteriaItem[];
   onGraded: () => void;
 }) {
   const grades = summary?.grades ?? [];
   const user = getUser();
   const myGrade = grades.find((g) => String(g.professorId) === String(user?.userId));
 
+  const hasCriteria = criteria.length > 0;
+
+  // flat-score fallback state
   const [gradeInput, setGradeInput] = useState<string>(myGrade ? String(myGrade.grade) : "");
+  // criterion-based state: criterionId → letter/score string
+  const [criterionInputs, setCriterionInputs] = useState<Record<number, string>>(() => {
+    const init: Record<number, string> = {};
+    criteria.forEach((c) => { init[c.id] = ""; });
+    return init;
+  });
   const [feedbackInput, setFeedbackInput] = useState<string>(myGrade?.feedback ?? "");
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
-    const gradeNum = parseFloat(gradeInput);
-    if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 100) {
-      toast.error("Grade must be between 0 and 100.");
-      return;
+  // live weighted score preview
+  const weightedPreview = useMemo(() => {
+    if (!hasCriteria) return null;
+    let totalWeight = 0;
+    let weightedSum = 0;
+    let allFilled = true;
+    for (const c of criteria) {
+      const val = criterionInputs[c.id];
+      if (!val) { allFilled = false; break; }
+      const score = c.gradingType === "SOFT" ? letterToScore(val) : Number(val);
+      totalWeight += c.weight;
+      weightedSum += score * c.weight;
     }
+    if (!allFilled || totalWeight === 0) return null;
+    return (weightedSum / totalWeight).toFixed(1);
+  }, [criteria, criterionInputs, hasCriteria]);
+
+  const canSubmit = hasCriteria
+    ? criteria.every((c) => Boolean(criterionInputs[c.id]))
+    : gradeInput !== "";
+
+  const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      if (myGrade) {
-        await updateGrade(submissionId, Number(myGrade.id), { grade: gradeNum, feedback: feedbackInput });
+      let payload;
+      if (hasCriteria) {
+        const criterionScores = criteria.map((c) => {
+          const val = criterionInputs[c.id];
+          return {
+            criterionId: c.id,
+            score: c.gradingType === "SOFT" ? letterToScore(val) : Number(val),
+          };
+        });
+        payload = { feedback: feedbackInput || undefined, criterionScores };
       } else {
-        await submitGrade(submissionId, { grade: gradeNum, feedback: feedbackInput });
+        const gradeNum = parseFloat(gradeInput);
+        if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 100) {
+          toast.error("Grade must be between 0 and 100.");
+          return;
+        }
+        payload = { grade: gradeNum, feedback: feedbackInput || undefined };
+      }
+      if (myGrade) {
+        await updateGrade(submissionId, Number(myGrade.id), payload);
+      } else {
+        await submitGrade(submissionId, payload);
       }
       toast.success(myGrade ? "Grade updated." : "Grade submitted.");
       onGraded();
@@ -494,19 +560,85 @@ function GradePanel({
 
       <div className="space-y-3 border-t border-white/8 pt-5">
         <p className="text-xs font-medium text-gray-400">{myGrade ? "Update your grade" : "Submit your grade"}</p>
-        <div className="flex items-center gap-3">
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step={0.5}
-            value={gradeInput}
-            onChange={(e) => setGradeInput(e.target.value)}
-            placeholder="0–100"
-            className="w-24 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/50 focus:outline-none"
-          />
-          <span className="text-xs text-gray-500">/ 100</span>
-        </div>
+
+        {hasCriteria ? (
+          <div className="space-y-3">
+            {criteria.map((c) => (
+              <div key={c.id} className="rounded-xl border border-white/10 bg-white/4 p-4">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">{c.name}</p>
+                    {c.description && <p className="text-xs text-gray-500 mt-0.5">{c.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${c.gradingType === "BINARY" ? "bg-amber-500/10 text-amber-300 border border-amber-500/20" : "bg-blue-500/10 text-blue-300 border border-blue-500/20"}`}>
+                      {c.gradingType === "BINARY" ? "Binary" : "Soft"}
+                    </span>
+                    <span className="text-xs text-gray-500">{c.weight}%</span>
+                  </div>
+                </div>
+                {c.gradingType === "BINARY" ? (
+                  <div className="flex gap-2">
+                    {[{ label: "S", score: "100" }, { label: "F", score: "0" }].map(({ label, score }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setCriterionInputs((prev) => ({ ...prev, [c.id]: score }))}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition border ${
+                          criterionInputs[c.id] === score
+                            ? label === "S"
+                              ? "bg-green-500/20 border-green-500/40 text-green-300"
+                              : "bg-red-500/20 border-red-500/40 text-red-300"
+                            : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
+                        }`}
+                      >
+                        {label} ({score})
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex gap-2 flex-wrap">
+                    {SOFT_GRADE_OPTIONS.map(({ label, score }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setCriterionInputs((prev) => ({ ...prev, [c.id]: label }))}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition border ${
+                          criterionInputs[c.id] === label
+                            ? "bg-blue-500/20 border-blue-500/40 text-blue-200"
+                            : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
+                        }`}
+                      >
+                        {label} ({score})
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {weightedPreview !== null && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 flex items-center justify-between">
+                <span className="text-xs text-amber-200">Weighted score preview</span>
+                <span className="text-sm font-semibold text-amber-300">{weightedPreview} / 100</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={0.5}
+              value={gradeInput}
+              onChange={(e) => setGradeInput(e.target.value)}
+              placeholder="0–100"
+              className="w-24 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/50 focus:outline-none"
+            />
+            <span className="text-xs text-gray-500">/ 100</span>
+          </div>
+        )}
+
         <textarea
           value={feedbackInput}
           onChange={(e) => setFeedbackInput(e.target.value)}
@@ -516,7 +648,7 @@ function GradePanel({
         />
         <button
           onClick={handleSubmit}
-          disabled={submitting || gradeInput === ""}
+          disabled={submitting || !canSubmit}
           className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-gray-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? "Submitting…" : myGrade ? "Update Grade" : "Submit Grade"}

@@ -183,12 +183,31 @@ public class SubmissionServiceImpl implements SubmissionService {
 
         } else if ("PROFESSOR".equalsIgnoreCase(role)) {
             // C-25: professor sees submissions for groups in their assigned committees
+            // Also include submissions for groups they directly advise (groups.advisor_id)
             List<Long> committeeIds = committeeAdvisorRepository.findCommitteeIdsByAdvisorUserId(userId);
-            if (committeeIds.isEmpty()) {
-                page = Page.empty(pageable);
-            } else {
+            List<Long> adviseeGroupIds = groupRepository.findByAdvisorId(userId)
+                    .stream().map(g -> g.getId()).toList();
+
+            if (teamId != null) {
+                // Specific group requested: allow if professor is committee member or direct advisor
+                boolean isCommitteeMember = !committeeIds.isEmpty();
+                boolean isDirectAdvisor = adviseeGroupIds.contains(teamId);
+                if (isCommitteeMember) {
+                    page = submissionRepository.findByCommitteeIdInWithFilters(
+                            committeeIds, teamId, statusFilter, typeFilter, pageable);
+                } else if (isDirectAdvisor) {
+                    page = submissionRepository.findWithFilters(teamId, statusFilter, null, typeFilter, pageable);
+                } else {
+                    page = Page.empty(pageable);
+                }
+            } else if (!committeeIds.isEmpty()) {
                 page = submissionRepository.findByCommitteeIdInWithFilters(
-                        committeeIds, teamId, statusFilter, typeFilter, pageable);
+                        committeeIds, null, statusFilter, typeFilter, pageable);
+            } else if (!adviseeGroupIds.isEmpty()) {
+                page = submissionRepository.findByGroupIdInWithFilters(
+                        adviseeGroupIds, statusFilter, typeFilter, pageable);
+            } else {
+                page = Page.empty(pageable);
             }
         } else {
             throw new ForbiddenException("Role '" + role + "' is not authorized to list submissions.");
