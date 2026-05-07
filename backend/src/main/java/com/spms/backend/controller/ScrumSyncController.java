@@ -4,8 +4,10 @@ import com.spms.backend.client.JiraApiClient;
 import com.spms.backend.dto.JiraIssueData;
 import com.spms.backend.dto.response.ScrumSyncResponse;
 import com.spms.backend.exception.SyncAlreadyRunningException;
+import com.spms.backend.model.GithubIntegration;
 import com.spms.backend.model.JiraIntegration;
 import com.spms.backend.model.SprintIssueTracking;
+import com.spms.backend.repository.GithubIntegrationRepository;
 import com.spms.backend.repository.JiraIntegrationRepository;
 import com.spms.backend.repository.SprintIssueTrackingRepository;
 import com.spms.backend.service.ScrumSyncService;
@@ -41,15 +43,18 @@ public class ScrumSyncController {
     private final JiraIntegrationRepository jiraIntegrationRepository;
     private final JiraApiClient jiraApiClient;
     private final SprintIssueTrackingRepository sprintIssueTrackingRepository;
+    private final GithubIntegrationRepository githubIntegrationRepository;
 
     public ScrumSyncController(ScrumSyncService scrumSyncService,
                                 JiraIntegrationRepository jiraIntegrationRepository,
                                 JiraApiClient jiraApiClient,
-                                SprintIssueTrackingRepository sprintIssueTrackingRepository) {
+                                SprintIssueTrackingRepository sprintIssueTrackingRepository,
+                                GithubIntegrationRepository githubIntegrationRepository) {
         this.scrumSyncService = scrumSyncService;
         this.jiraIntegrationRepository = jiraIntegrationRepository;
         this.jiraApiClient = jiraApiClient;
         this.sprintIssueTrackingRepository = sprintIssueTrackingRepository;
+        this.githubIntegrationRepository = githubIntegrationRepository;
     }
 
     /**
@@ -105,6 +110,23 @@ public class ScrumSyncController {
         } catch (Exception e) {
             result.put("fetchResult", "ERROR: " + e.getMessage());
         }
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/debug/github/{groupId}")
+    public ResponseEntity<Map<String, Object>> debugGithub(@PathVariable Long groupId) {
+        Map<String, Object> result = new HashMap<>();
+        Optional<GithubIntegration> opt = githubIntegrationRepository.findByGroup_Id(groupId);
+        if (opt.isEmpty()) {
+            result.put("found", false);
+            return ResponseEntity.ok(result);
+        }
+        GithubIntegration gh = opt.get();
+        result.put("found", true);
+        result.put("organizationName", gh.getOrganizationName());
+        result.put("repositoryName", gh.getRepositoryName());
+        result.put("patNull", gh.getGithubPatEncrypted() == null);
+        result.put("status", gh.getStatus());
         return ResponseEntity.ok(result);
     }
 
