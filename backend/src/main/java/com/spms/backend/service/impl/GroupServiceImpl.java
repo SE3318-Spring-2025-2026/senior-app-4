@@ -192,6 +192,14 @@ public class GroupServiceImpl implements GroupService {
     // rol abzlı detayları getirir
     @Override
     @Transactional(readOnly = true)
+    public List<java.util.Map<String, Object>> getGroupLookup() {
+        return groupRepository.findAll().stream()
+                .map(g -> java.util.Map.<String, Object>of("id", g.getId(), "groupName", g.getGroupName()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public GroupDetailDto getGroupDetails(Long groupId, Long requesterId, String requesterRole) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found."));

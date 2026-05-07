@@ -67,13 +67,13 @@ function DashboardLayout() {
         setLoading(true);
         Promise.all([
             apiClient.get(`/users?role=${UserRole.STUDENT}`),
-            apiClient.get('/groups?size=1000&page=0'),
+            apiClient.get('/groups/lookup'),
         ])
             .then(([studentsRes, groupsRes]) => {
                 const data = Array.isArray(studentsRes.data) ? studentsRes.data : studentsRes.data.data || [];
                 setStudents(data);
-                if (groupsRes.data?.content) {
-                    setGroups(groupsRes.data.content.map((g: { id: number; groupName: string }) => ({ id: g.id, groupName: g.groupName })));
+                if (groupsRes.data) {
+                    setGroups(groupsRes.data);
                 }
             })
             .catch((error) => console.error(error))
