@@ -36,7 +36,6 @@ class ValidationPipelineOrchestratorTest {
     @Mock private OpenAiValidationClient openAiValidationClient;
     @Mock private SystemLogService systemLogService;
     @Mock private ValidationJobWriteService writeService;
-    @Mock private EncryptionService encryptionService;
 
     private ValidationPipelineOrchestratorImpl orchestrator;
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -57,10 +56,7 @@ class ValidationPipelineOrchestratorTest {
                 openAiValidationClient,
                 systemLogService,
                 writeService,
-                encryptionService,
                 objectMapper);
-
-        lenient().when(encryptionService.decrypt(anyString())).thenAnswer(inv -> inv.getArgument(0));
 
         sprint = new Sprint("Sprint-1", LocalDate.now().minusDays(7), LocalDate.now(), "COMPLETED");
         sprint.setId(1L);
