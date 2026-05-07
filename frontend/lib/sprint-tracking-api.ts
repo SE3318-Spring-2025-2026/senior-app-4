@@ -49,7 +49,7 @@ export interface GroupTrackingDetail {
  */
 export async function fetchAdvisorSprintSummary(token: string): Promise<SprintSummaryResponse> {
   try {
-    const response = await apiClient.get("/api/v1/advisor/sprint-summary", {
+    const response = await apiClient.get("/advisor/sprint-summary", {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -70,7 +70,7 @@ export async function fetchGroupTrackingDetails(
 ): Promise<GroupTrackingDetail> {
   try {
     const response = await apiClient.get(
-      `/api/v1/advisor/groups/${groupId}/sprint-tracking`,
+      `/advisor/groups/${groupId}/sprint-tracking`,
       {
         headers: {
           Authorization: `Bearer ${token}`,

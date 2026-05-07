@@ -111,13 +111,18 @@ public class SubmissionServiceImpl implements SubmissionService {
             }
         }
 
-        // C-8: store the actual file
-        String fileUrl = fileStorageService.store(file);
+        // C-8: store file if provided, otherwise use markdown content
+        if (file == null || file.isEmpty()) {
+            if (content == null || content.isBlank()) {
+                throw new BadRequestException("Either a file or markdown content must be provided.");
+            }
+        }
+        String fileUrl = (file != null && !file.isEmpty()) ? fileStorageService.store(file) : null;
 
         Submission submission = new Submission();
         submission.setGroupId(groupId);
         submission.setDeliverableType(type);
-        submission.setContent(content);
+        submission.setContent(content != null ? content : "");
         submission.setFileUrl(fileUrl);
         submission.setStatus(SubmissionStatus.PENDING_REVIEW);
         submission.setCommitteeId(assignment.getCommittee().getCommitteeId());

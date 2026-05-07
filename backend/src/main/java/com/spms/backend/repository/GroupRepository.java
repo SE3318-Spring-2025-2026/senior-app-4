@@ -8,7 +8,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import com.spms.backend.model.Group;
-import com.spms.backend.model.GroupStatus;
 
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
@@ -34,10 +33,7 @@ public interface GroupRepository extends JpaRepository<Group, Long>, JpaSpecific
             "THEN 0 ELSE 1 END, g.id ASC")
     Page<Group> findAllWithStudentGroupFirst(@Param("studentId") Long studentId, Pageable pageable);
 
-    /** All non-disbanded groups with advisor and leader loaded (P4-ASSIGN-1 list). */
-    @Query("SELECT DISTINCT g FROM Group g LEFT JOIN FETCH g.advisor LEFT JOIN FETCH g.leader "
-            + "WHERE g.status <> :disbanded")
-    List<Group> findAllNonDisbandedWithAdvisorAndLeaderFetched(@Param("disbanded") GroupStatus disbanded);
+    List<Group> findByStatusNot(com.spms.backend.model.GroupStatus status);
 
     long countByAdvisor_UserId(Long advisorId);
 }

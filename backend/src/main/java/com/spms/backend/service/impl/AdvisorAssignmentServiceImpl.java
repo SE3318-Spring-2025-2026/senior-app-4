@@ -24,7 +24,6 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -76,7 +75,7 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
             return new AdvisorAssignmentListResponse("success", rows);
         }
 
-        if ("professor".equalsIgnoreCase(requesterRole.trim())) {
+        if (PROFESSOR_ROLE.equalsIgnoreCase(requesterRole.trim())) {
             List<GroupAdvisorAssignmentDto> rows = buildProfessorRows(requesterUserId, hasAdvisor);
             return new AdvisorAssignmentListResponse("success", rows);
         }
@@ -86,14 +85,14 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
 
     private List<GroupAdvisorAssignmentDto> buildCoordinatorRows(Long filterAdvisorId, Boolean hasAdvisor) {
         List<Group> groups =
-                groupRepository.findAllNonDisbandedWithAdvisorAndLeaderFetched(GroupStatus.DISBANDED);
+                groupRepository.findByStatusNot(GroupStatus.DISBANDED);
 
         return groups.stream()
                 .filter(g -> matchesAdvisorIdFilter(g, filterAdvisorId))
                 .filter(g -> matchesHasAdvisorFilter(g, hasAdvisor))
                 .map(this::toDto)
                 .sorted(Comparator.comparing(GroupAdvisorAssignmentDto::teamId))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private List<GroupAdvisorAssignmentDto> buildProfessorRows(Long professorUserId, Boolean hasAdvisor) {
@@ -102,14 +101,14 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         }
 
         List<Group> groups =
-                groupRepository.findAllNonDisbandedWithAdvisorAndLeaderFetched(GroupStatus.DISBANDED);
+                groupRepository.findByStatusNot(GroupStatus.DISBANDED);
 
         return groups.stream()
                 .filter(g -> g.getAdvisor() != null && Objects.equals(g.getAdvisor().getUserId(), professorUserId))
                 .filter(g -> matchesHasAdvisorFilter(g, hasAdvisor))
                 .map(this::toDto)
                 .sorted(Comparator.comparing(GroupAdvisorAssignmentDto::teamId))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /** Default (hasAdvisor null): only groups that have an advisor assigned (#160 acceptance). */
@@ -131,14 +130,17 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         Instant assignedAt = null;
         String assignmentType = null;
         if (g.getAdvisor() != null) {
-            java.util.Optional<AuditLog> log = auditLogRepository
-                    .findTopByGroupIdAndActionTypeOrderByCreatedAtDesc(g.getId(), ActionType.ADVISOR_ASSIGNED);
-            if (log.isPresent()) {
-                assignedAt = log.get().getCreatedAt();
-                String details = log.get().getEventDetails();
-                // "approved by professor" → came via advisor request; otherwise coordinator override
-                assignmentType = (details != null && details.toLowerCase().contains("approved"))
-                        ? "REQUESTED" : "OVERRIDDEN";
+            java.util.Optional<AuditLog> auditEntry = auditLogRepository
+                    .findTopByGroupIdAndActionTypeInOrderByCreatedAtDesc(
+                            g.getId(),
+                            java.util.List.of(ActionType.ADVISOR_ASSIGNED, ActionType.ADVISOR_OVERRIDDEN));
+            if (auditEntry.isPresent()) {
+                assignedAt = auditEntry.get().getCreatedAt();
+                assignmentType = auditEntry.get().getActionType() == ActionType.ADVISOR_OVERRIDDEN
+                        ? "OVERRIDDEN"
+                        : "REQUESTED";
+            } else {
+                assignmentType = "ASSIGNED";
             }
         }
         return new GroupAdvisorAssignmentDto(
@@ -225,11 +227,11 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         committee.getAdvisors().add(committeeAdvisor);
         committeeRepository.save(committee);
 
-        AuditLog log = new AuditLog();
-        log.setActionType(ActionType.ADVISOR_ASSIGNED);
-        log.setUserId(assignedBy);
-        log.setEventDetails("Assigned advisor " + advisorId + " to committee " + committeeId + " with role " + role);
-        auditLogRepository.save(log);
+        AuditLog auditLog = new AuditLog();
+        auditLog.setActionType(ActionType.ADVISOR_ASSIGNED);
+        auditLog.setUserId(assignedBy);
+        auditLog.setEventDetails("Assigned advisor " + advisorId + " to committee " + committeeId + " with role " + role);
+        auditLogRepository.save(auditLog);
 
         try {
             committeeNotificationService.notifyAdvisorAssignment(committeeId, advisorId, assignedBy);

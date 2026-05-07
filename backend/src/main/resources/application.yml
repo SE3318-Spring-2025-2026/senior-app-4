@@ -10,7 +10,7 @@ spring:
     enabled: true
 
   datasource:
-    url: ${DB_URL}
+    url: ${db.url}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 2
@@ -40,3 +40,9 @@ scrum:
 
 openai:
   api-key: ${OPENAI_API_KEY:}
+
+supabase:
+  url: ${supabase.url}
+  service-role-key: ${supabase.service-role-key}
+  storage:
+    bucket: ${supabase.storage.bucket:submissions}

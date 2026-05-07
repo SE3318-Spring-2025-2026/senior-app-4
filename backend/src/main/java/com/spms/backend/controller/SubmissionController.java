@@ -88,7 +88,8 @@ public class SubmissionController {
     public ResponseEntity<?> createSubmission(
             @RequestPart("teamId") String teamId,
             @RequestPart("deliverableType") String deliverableType,
-            @RequestPart("file") MultipartFile file,
+            @RequestPart(value = "file", required = false) MultipartFile file,
+            @RequestPart(value = "content", required = false) String content,
             @RequestPart(value = "description", required = false) String description,
             @RequestAttribute("jwt_userId") Object userId) {
 
@@ -97,8 +98,8 @@ public class SubmissionController {
             DeliverableType type = DeliverableType.valueOf(deliverableType);
             Long callerId = Long.valueOf(userId.toString());
 
-            String content = description != null ? description : "";
-            SubmissionResponse response = submissionService.submit(groupId, type, content, file, callerId);
+            String resolvedContent = content != null ? content : (description != null ? description : "");
+            SubmissionResponse response = submissionService.submit(groupId, type, resolvedContent, file, callerId);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
 
         } catch (IllegalArgumentException e) {

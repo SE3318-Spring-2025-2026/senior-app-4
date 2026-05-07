@@ -13,20 +13,16 @@ import {
   Star,
   Users,
 } from "lucide-react";
-import dynamic from "next/dynamic";
-
-const AnnotatedDocumentViewer = dynamic(
-  () => import("@/components/AnnotatedDocumentViewer"),
-  { ssr: false },
-);
 import { toast } from "sonner";
+import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import { getToken, getUser } from "@/lib/auth";
 import {
   fetchSubmissionDetail,
   fetchSubmissionGrades,
   fetchSubmissionRevisionHistory,
-  createReview,
+  submitGrade,
+  updateGrade,
   type DeliverableType,
   type GradeItem,
   type SubmissionDetail,
@@ -37,9 +33,16 @@ import {
   type SubmissionStatus,
 } from "@/lib/submissions-api";
 
+const AnnotatedDocumentViewer = dynamic(
+  () => import("@/components/AnnotatedDocumentViewer"),
+  { ssr: false },
+);
+
 type AuthState = "loading" | "ready" | "denied";
 
-export default function CoordinatorSubmissionDetailPage() {
+const ALLOWED_ROLES = ["coordinator", "professor"];
+
+export default function SubmissionDetailPage() {
   const router = useRouter();
   const [authState, setAuthState] = useState<AuthState>("loading");
 
@@ -58,7 +61,7 @@ export default function CoordinatorSubmissionDetailPage() {
     }
 
     startTransition(() => {
-      setAuthState(user.role === "coordinator" ? "ready" : "denied");
+      setAuthState(ALLOWED_ROLES.includes(user.role) ? "ready" : "denied");
     });
   }, [router]);
 
@@ -90,15 +93,6 @@ function SubmissionDetailWorkspace() {
     setGradeWarning(null);
 
     try {
-      if (isMockPreviewEnabled()) {
-        const mock = createMockSubmissionDetail(submissionId);
-        setDetail(mock.detail);
-        setRevisionHistory(mock.revisionHistory);
-        setGradeSummary(mock.gradeSummary);
-        setLoading(false);
-        return;
-      }
-
       const detailResponse = await fetchSubmissionDetail(submissionId);
       const nextDetail = detailResponse.data;
       setDetail(nextDetail);
@@ -116,13 +110,21 @@ function SubmissionDetailWorkspace() {
           setRevisionHistory(revisions);
         }
       } else {
-        setRevisionWarning(revisionResult.reason instanceof Error ? revisionResult.reason.message : "Revision history could not be loaded.");
+        setRevisionWarning(
+          revisionResult.reason instanceof Error
+            ? revisionResult.reason.message
+            : "Revision history could not be loaded.",
+        );
       }
 
       if (gradesResult.status === "fulfilled") {
         setGradeSummary(gradesResult.value.data ?? nextDetail.gradeSummary ?? null);
       } else {
-        setGradeWarning(gradesResult.reason instanceof Error ? gradesResult.reason.message : "Grade details could not be loaded.");
+        setGradeWarning(
+          gradesResult.reason instanceof Error
+            ? gradesResult.reason.message
+            : "Grade details could not be loaded.",
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Submission detail could not be loaded.";
@@ -149,13 +151,16 @@ function SubmissionDetailWorkspace() {
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-8 py-4">
           <div className="min-w-0">
-            <Link href="/coordinator/submissions" className="inline-flex items-center gap-2 text-xs text-gray-500 transition hover:text-blue-300">
+            <Link
+              href="/professor/submissions"
+              className="inline-flex items-center gap-2 text-xs text-gray-500 transition hover:text-blue-300"
+            >
               <ArrowLeft className="h-3.5 w-3.5" />
               Back to submissions
             </Link>
             <h1 className="mt-2 truncate text-base font-semibold text-white">Submission Detail</h1>
             <p className="mt-0.5 text-xs text-gray-500">
-              Status, revision chain, review state, and grading summary for a single submission
+              Review the document content and annotate sections with grading criteria
             </p>
           </div>
           <button
@@ -183,12 +188,16 @@ function SubmissionDetailWorkspace() {
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.8fr)]">
                 <div className="space-y-6">
                   <OverviewPanel detail={detail} />
+
+                  {/* Annotated document viewer — shown when markdown content exists */}
                   {detail.content && (
                     <section className="rounded-2xl border border-white/8 bg-gray-900 p-6">
                       <div className="mb-5 flex items-center gap-2">
                         <FileText className="h-4 w-4 text-purple-300" />
                         <h3 className="text-sm font-semibold text-white">Document Content</h3>
-                        <span className="ml-auto text-xs text-gray-500">Select text to annotate and link to grading criteria</span>
+                        <span className="ml-auto text-xs text-gray-500">
+                          Select text to annotate and link to grading criteria
+                        </span>
                       </div>
                       <AnnotatedDocumentViewer
                         submissionId={detail.id}
@@ -196,6 +205,7 @@ function SubmissionDetailWorkspace() {
                       />
                     </section>
                   )}
+
                   <RevisionHistoryPanel
                     currentSubmissionId={detail.id}
                     tree={revisionTree}
@@ -204,8 +214,8 @@ function SubmissionDetailWorkspace() {
                 </div>
 
                 <div className="space-y-6">
-                  <ReviewPanel detail={detail} onReviewed={load} />
-                  <GradePanel summary={gradeSummary} warning={gradeWarning} />
+                  <ReviewPanel detail={detail} />
+                  <GradePanel summary={gradeSummary} warning={gradeWarning} submissionId={detail.id} onGraded={load} />
                   <FilePanel detail={detail} />
                 </div>
               </div>
@@ -240,10 +250,7 @@ function SubmissionHeader({ detail }: { detail: SubmissionDetail }) {
 
         <div className="grid min-w-[280px] grid-cols-2 gap-3">
           <Metric label="Reviews" value={`${detail.reviewSummary?.totalReviews ?? 0}`} />
-          <Metric
-            label="Average"
-            value={formatGrade(detail.gradeSummary?.averageGrade)}
-          />
+          <Metric label="Average" value={formatGrade(detail.gradeSummary?.averageGrade)} />
         </div>
       </div>
     </div>
@@ -257,7 +264,6 @@ function OverviewPanel({ detail }: { detail: SubmissionDetail }) {
         <FileText className="h-4 w-4 text-blue-300" />
         <h3 className="text-sm font-semibold text-white">Submission Overview</h3>
       </div>
-
       <div className="grid gap-3 sm:grid-cols-2">
         <InfoTile label="Submission ID" value={String(detail.id)} />
         <InfoTile label="Team ID" value={String(detail.teamId)} />
@@ -339,7 +345,6 @@ function RevisionTreeNode({
             <div className="h-px w-6 bg-white/10" />
           </div>
         )}
-
         <div className={`flex-1 rounded-xl border px-4 py-3 ${current ? "border-blue-500/30 bg-blue-500/10" : "border-white/10 bg-white/4"}`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -355,7 +360,6 @@ function RevisionTreeNode({
             </div>
             <span className="text-xs text-gray-500">{formatDateTime(node.submittedAt)}</span>
           </div>
-
           <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <div className="min-w-0">
               <p className="truncate text-xs text-gray-500">Submission {String(node.id)}</p>
@@ -391,74 +395,18 @@ function RevisionTreeNode({
   );
 }
 
-function ReviewPanel({ detail, onReviewed }: { detail: SubmissionDetail; onReviewed: () => void }) {
+function ReviewPanel({ detail }: { detail: SubmissionDetail }) {
   const latestStatus = detail.reviewSummary?.latestStatus;
-  const [comments, setComments] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const canReview = detail.status === "SUBMITTED" || detail.status === "PENDING_REVIEW" || detail.status === "UNDER_REVIEW";
-
-  const handleReview = async (decision: "APPROVED" | "REVISION_REQUESTED") => {
-    if (!comments.trim()) {
-      toast.error("Please add a comment before submitting the review.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await createReview(detail.id, { decision, comments: comments.trim() });
-      toast.success(decision === "APPROVED" ? "Submission approved." : "Revision requested.");
-      setComments("");
-      onReviewed();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to submit review.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <section className="rounded-2xl border border-white/8 bg-gray-900 p-6">
       <div className="mb-5 flex items-center gap-2">
         <CheckCircle2 className="h-4 w-4 text-green-300" />
-        <h3 className="text-sm font-semibold text-white">Review</h3>
+        <h3 className="text-sm font-semibold text-white">Review Summary</h3>
       </div>
-
-      <div className="grid gap-3 mb-5">
+      <div className="grid gap-3">
         <InfoTile label="Total reviews" value={`${detail.reviewSummary?.totalReviews ?? 0}`} />
         <InfoTile label="Latest decision" value={latestStatus ? reviewDecisionLabel(latestStatus) : "Pending"} />
       </div>
-
-      {canReview && (
-        <div className="space-y-3 border-t border-white/8 pt-5">
-          <p className="text-xs font-medium text-gray-400">Submit a review decision</p>
-          <textarea
-            value={comments}
-            onChange={(e) => setComments(e.target.value)}
-            rows={3}
-            placeholder="Add your review comments..."
-            disabled={submitting}
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-600 outline-none transition focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
-          />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleReview("APPROVED")}
-              disabled={submitting}
-              className="flex-1 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-green-500 disabled:opacity-50"
-            >
-              Approve
-            </button>
-            <button
-              type="button"
-              onClick={() => handleReview("REVISION_REQUESTED")}
-              disabled={submitting}
-              className="flex-1 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-amber-500 disabled:opacity-50"
-            >
-              Request Revision
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
@@ -466,11 +414,43 @@ function ReviewPanel({ detail, onReviewed }: { detail: SubmissionDetail; onRevie
 function GradePanel({
   summary,
   warning,
+  submissionId,
+  onGraded,
 }: {
   summary: SubmissionGradeSummary | null;
   warning: string | null;
+  submissionId: SubmissionId;
+  onGraded: () => void;
 }) {
   const grades = summary?.grades ?? [];
+  const user = getUser();
+  const myGrade = grades.find((g) => String(g.professorId) === String(user?.userId));
+
+  const [gradeInput, setGradeInput] = useState<string>(myGrade ? String(myGrade.grade) : "");
+  const [feedbackInput, setFeedbackInput] = useState<string>(myGrade?.feedback ?? "");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    const gradeNum = parseFloat(gradeInput);
+    if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 100) {
+      toast.error("Grade must be between 0 and 100.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      if (myGrade) {
+        await updateGrade(submissionId, Number(myGrade.id), { grade: gradeNum, feedback: feedbackInput });
+      } else {
+        await submitGrade(submissionId, { grade: gradeNum, feedback: feedbackInput });
+      }
+      toast.success(myGrade ? "Grade updated." : "Grade submitted.");
+      onGraded();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to submit grade.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <section className="rounded-2xl border border-white/8 bg-gray-900 p-6">
@@ -481,43 +461,67 @@ function GradePanel({
 
       {warning && (
         <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-100/80">
-          Grade detail endpoint is not available or returned an error. Showing the summary included in SubmissionDetailResponse. API said: {warning}
+          {warning}
         </div>
       )}
 
-      {!summary ? (
-        <div className="rounded-xl border border-dashed border-white/10 bg-white/4 px-4 py-8 text-center">
-          <p className="text-sm font-medium text-white">No grading data yet</p>
-          <p className="mt-1 text-xs text-gray-500">Grades appear after committee members submit scores.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            <Metric label="Average" value={formatGrade(summary.averageGrade)} />
-            <Metric label="Submitted" value={`${summary.gradeCount}/${summary.totalCommitteeMembers}`} />
-            <Metric label="Complete" value={summary.isGradingComplete ? "Yes" : "No"} />
-          </div>
-
-          {grades.length > 0 && (
-            <div className="overflow-hidden rounded-xl border border-white/10">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-white/5 text-left">
-                    <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Professor</th>
-                    <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Grade</th>
-                    <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Graded</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {grades.map((grade) => (
-                    <GradeRow key={String(grade.id)} grade={grade} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {summary && (
+        <div className="mb-5 grid grid-cols-3 gap-3">
+          <Metric label="Average" value={formatGrade(summary.averageGrade)} />
+          <Metric label="Submitted" value={`${summary.gradeCount}/${summary.totalCommitteeMembers}`} />
+          <Metric label="Complete" value={summary.isGradingComplete ? "Yes" : "No"} />
         </div>
       )}
+
+      {grades.length > 0 && (
+        <div className="mb-5 overflow-hidden rounded-xl border border-white/10">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/5 text-left">
+                <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Professor</th>
+                <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Grade</th>
+                <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Graded</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {grades.map((grade) => (
+                <GradeRow key={String(grade.id)} grade={grade} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="space-y-3 border-t border-white/8 pt-5">
+        <p className="text-xs font-medium text-gray-400">{myGrade ? "Update your grade" : "Submit your grade"}</p>
+        <div className="flex items-center gap-3">
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={0.5}
+            value={gradeInput}
+            onChange={(e) => setGradeInput(e.target.value)}
+            placeholder="0–100"
+            className="w-24 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/50 focus:outline-none"
+          />
+          <span className="text-xs text-gray-500">/ 100</span>
+        </div>
+        <textarea
+          value={feedbackInput}
+          onChange={(e) => setFeedbackInput(e.target.value)}
+          placeholder="Feedback (optional)"
+          rows={3}
+          className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/50 focus:outline-none resize-none"
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={submitting || gradeInput === ""}
+          className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-gray-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {submitting ? "Submitting…" : myGrade ? "Update Grade" : "Submit Grade"}
+        </button>
+      </div>
     </section>
   );
 }
@@ -618,11 +622,11 @@ function DeliverableTypeBadge({ type }: { type: DeliverableType }) {
     PROPOSAL: "Proposal",
     REVISED_PROPOSAL: "Revised Proposal",
     STATEMENT_OF_WORK: "SoW",
+    DEMONSTRATION: "Demonstration",
   };
-
   return (
     <span className="inline-flex rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-xs font-medium text-gray-300">
-      {labels[type]}
+      {labels[type] ?? type}
     </span>
   );
 }
@@ -633,9 +637,6 @@ function ErrorState({ message }: { message: string }) {
       <div className="max-w-lg rounded-2xl border border-red-500/20 bg-red-500/10 p-8 text-center">
         <h2 className="text-lg font-semibold text-white">Submission detail unavailable</h2>
         <p className="mt-3 text-sm text-red-100/80">{message}</p>
-        <p className="mt-3 text-xs text-red-100/60">
-          TODO(#157 backend): implement GET /api/v1/submissions/:submissionId using SubmissionDetailResponse.
-        </p>
       </div>
     </div>
   );
@@ -655,11 +656,13 @@ function AccessDenied() {
       <div className="max-w-md rounded-2xl border border-red-500/20 bg-red-500/10 p-8 text-center">
         <Users className="mx-auto h-8 w-8 text-red-300" />
         <h1 className="mt-4 text-lg font-semibold text-white">Access restricted</h1>
-        <p className="mt-2 text-sm text-red-100/80">Only Coordinators can access submission details.</p>
+        <p className="mt-2 text-sm text-red-100/80">Only coordinators and advisors can access submission details.</p>
       </div>
     </div>
   );
 }
+
+// ── Revision tree helpers ─────────────────────────────────────────────────────
 
 function buildRevisionTree(
   detail: SubmissionDetail | null,
@@ -667,12 +670,19 @@ function buildRevisionTree(
 ): SubmissionRevisionNode[] {
   const source = history.length > 0 ? history : detail ? [detailToRevision(detail)] : [];
   const flattened = flattenRevisionNodes(source);
-  const withCurrent = detail && !flattened.some((node) => sameId(node.id, detail.id))
-    ? [...flattened, detailToRevision(detail)]
-    : flattened;
+  const withCurrent =
+    detail && !flattened.some((node) => sameId(node.id, detail.id))
+      ? [...flattened, detailToRevision(detail)]
+      : flattened;
 
   if (withCurrent.length === 0) return [];
-  if (source.some((node) => Array.isArray((node as SubmissionRevisionNode).children) && (node as SubmissionRevisionNode).children!.length > 0)) {
+  if (
+    source.some(
+      (node) =>
+        Array.isArray((node as SubmissionRevisionNode).children) &&
+        (node as SubmissionRevisionNode).children!.length > 0,
+    )
+  ) {
     return sortRevisionNodes(normalizeNestedNodes(source));
   }
 
@@ -692,13 +702,11 @@ function buildRevisionTree(
     }
   }
 
-  if (hasExplicitParent) {
-    return sortRevisionNodes(roots);
-  }
+  if (hasExplicitParent) return sortRevisionNodes(roots);
 
   const ordered = sortRevisionNodes(nodes);
-  for (let index = 0; index < ordered.length - 1; index += 1) {
-    ordered[index].children = [ordered[index + 1]];
+  for (let i = 0; i < ordered.length - 1; i++) {
+    ordered[i].children = [ordered[i + 1]];
   }
   return ordered.length > 0 ? [ordered[0]] : [];
 }
@@ -711,10 +719,7 @@ function normalizeNestedNodes(nodes: (SubmissionRevision | SubmissionRevisionNod
 }
 
 function flattenRevisionNodes(nodes: (SubmissionRevision | SubmissionRevisionNode)[]): SubmissionRevision[] {
-  return nodes.flatMap((node) => [
-    node,
-    ...flattenRevisionNodes((node as SubmissionRevisionNode).children ?? []),
-  ]);
+  return nodes.flatMap((node) => [node, ...flattenRevisionNodes((node as SubmissionRevisionNode).children ?? [])]);
 }
 
 function detailToRevision(detail: SubmissionDetail): SubmissionRevisionNode {
@@ -733,8 +738,8 @@ function detailToRevision(detail: SubmissionDetail): SubmissionRevisionNode {
 
 function sortRevisionNodes(nodes: SubmissionRevisionNode[]): SubmissionRevisionNode[] {
   return [...nodes].sort((a, b) => {
-    const revisionDelta = (a.revisionNumber ?? 0) - (b.revisionNumber ?? 0);
-    if (revisionDelta !== 0) return revisionDelta;
+    const d = (a.revisionNumber ?? 0) - (b.revisionNumber ?? 0);
+    if (d !== 0) return d;
     return new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime();
   });
 }
@@ -750,7 +755,6 @@ function sameId(a: SubmissionId, b: SubmissionId) {
 function formatDateTime(iso: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "-";
-
   return date.toLocaleString("en-US", {
     day: "numeric",
     month: "short",
@@ -776,113 +780,5 @@ function reviewDecisionLabel(value: string) {
     GRADED: "Graded",
     PENDING_REVIEW: "Pending Review",
   };
-
   return labels[value as SubmissionStatus] ?? value;
-}
-
-function isMockPreviewEnabled() {
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("mock") === "1";
-}
-
-function createMockSubmissionDetail(submissionId: SubmissionId): {
-  detail: SubmissionDetail;
-  revisionHistory: SubmissionRevisionNode[];
-  gradeSummary: SubmissionGradeSummary;
-} {
-  const revisionHistory: SubmissionRevisionNode[] = [
-    {
-      id: 1,
-      revisionNumber: 1,
-      status: "REVISION_REQUESTED",
-      submittedAt: "2026-04-10T09:15:00",
-      description: "Initial proposal submitted with project scope and milestones.",
-      deliverableType: "PROPOSAL",
-      fileUrl: "https://example.com/submissions/proposal-v1.pdf",
-      children: [
-        {
-          id: 2,
-          parentSubmissionId: 1,
-          revisionNumber: 2,
-          status: "APPROVED",
-          submittedAt: "2026-04-17T14:40:00",
-          description: "Updated methodology, risk analysis, and timeline after committee review.",
-          deliverableType: "REVISED_PROPOSAL",
-          fileUrl: "https://example.com/submissions/proposal-v2.pdf",
-          children: [
-            {
-              id: 3,
-              parentSubmissionId: 2,
-              revisionNumber: 3,
-              status: "GRADED",
-              submittedAt: "2026-04-22T11:20:00",
-              description: "Final proposal package used for grading.",
-              deliverableType: "REVISED_PROPOSAL",
-              fileUrl: "https://example.com/submissions/proposal-v3.pdf",
-              children: [],
-            },
-          ],
-        },
-      ],
-    },
-  ];
-
-  const gradeSummary: SubmissionGradeSummary = {
-    averageGrade: 87.7,
-    gradeCount: 3,
-    totalCommitteeMembers: 3,
-    isGradingComplete: true,
-    grades: [
-      {
-        id: 101,
-        professorId: 21,
-        professorName: "Dr. Ayse Demir",
-        grade: 90,
-        feedback: "Clear scope and strong validation plan.",
-        gradedAt: "2026-04-23T10:10:00",
-      },
-      {
-        id: 102,
-        professorId: 22,
-        professorName: "Dr. Mehmet Kaya",
-        grade: 85,
-        feedback: "Architecture is solid; deployment risks should be watched.",
-        gradedAt: "2026-04-23T11:25:00",
-      },
-      {
-        id: 103,
-        professorId: 23,
-        professorName: "Dr. Elif Arslan",
-        grade: 88,
-        feedback: "Good revision response and measurable milestones.",
-        gradedAt: "2026-04-23T13:05:00",
-      },
-    ],
-  };
-
-  return {
-    detail: {
-      id: submissionId,
-      teamId: 42,
-      teamName: "Senior Project Team 42",
-      fileUrl: "https://example.com/submissions/proposal-v3.pdf",
-      fileName: "proposal-final-revision.pdf",
-      deliverableType: "REVISED_PROPOSAL",
-      status: "GRADED",
-      assignedCommitteeId: 7,
-      assignedCommitteeName: "Software Systems Committee",
-      revisionNumber: 3,
-      parentSubmissionId: 2,
-      submittedAt: "2026-04-22T11:20:00",
-      deadline: "2026-04-24T23:59:00",
-      reviewSummary: {
-        totalReviews: 4,
-        latestStatus: "APPROVED",
-      },
-      gradeSummary,
-      revisionHistory,
-    },
-    revisionHistory,
-    gradeSummary,
-  };
 }

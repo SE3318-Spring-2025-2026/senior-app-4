@@ -78,6 +78,7 @@ export interface SubmissionDetail {
   teamName?: string;
   fileUrl?: string | null;
   fileName?: string | null;
+  content?: string | null;
   deliverableType: DeliverableType;
   status: SubmissionStatus;
   assignedCommitteeId?: SubmissionId | null;
@@ -188,7 +189,31 @@ export async function fetchSubmissionDetail(submissionId: SubmissionId): Promise
     throw new Error(msg);
   }
 
-  return res.json();
+  const raw = await res.json();
+
+  // Backend returns the object directly (no { status, data } wrapper).
+  // Map backend field names to the frontend SubmissionDetail shape.
+  if (raw && typeof raw === "object" && !("data" in raw)) {
+    const mapped: SubmissionDetail = {
+      id: raw.id,
+      teamId: raw.groupId ?? raw.teamId,
+      teamName: raw.teamName,
+      deliverableType: raw.deliverableType,
+      status: raw.status,
+      content: raw.content ?? null,
+      fileUrl: raw.fileUrl ?? null,
+      fileName: raw.fileName ?? null,
+      assignedCommitteeId: raw.committeeId ?? null,
+      revisionNumber: raw.version ?? raw.revisionNumber ?? 1,
+      parentSubmissionId: raw.parentSubmissionId ?? null,
+      submittedAt: raw.createdAt ?? raw.submittedAt,
+      deadline: raw.deadline ?? null,
+      revisionHistory: [],
+    };
+    return { status: "success", data: mapped };
+  }
+
+  return raw as SubmissionDetailResponse;
 }
 
 export async function fetchSubmissionRevisionHistory(submissionId: SubmissionId): Promise<RevisionHistoryResponse> {
@@ -242,13 +267,18 @@ export async function fetchSubmissionReviews(submissionId: SubmissionId): Promis
 
 export async function createRevisionSubmission(
   parentSubmissionId: string,
-  payload: { file: File; description?: string },
+  payload: { file?: File; description?: string; content?: string },
 ): Promise<RevisionCreateResponse> {
   const token = getToken();
   const formData = new FormData();
-  formData.append("file", payload.file);
+  if (payload.file) {
+    formData.append("file", payload.file);
+  }
   if (payload.description?.trim()) {
     formData.append("description", payload.description.trim());
+  }
+  if (payload.content?.trim()) {
+    formData.append("content", payload.content.trim());
   }
 
   const headers: Record<string, string> = {};
@@ -268,4 +298,135 @@ export async function createRevisionSubmission(
   }
 
   return res.json();
+}
+
+export async function createReview(
+  submissionId: SubmissionId,
+  payload: { decision: "APPROVED" | "REVISION_REQUESTED"; comments: string },
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/submissions/${submissionId}/reviews`, {
+    method: "POST",
+    headers: { ...buildHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ status: payload.decision, comment: payload.comments }),
+  });
+
+  if (!res.ok) {
+    const msg = await parseError(res);
+    throw new Error(msg);
+  }
+}
+
+export async function submitGrade(
+  submissionId: SubmissionId,
+  payload: { grade: number; feedback?: string },
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/submissions/${submissionId}/grades`, {
+    method: "POST",
+    headers: { ...buildHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const msg = await parseError(res);
+    throw new Error(msg);
+  }
+}
+
+export async function updateGrade(
+  submissionId: SubmissionId,
+  gradeId: number,
+  payload: { grade: number; feedback?: string },
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/submissions/${submissionId}/grades/${gradeId}`, {
+    method: "PUT",
+    headers: { ...buildHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const msg = await parseError(res);
+    throw new Error(msg);
+  }
+}
+
+// ── Annotation API ────────────────────────────────────────────────────────────
+
+export interface Annotation {
+  id: number;
+  submissionId: number;
+  advisorId: number;
+  criterionId: number | null;
+  selectedText: string;
+  startOffset: number;
+  endOffset: number;
+  comment: string | null;
+  grade: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAnnotationPayload {
+  criterionId?: number | null;
+  selectedText: string;
+  startOffset: number;
+  endOffset: number;
+  comment?: string;
+  grade?: string;
+}
+
+export interface UpdateAnnotationPayload {
+  criterionId?: number | null;
+  comment?: string;
+  grade?: string;
+}
+
+function annotationAuthHeaders(): Record<string, string> {
+  const token = getToken();
+  return token
+    ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+    : { "Content-Type": "application/json" };
+}
+
+export async function fetchAnnotations(submissionId: SubmissionId): Promise<Annotation[]> {
+  const res = await fetch(`${API_BASE}/submissions/${submissionId}/annotations`, {
+    headers: annotationAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function createAnnotation(
+  submissionId: SubmissionId,
+  payload: CreateAnnotationPayload,
+): Promise<Annotation> {
+  const res = await fetch(`${API_BASE}/submissions/${submissionId}/annotations`, {
+    method: "POST",
+    headers: annotationAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function updateAnnotation(
+  submissionId: SubmissionId,
+  annotationId: number,
+  payload: UpdateAnnotationPayload,
+): Promise<Annotation> {
+  const res = await fetch(`${API_BASE}/submissions/${submissionId}/annotations/${annotationId}`, {
+    method: "PUT",
+    headers: annotationAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function deleteAnnotation(
+  submissionId: SubmissionId,
+  annotationId: number,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/submissions/${submissionId}/annotations/${annotationId}`, {
+    method: "DELETE",
+    headers: annotationAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
 }
