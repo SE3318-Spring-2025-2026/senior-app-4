@@ -3,12 +3,13 @@
 import { useState } from "react";
 
 type Props = {
-    onBind?: (githubPat: string, organizationName: string) => Promise<void> | void;
+    onBind?: (githubPat: string, organizationName: string, repositoryName: string) => Promise<void> | void;
 };
 
 export default function GithubBindForm({ onBind }: Props) {
     const [githubPat, setGithubPat] = useState("");
     const [organizationName, setOrganizationName] = useState("");
+    const [repositoryName, setRepositoryName] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -18,6 +19,7 @@ export default function GithubBindForm({ onBind }: Props) {
 
         const trimmedPat = githubPat.trim();
         const trimmedOrg = organizationName.trim();
+        const trimmedRepo = repositoryName.trim();
 
         if (!trimmedPat) {
             setError("Personal Access Token is required.");
@@ -29,13 +31,19 @@ export default function GithubBindForm({ onBind }: Props) {
             return;
         }
 
+        if (!trimmedRepo) {
+            setError("Repository name is required.");
+            return;
+        }
+
         setLoading(true);
 
         try {
-            await onBind?.(trimmedPat, trimmedOrg);
+            await onBind?.(trimmedPat, trimmedOrg, trimmedRepo);
 
             setGithubPat("");
             setOrganizationName("");
+            setRepositoryName("");
         } catch {
             setError("Failed to bind GitHub organization.");
         } finally {
@@ -84,6 +92,24 @@ export default function GithubBindForm({ onBind }: Props) {
                         value={organizationName}
                         onChange={(e) => setOrganizationName(e.target.value)}
                         placeholder="Enter organization name"
+                        disabled={loading}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none transition focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
+                    />
+                </div>
+
+                <div>
+                    <label
+                        htmlFor="repositoryName"
+                        className="mb-2 block text-sm font-medium text-gray-300"
+                    >
+                        Repository Name
+                    </label>
+                    <input
+                        id="repositoryName"
+                        type="text"
+                        value={repositoryName}
+                        onChange={(e) => setRepositoryName(e.target.value)}
+                        placeholder="Enter repository name"
                         disabled={loading}
                         className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none transition focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
                     />

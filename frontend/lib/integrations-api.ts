@@ -104,7 +104,8 @@ export type IntegrationsTestResponse = {
 export async function bindGithubIntegration(
     groupId: number,
     githubPat: string,
-    organizationName: string
+    organizationName: string,
+    repositoryName: string
 ): Promise<void> {
     const token = getToken();
 
@@ -117,6 +118,7 @@ export async function bindGithubIntegration(
         body: JSON.stringify({
             githubPat,
             organizationName,
+            repositoryName,
         }),
     });
 

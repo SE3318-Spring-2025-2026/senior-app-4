@@ -520,7 +520,8 @@ public class GroupServiceImpl implements GroupService {
         
         integration.setGroup(group);
         integration.setOrganizationName(request.organizationName().trim());
-        integration.setGithubPatEncrypted(request.githubPat().trim()); 
+        integration.setRepositoryName(request.repositoryName().trim());
+        integration.setGithubPatEncrypted(request.githubPat().trim());
         integration.setStatus(GithubIntegrationStatus.ACTIVE);
         integration.setUpdatedAt(Instant.now());
 
