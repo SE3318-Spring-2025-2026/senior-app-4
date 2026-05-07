@@ -212,21 +212,40 @@ export async function addMemberApi(
     }
 }
 
-export async function removeMemberApi(
+export async function coordinatorAddMemberApi(
     groupId: number,
-    studentId: string
+    studentId: number
 ) {
     const token = getToken();
 
-    const res = await fetch(
-        `${API_BASE}/groups/${groupId}/members/${studentId}`,
-        {
-            method: "DELETE",
-            headers: {
-                Authorization: `Bearer ${token ?? ""}`,
-            },
-        }
-    );
+    const res = await fetch(`${API_BASE}/groups/${groupId}/members/${studentId}`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
+export async function removeMemberApi(
+    groupId: number,
+    studentId: string,
+    newLeaderId?: number
+) {
+    const token = getToken();
+    const url = newLeaderId 
+        ? `${API_BASE}/groups/${groupId}/members/${studentId}?newLeaderId=${newLeaderId}`
+        : `${API_BASE}/groups/${groupId}/members/${studentId}`;
+
+    const res = await fetch(url, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
 
     if (!res.ok) {
         throw new Error(await parseError(res));

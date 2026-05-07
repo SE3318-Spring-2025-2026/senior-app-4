@@ -26,7 +26,6 @@ import org.springdoc.core.annotations.ParameterObject;
 import com.spms.backend.dto.response.MemberResponseDto;
 import java.util.List;
 
-
 @RestController
 @RequestMapping("/api/v1/groups")
 public class GroupController {
@@ -153,8 +152,14 @@ public class GroupController {
     @DeleteMapping("/{groupId}/members/{studentId}")
     public ResponseEntity<Void> removeMember(
         @PathVariable Long groupId,
-        @PathVariable String studentId) {
-        groupService.removeMember(groupId, studentId);
+        @PathVariable String studentId,
+        @RequestParam(required = false) Long newLeaderId,
+        @RequestAttribute("jwt_userId") Object userId,
+        @RequestAttribute("jwt_role") Object role) {
+        
+        Long requesterId = Long.valueOf(userId.toString());
+        String requesterRole = role.toString();
+        groupService.removeMember(groupId, studentId, newLeaderId, requesterId, requesterRole);
         return ResponseEntity.noContent().build();
     }
 
