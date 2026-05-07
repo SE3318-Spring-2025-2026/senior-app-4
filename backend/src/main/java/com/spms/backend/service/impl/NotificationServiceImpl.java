@@ -184,15 +184,18 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional(readOnly = true)
     public Page<NotificationDto> getNotifications(Long userId, String readStatus, Pageable pageable) {
         if ("UNREAD".equalsIgnoreCase(readStatus)) {
-            return notificationRepository.findByToUser_UserIdAndReadStatus(userId, false, pageable)
+            return notificationRepository.findByToUser_UserIdAndReadStatusAndStatusNot(
+                            userId, false, NotificationStatus.CLEARED, pageable)
                     .map(this::mapToDto);
         }
         if ("READ".equalsIgnoreCase(readStatus)) {
-            return notificationRepository.findByToUser_UserIdAndReadStatus(userId, true, pageable)
+            return notificationRepository.findByToUser_UserIdAndReadStatusAndStatusNot(
+                            userId, true, NotificationStatus.CLEARED, pageable)
                     .map(this::mapToDto);
         }
         if ("ALL".equalsIgnoreCase(readStatus)) {
-            return notificationRepository.findByToUser_UserId(userId, pageable)
+            return notificationRepository.findByToUser_UserIdAndStatusNot(
+                            userId, NotificationStatus.CLEARED, pageable)
                     .map(this::mapToDto);
         }
         throw new BadRequestException("Invalid readStatus. Supported values: UNREAD, READ, or ALL.");

@@ -14,7 +14,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     Page<Notification> findByToUser_UserId(Long toUserId, Pageable pageable);
 
+    Page<Notification> findByToUser_UserIdAndStatusNot(Long toUserId, NotificationStatus status, Pageable pageable);
+
     Page<Notification> findByToUser_UserIdAndReadStatus(Long toUserId, boolean readStatus, Pageable pageable);
+
+    Page<Notification> findByToUser_UserIdAndReadStatusAndStatusNot(
+            Long toUserId, boolean readStatus, NotificationStatus status, Pageable pageable);
 
     Optional<Notification> findByGroupIdAndTypeAndStatus(Long groupId, NotificationType type, NotificationStatus status);
 

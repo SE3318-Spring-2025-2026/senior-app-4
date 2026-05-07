@@ -1,6 +1,6 @@
 "use client";
 import Sidebar from "@/components/Sidebar";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationList from "@/components/NotificationList";
 import { useNotifications } from "@/components/NotificationProvider";
@@ -9,9 +9,28 @@ export default function NotificationsPage() {
     const router = useRouter();
     const {
         notifications,
+        loading,
         respondToNotification,
         clearNotification,
+        refresh,
     } = useNotifications();
+
+    // Always trigger a fresh fetch when this page mounts so we never show
+    // stale empty state from a previously failed/incomplete provider load.
+    const [isPageLoading, setIsPageLoading] = useState(true);
+
+    useEffect(() => {
+        setIsPageLoading(true);
+        refresh();
+    }, [refresh]);
+
+    // Once the provider's loading flag drops to false (fetch settled),
+    // mark our local page-loading as done too.
+    useEffect(() => {
+        if (!loading) {
+            setIsPageLoading(false);
+        }
+    }, [loading]);
 
     const [page, setPage] = useState(0);
     const pageSize = 4;
@@ -63,6 +82,7 @@ export default function NotificationsPage() {
 
                     <NotificationList
                         notifications={paginatedNotifications}
+                        loading={isPageLoading || loading}
                         page={page}
                         totalPages={totalPages}
                         onRespond={respondToNotification}
