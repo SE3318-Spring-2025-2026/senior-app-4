@@ -23,4 +23,9 @@ public class SprintUpdateRequestDto {
 
     public LocalDate getEndDate() { return endDate; }
     public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
+
+    private Integer requiredStoryPoints;
+
+    public Integer getRequiredStoryPoints() { return requiredStoryPoints; }
+    public void setRequiredStoryPoints(Integer requiredStoryPoints) { this.requiredStoryPoints = requiredStoryPoints; }
 }

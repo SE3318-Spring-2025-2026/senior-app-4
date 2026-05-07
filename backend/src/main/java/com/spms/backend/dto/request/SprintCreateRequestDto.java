@@ -15,6 +15,8 @@ public class SprintCreateRequestDto {
     @NotNull
     private LocalDate endDate;
 
+    private Integer requiredStoryPoints;
+
     public String getSprintName() { return sprintName; }
     public void setSprintName(String sprintName) { this.sprintName = sprintName; }
 
@@ -23,4 +25,7 @@ public class SprintCreateRequestDto {
 
     public LocalDate getEndDate() { return endDate; }
     public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
+
+    public Integer getRequiredStoryPoints() { return requiredStoryPoints; }
+    public void setRequiredStoryPoints(Integer requiredStoryPoints) { this.requiredStoryPoints = requiredStoryPoints; }
 }

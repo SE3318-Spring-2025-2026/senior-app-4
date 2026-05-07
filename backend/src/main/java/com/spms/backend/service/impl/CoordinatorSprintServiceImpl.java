@@ -41,6 +41,7 @@ public class CoordinatorSprintServiceImpl implements CoordinatorSprintService {
         sprint.setSprintName(request.getSprintName().trim());
         sprint.setStartDate(request.getStartDate());
         sprint.setEndDate(request.getEndDate());
+        sprint.setRequiredStoryPoints(request.getRequiredStoryPoints());
         sprint.setCreatedAt(Instant.now());
         sprint.setUpdatedAt(Instant.now());
 
@@ -62,6 +63,7 @@ public class CoordinatorSprintServiceImpl implements CoordinatorSprintService {
         sprint.setSprintName(request.getSprintName().trim());
         sprint.setStartDate(request.getStartDate());
         sprint.setEndDate(request.getEndDate());
+        sprint.setRequiredStoryPoints(request.getRequiredStoryPoints());
         sprint.setUpdatedAt(Instant.now());
 
         LocalDate today = LocalDate.now();
@@ -107,6 +109,6 @@ public class CoordinatorSprintServiceImpl implements CoordinatorSprintService {
 
     private SprintDto toDto(Sprint sprint, LocalDate today) {
         String status = computeStatus(sprint.getStartDate(), sprint.getEndDate(), today);
-        return new SprintDto(sprint.getId(), sprint.getSprintName(), sprint.getStartDate(), sprint.getEndDate(), status);
+        return new SprintDto(sprint.getId(), sprint.getSprintName(), sprint.getStartDate(), sprint.getEndDate(), status, sprint.getRequiredStoryPoints());
     }
 }

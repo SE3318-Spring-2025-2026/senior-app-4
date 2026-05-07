@@ -20,6 +20,7 @@ interface SprintData {
   startDate: string;
   endDate: string;
   status: "UPCOMING" | "ACTIVE" | "COMPLETED";
+  requiredStoryPoints: number | null;
 }
 
 export default function SchedulePage() {
@@ -281,6 +282,7 @@ function SprintManagementCard() {
   const [addName, setAddName] = useState("");
   const [addStart, setAddStart] = useState("");
   const [addEnd, setAddEnd] = useState("");
+  const [addRequiredSp, setAddRequiredSp] = useState("");
   const [addSaving, setAddSaving] = useState(false);
 
   useEffect(() => {
@@ -309,7 +311,12 @@ function SprintManagementCard() {
       const res = await fetch(`${API_BASE}/coordinator/sprints`, {
         method: "POST",
         headers: buildHeaders(),
-        body: JSON.stringify({ sprintName: addName.trim(), startDate: addStart, endDate: addEnd }),
+        body: JSON.stringify({
+          sprintName: addName.trim(),
+          startDate: addStart,
+          endDate: addEnd,
+          requiredStoryPoints: addRequiredSp ? parseInt(addRequiredSp, 10) : null,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -317,7 +324,7 @@ function SprintManagementCard() {
       }
       const created: SprintData = await res.json();
       setSprints(prev => [...prev, created].sort((a, b) => a.startDate.localeCompare(b.startDate)));
-      setAddName(""); setAddStart(""); setAddEnd("");
+      setAddName(""); setAddStart(""); setAddEnd(""); setAddRequiredSp("");
       setShowAddForm(false);
       toast.success("Sprint created.");
     } catch (err: unknown) {
@@ -407,6 +414,18 @@ function SprintManagementCard() {
                 />
               </div>
             </div>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500">Required Story Points per Student <span className="text-gray-600">(optional)</span></label>
+              <input
+                type="number"
+                min="1"
+                placeholder="e.g. 5"
+                value={addRequiredSp}
+                onChange={e => setAddRequiredSp(e.target.value)}
+                className="w-full px-4 py-2.5 bg-gray-800 border border-white/10 rounded-xl text-sm text-white placeholder-gray-600
+                           focus:outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
+              />
+            </div>
           </div>
           <button
             onClick={handleAdd}
@@ -485,6 +504,7 @@ function SprintRow({
   const [name, setName] = useState(sprint.sprintName);
   const [start, setStart] = useState(sprint.startDate);
   const [end, setEnd] = useState(sprint.endDate);
+  const [requiredSp, setRequiredSp] = useState(sprint.requiredStoryPoints?.toString() ?? "");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -492,6 +512,7 @@ function SprintRow({
       setName(sprint.sprintName);
       setStart(sprint.startDate);
       setEnd(sprint.endDate);
+      setRequiredSp(sprint.requiredStoryPoints?.toString() ?? "");
     }
   }, [isEditing, sprint]);
 
@@ -505,7 +526,12 @@ function SprintRow({
       const res = await fetch(`${API_BASE}/coordinator/sprints/${sprint.id}`, {
         method: "PUT",
         headers: buildHeaders(),
-        body: JSON.stringify({ sprintName: name.trim(), startDate: start, endDate: end }),
+        body: JSON.stringify({
+          sprintName: name.trim(),
+          startDate: start,
+          endDate: end,
+          requiredStoryPoints: requiredSp ? parseInt(requiredSp, 10) : null,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -561,6 +587,18 @@ function SprintRow({
             />
           </div>
         </div>
+        <div className="space-y-1">
+          <label className="text-xs text-gray-500">Required Story Points per Student <span className="text-gray-600">(optional)</span></label>
+          <input
+            type="number"
+            min="1"
+            placeholder="e.g. 5"
+            value={requiredSp}
+            onChange={e => setRequiredSp(e.target.value)}
+            className="w-full px-3 py-2 bg-gray-800 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600
+                       focus:outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
+          />
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handleSave}
@@ -593,6 +631,9 @@ function SprintRow({
           <p className="text-sm font-medium text-white truncate">{sprint.sprintName}</p>
           <p className="text-xs text-gray-500 mt-0.5">
             {formatShortDate(sprint.startDate)} – {formatShortDate(sprint.endDate)}
+            {sprint.requiredStoryPoints != null && (
+              <span className="ml-2 text-gray-600">· {sprint.requiredStoryPoints} SP/student</span>
+            )}
           </p>
         </div>
       </div>
