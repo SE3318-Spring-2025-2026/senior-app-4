@@ -181,4 +181,40 @@ public class ScrumSyncController {
         result.put("steps", steps);
         return ResponseEntity.ok(result);
     }
+
+    @PostMapping("/debug/trace-group/{groupId}")
+    public ResponseEntity<Map<String, Object>> traceGroup(@PathVariable Long groupId) {
+        Map<String, Object> result = new HashMap<>();
+        List<String> trace = new ArrayList<>();
+        try {
+            trace.add("1. checking jira integration");
+            Optional<com.spms.backend.model.JiraIntegration> jiraOpt = jiraIntegrationRepository.findByGroup_Id(groupId);
+            if (jiraOpt.isEmpty()) { result.put("trace", trace); result.put("stopped", "no jira integration"); return ResponseEntity.ok(result); }
+            trace.add("2. jira found, email=" + jiraOpt.get().getJiraEmail() + " apiKeyNull=" + (jiraOpt.get().getApiKey() == null));
+            if (jiraOpt.get().getJiraEmail() == null || jiraOpt.get().getApiKey() == null) { result.put("trace", trace); result.put("stopped", "jira email or apiKey null"); return ResponseEntity.ok(result); }
+
+            trace.add("3. fetching jira issues");
+            var jira = jiraOpt.get();
+            var issues = jiraApiClient.fetchActiveSprintIssues(jira.getJiraSpaceUrl(), jira.getJiraEmail(), jira.getApiKey(), jira.getProjectKey());
+            trace.add("4. jira issues fetched: " + issues.size());
+
+            trace.add("5. checking github integration");
+            Optional<GithubIntegration> ghOpt = githubIntegrationRepository.findByGroup_Id(groupId);
+            if (ghOpt.isEmpty()) { result.put("trace", trace); result.put("stopped", "no github integration"); return ResponseEntity.ok(result); }
+            trace.add("6. github found: org=" + ghOpt.get().getOrganizationName() + " repo=" + ghOpt.get().getRepositoryName() + " patNull=" + (ghOpt.get().getGithubPatEncrypted() == null));
+
+            trace.add("7. deleting old records for group=" + groupId);
+            long before = sprintIssueTrackingRepository.findByGroup_Id(groupId).size();
+            trace.add("   records before delete: " + before);
+            // Note: we don't actually delete here to avoid data loss in debug mode
+            trace.add("8. SKIP actual delete/save in trace mode — all steps passed!");
+            result.put("allStepsPassed", true);
+        } catch (Exception e) {
+            trace.add("EXCEPTION: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            result.put("error", e.getMessage());
+            if (e.getCause() != null) result.put("cause", e.getCause().getMessage());
+        }
+        result.put("trace", trace);
+        return ResponseEntity.ok(result);
+    }
 }
