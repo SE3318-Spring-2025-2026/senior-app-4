@@ -230,6 +230,7 @@ public class JiraApiClient {
                         .pathSegment("rest", "agile", "1.0", "sprint", sprintId.toString(), "issue")
                         .queryParam("startAt", startAt)
                         .queryParam("maxResults", maxResults)
+                        .queryParam("fields", "summary,description,assignee,customfield_10016")
                         .build()
                         .toUriString();
 
@@ -269,7 +270,10 @@ public class JiraApiClient {
                         assigneeEmail = (String) assignee.get("emailAddress");
                     }
 
-                    allIssues.add(new JiraIssueData(issueKey, storyPoints, assigneeEmail));
+                    String title = (String) fields.get("summary");
+                    String description = extractDescription(fields.get("description"));
+
+                    allIssues.add(new JiraIssueData(issueKey, storyPoints, assigneeEmail, title, description));
                 }
 
                 startAt += issues.size();
@@ -288,6 +292,36 @@ public class JiraApiClient {
         }
 
         return allIssues;
+    }
+
+    // JIRA description can be plain string or Atlassian Document Format (ADF) object.
+    // Extract readable text in both cases.
+    @SuppressWarnings("unchecked")
+    private String extractDescription(Object raw) {
+        if (raw == null) return null;
+        if (raw instanceof String s) return s.isBlank() ? null : s;
+        if (raw instanceof Map<?, ?> adf) {
+            // ADF: recursively collect text nodes
+            StringBuilder sb = new StringBuilder();
+            collectAdfText((Map<String, Object>) adf, sb);
+            String result = sb.toString().trim();
+            return result.isEmpty() ? null : result;
+        }
+        return raw.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void collectAdfText(Map<String, Object> node, StringBuilder sb) {
+        if ("text".equals(node.get("type"))) {
+            Object text = node.get("text");
+            if (text != null) sb.append(text).append(" ");
+        }
+        List<Map<String, Object>> content = (List<Map<String, Object>>) node.get("content");
+        if (content != null) {
+            for (Map<String, Object> child : content) {
+                collectAdfText(child, sb);
+            }
+        }
     }
 
     private String buildBasicAuthHeader(String email, String apiToken) {

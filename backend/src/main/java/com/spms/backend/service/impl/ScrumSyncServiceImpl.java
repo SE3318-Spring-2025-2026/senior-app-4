@@ -184,6 +184,8 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         for (JiraIssueData jiraIssue : jiraIssues) {
             SprintIssueTracking log = new SprintIssueTracking(group, sprint, jiraIssue.issueKey());
             log.setStoryPoints(jiraIssue.storyPoints());
+            log.setIssueTitle(jiraIssue.title());
+            log.setIssueDescription(jiraIssue.description());
             log.setSyncedAt(Instant.now());
 
             try {
