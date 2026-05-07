@@ -12,7 +12,8 @@ interface ActiveSprint {
   sprintName: string;
   startDate: string;
   endDate: string;
-  status: string;
+  status: "UPCOMING" | "ACTIVE" | "COMPLETED";
+  requiredStoryPoints: number | null;
 }
 
 export default function ValidationSprintsPage() {

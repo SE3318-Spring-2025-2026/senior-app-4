@@ -29,6 +29,9 @@ public class Sprint {
     @Column(name = "status", nullable = false)
     private String status;
 
+    @Column(name = "required_story_points")
+    private Integer requiredStoryPoints;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -98,5 +101,13 @@ public class Sprint {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Integer getRequiredStoryPoints() {
+        return requiredStoryPoints;
+    }
+
+    public void setRequiredStoryPoints(Integer requiredStoryPoints) {
+        this.requiredStoryPoints = requiredStoryPoints;
     }
 }
