@@ -203,11 +203,10 @@ public class ScrumSyncController {
             if (ghOpt.isEmpty()) { result.put("trace", trace); result.put("stopped", "no github integration"); return ResponseEntity.ok(result); }
             trace.add("6. github found: org=" + ghOpt.get().getOrganizationName() + " repo=" + ghOpt.get().getRepositoryName() + " patNull=" + (ghOpt.get().getGithubPatEncrypted() == null));
 
-            trace.add("7. deleting old records for group=" + groupId);
+            trace.add("7. counting records for group=" + groupId);
             long before = sprintIssueTrackingRepository.findByGroup_Id(groupId).size();
-            trace.add("   records before delete: " + before);
-            // Note: we don't actually delete here to avoid data loss in debug mode
-            trace.add("8. SKIP actual delete/save in trace mode — all steps passed!");
+            trace.add("   record count: " + before);
+            trace.add("8. all steps passed!");
             result.put("allStepsPassed", true);
         } catch (Exception e) {
             trace.add("EXCEPTION: " + e.getClass().getSimpleName() + ": " + e.getMessage());

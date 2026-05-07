@@ -104,6 +104,7 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public void executeSyncPipeline() {
         logger.debug("Phase 1: Searching for active sprint context");
         var activeSprint = sprintRepository.findActiveSprintByDate(java.time.LocalDate.now());
