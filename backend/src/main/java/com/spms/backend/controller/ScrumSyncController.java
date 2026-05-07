@@ -140,4 +140,18 @@ public class ScrumSyncController {
         ScrumSyncResponse response = scrumSyncService.triggerSync();
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
+
+    @PostMapping("/debug/run-sync-now")
+    public ResponseEntity<Map<String, Object>> runSyncNow() {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            scrumSyncService.executeSyncPipeline();
+            result.put("status", "COMPLETED");
+        } catch (Exception e) {
+            result.put("status", "FAILED");
+            result.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
+            if (e.getCause() != null) result.put("cause", e.getCause().getMessage());
+        }
+        return ResponseEntity.ok(result);
+    }
 }
