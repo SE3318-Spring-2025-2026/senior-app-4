@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import Sidebar from '@/components/Sidebar';
 import { buildHeaders, API_BASE } from '@/lib/api-utils';
@@ -15,7 +16,7 @@ interface ActiveSprint {
 }
 
 export default function ValidationSprintsPage() {
-  const authStatus = useAuthGuard('coordinator');
+  const authStatus = useAuthGuard(['coordinator', 'professor']);
   if (authStatus === 'loading') return <FullSpinner />;
   if (authStatus === 'denied') return <AccessDenied />;
   return <SprintsLayout />;
@@ -160,7 +161,13 @@ function AccessDenied() {
           </svg>
         </div>
         <h1 className="text-lg font-semibold text-white">Access Restricted</h1>
-        <p className="text-sm text-gray-500">Only Coordinators can access this page.</p>
+        <p className="text-sm text-gray-500">You do not have permission to access this page.</p>
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+        >
+          Back to Dashboard
+        </Link>
       </div>
     </div>
   );

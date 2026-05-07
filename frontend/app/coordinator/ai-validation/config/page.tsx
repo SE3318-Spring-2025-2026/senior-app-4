@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import Sidebar from '@/components/Sidebar';
 import {
@@ -62,6 +63,12 @@ function AccessDenied() {
         </div>
         <h1 className="text-lg font-semibold text-white">Access Restricted</h1>
         <p className="text-sm text-gray-500">Only Coordinators can access this page.</p>
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+        >
+          Back to Dashboard
+        </Link>
       </div>
     </div>
   );
@@ -186,11 +193,22 @@ function ConfigForm() {
 
   if (loading) {
     return (
-      <div className="bg-gray-900 border border-white/8 rounded-2xl p-12 flex items-center justify-center">
-        <svg className="w-5 h-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
+      <div className="space-y-5" aria-label="Loading validation configuration">
+        {[0, 1, 2].map((section) => (
+          <div key={section} className="bg-gray-900 border border-white/8 rounded-2xl overflow-hidden animate-pulse">
+            <div className="px-6 py-4 border-b border-white/5 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gray-800" />
+              <div className="space-y-2">
+                <div className="h-3 w-32 bg-gray-800 rounded" />
+                <div className="h-2 w-48 bg-gray-800 rounded" />
+              </div>
+            </div>
+            <div className="p-6 space-y-3">
+              <div className="h-10 bg-gray-800 rounded-xl" />
+              <div className="h-10 bg-gray-800 rounded-xl" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }

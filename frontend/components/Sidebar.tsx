@@ -10,7 +10,7 @@ export default function Sidebar({ activePage }: { activePage: string }) {
   const [user, setUser] = useState<ReturnType<typeof getUser>>(null);
 
   useEffect(() => {
-    setUser(getUser());
+    queueMicrotask(() => setUser(getUser()));
   }, []);
 
   const handleLogout = () => {
@@ -217,6 +217,12 @@ export default function Sidebar({ activePage }: { activePage: string }) {
               active={activePage === "my-advisees"}
               href="/professor/my-advisees"
               icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197" /></svg>}
+            />
+            <NavItem
+              label="Validation Results"
+              active={activePage === "ai-validation-sprints"}
+              href="/coordinator/ai-validation/sprints"
+              icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h12A2.25 2.25 0 0020.25 14.25V3M7.5 20.25h9M12 16.5v3.75M8.25 9.75l2.25 2.25 5.25-5.25" /></svg>}
             />
             <NavItem
               label="Committees"

@@ -46,12 +46,14 @@ function stepLabel(job: JobStatusData): string {
 interface Props {
   readonly jobId: number;
   readonly onJobIdChange?: (newJobId: number) => void;
+  readonly onTerminal?: (status: JobStatus) => void;
 }
 
-export default function JobProgress({ jobId, onJobIdChange }: Props) {
+export default function JobProgress({ jobId, onJobIdChange, onTerminal }: Props) {
   const [job, setJob] = useState<JobStatusData | null>(null);
   const [retrying, setRetrying] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const terminalNotifiedRef = useRef(false);
 
   const fetchStatus = async (id: number) => {
     try {
@@ -59,6 +61,9 @@ export default function JobProgress({ jobId, onJobIdChange }: Props) {
       setJob(res.data);
       if (!TERMINAL_STATES.has(res.data.jobStatus)) {
         pollRef.current = setTimeout(() => fetchStatus(id), POLL_INTERVAL_MS);
+      } else if (!terminalNotifiedRef.current) {
+        terminalNotifiedRef.current = true;
+        onTerminal?.(res.data.jobStatus);
       }
     } catch (err: unknown) {
       const error = err as Error & { httpStatus?: number };
@@ -73,6 +78,7 @@ export default function JobProgress({ jobId, onJobIdChange }: Props) {
   useEffect(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
     setJob(null);
+    terminalNotifiedRef.current = false;
     fetchStatus(jobId);
     return () => { if (pollRef.current) clearTimeout(pollRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps

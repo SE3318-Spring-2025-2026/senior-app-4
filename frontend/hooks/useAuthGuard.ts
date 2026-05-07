@@ -5,9 +5,10 @@ import { getToken, getUser } from "@/lib/auth";
 
 export type AuthGuardStatus = "loading" | "authorized" | "denied";
 
-export function useAuthGuard(requiredRole: string): AuthGuardStatus {
+export function useAuthGuard(requiredRole: string | string[]): AuthGuardStatus {
     const router = useRouter();
     const [status, setStatus] = useState<AuthGuardStatus>("loading");
+    const requiredRoleKey = Array.isArray(requiredRole) ? requiredRole.join("|") : requiredRole;
 
     useEffect(() => {
         const token = getToken();
@@ -20,8 +21,11 @@ export function useAuthGuard(requiredRole: string): AuthGuardStatus {
             router.replace("/auth/change-password");
             return;
         }
-        setStatus(user.role === requiredRole ? "authorized" : "denied");
-    }, [router, requiredRole]);
+        const allowedRoles = requiredRoleKey.split("|");
+        queueMicrotask(() => {
+            setStatus(allowedRoles.includes(user.role) ? "authorized" : "denied");
+        });
+    }, [router, requiredRoleKey]);
 
     return status;
 }

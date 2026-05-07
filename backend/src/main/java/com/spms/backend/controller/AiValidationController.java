@@ -204,7 +204,7 @@ public class AiValidationController {
         if ("student".equalsIgnoreCase(userRole)) {
             throw new P7ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "FORBIDDEN", "Caller role is not allowed.");
         }
-        if ("advisor".equalsIgnoreCase(userRole)) {
+        if (isAdvisorRole(userRole)) {
             if (job.getTeam() == null || job.getTeam().getAdvisor() == null || userIdObj == null) {
                 throw new P7ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "FORBIDDEN_TEAM_ACCESS", "Advisor is not authorized for this team.");
             }
@@ -215,6 +215,10 @@ public class AiValidationController {
             return;
         }
         throw new P7ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "FORBIDDEN", "Caller role is not allowed.");
+    }
+
+    private boolean isAdvisorRole(String role) {
+        return "advisor".equalsIgnoreCase(role) || "professor".equalsIgnoreCase(role);
     }
 
     private String messageForStep(ValidationJob job) {

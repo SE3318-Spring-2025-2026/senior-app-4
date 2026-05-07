@@ -175,7 +175,7 @@ public class ValidationResultReadService {
                         "ISSUE_NOT_VALIDATED", "Issue not yet validated."));
 
         // RBAC check on the issue's team
-        if ("advisor".equalsIgnoreCase(role)) {
+        if (isAdvisorRole(role)) {
             Set<Long> advisorTeamIds = getAdvisorTeamIds(userId);
             if (result.getTeamId() == null || !advisorTeamIds.contains(result.getTeamId())) {
                 throw new P7ApiException(HttpStatus.FORBIDDEN,
@@ -198,7 +198,7 @@ public class ValidationResultReadService {
             throw new P7ApiException(HttpStatus.FORBIDDEN,
                     "FORBIDDEN", "Caller role is not allowed.");
         }
-        if (!"coordinator".equalsIgnoreCase(role) && !"advisor".equalsIgnoreCase(role)) {
+        if (!"coordinator".equalsIgnoreCase(role) && !isAdvisorRole(role)) {
             throw new P7ApiException(HttpStatus.FORBIDDEN,
                     "FORBIDDEN", "Caller role is not allowed.");
         }
@@ -229,6 +229,10 @@ public class ValidationResultReadService {
         return groupRepository.findByAdvisorId(userId).stream()
                 .map(Group::getId)
                 .collect(Collectors.toSet());
+    }
+
+    private boolean isAdvisorRole(String role) {
+        return "advisor".equalsIgnoreCase(role) || "professor".equalsIgnoreCase(role);
     }
 
     // ── Composite score ─────────────────────────────────────────────────

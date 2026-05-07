@@ -185,6 +185,31 @@ class ValidationResultReadServiceTest {
         }
 
         @Test
+        @DisplayName("Professor role is treated as advisor for own advisee teams")
+        void professorRoleOwnTeam() {
+            Long advisorUserId = 50L;
+            Long ownTeamId = 10L;
+
+            when(sprintRepository.findById(1L)).thenReturn(Optional.of(sprint));
+            when(configRepository.findById(1L)).thenReturn(Optional.of(config));
+            when(groupRepository.findByAdvisorId(advisorUserId)).thenReturn(
+                    List.of(createTeam(ownTeamId, "My Team", advisorUserId)));
+
+            IssueValidationResult ownResult = createResult(1L, ownTeamId, "PROJ-1",
+                    new BigDecimal("85.00"), new BigDecimal("75.00"), "VALIDATED");
+
+            when(resultRepository.findBySprintId(1L)).thenReturn(List.of(ownResult));
+            when(groupRepository.findAllById(any())).thenReturn(
+                    List.of(createTeam(ownTeamId, "My Team", advisorUserId)));
+
+            SprintValidationResultsResponse response = service.getSprintResults(
+                    1L, null, "professor", advisorUserId);
+
+            assertThat(response.data().teams()).hasSize(1);
+            assertThat(response.data().teams().get(0).teamId()).isEqualTo(ownTeamId);
+        }
+
+        @Test
         @DisplayName("AC2: Advisor querying a non-advisee teamId → 403 FORBIDDEN_TEAM_ACCESS")
         void advisorNonAdviseeTeam() {
             Long advisorUserId = 50L;
@@ -441,6 +466,27 @@ class ValidationResultReadServiceTest {
 
             IssueValidationDetailResponse response = service.getIssueDetails(
                     "PROJ-123", "advisor", advisorUserId);
+
+            assertThat(response.status()).isEqualTo("success");
+            assertThat(response.data().issueKey()).isEqualTo("PROJ-123");
+        }
+
+        @Test
+        @DisplayName("Professor role can view own team issue details")
+        void professorOwnTeamIssue() {
+            Long advisorUserId = 50L;
+            Long ownTeamId = 10L;
+
+            IssueValidationResult result = createResult(1L, ownTeamId, "PROJ-123",
+                    new BigDecimal("85.00"), new BigDecimal("75.00"), "VALIDATED");
+
+            when(resultRepository.findTopByIssueKeyOrderByEvaluatedAtDesc("PROJ-123"))
+                    .thenReturn(Optional.of(result));
+            when(groupRepository.findByAdvisorId(advisorUserId)).thenReturn(
+                    List.of(createTeam(ownTeamId, "My Team", advisorUserId)));
+
+            IssueValidationDetailResponse response = service.getIssueDetails(
+                    "PROJ-123", "professor", advisorUserId);
 
             assertThat(response.status()).isEqualTo("success");
             assertThat(response.data().issueKey()).isEqualTo("PROJ-123");
