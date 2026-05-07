@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,14 +167,18 @@ public class ScrumSyncController {
     @PostMapping("/debug/run-sync-now")
     public ResponseEntity<Map<String, Object>> runSyncNow() {
         Map<String, Object> result = new HashMap<>();
+        List<String> steps = new ArrayList<>();
         try {
+            steps.add("calling executeSyncPipeline...");
             scrumSyncService.executeSyncPipeline();
+            steps.add("executeSyncPipeline returned without top-level exception");
             result.put("status", "COMPLETED");
         } catch (Exception e) {
             result.put("status", "FAILED");
             result.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
             if (e.getCause() != null) result.put("cause", e.getCause().getMessage());
         }
+        result.put("steps", steps);
         return ResponseEntity.ok(result);
     }
 }
