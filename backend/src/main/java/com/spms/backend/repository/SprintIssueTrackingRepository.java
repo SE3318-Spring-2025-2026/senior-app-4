@@ -23,4 +23,6 @@ public interface SprintIssueTrackingRepository extends JpaRepository<SprintIssue
      * Find all tracking records for a sprint
      */
     List<SprintIssueTracking> findBySprint_Id(Long sprintId);
+
+    List<SprintIssueTracking> findByGroup_Id(Long groupId);
 }

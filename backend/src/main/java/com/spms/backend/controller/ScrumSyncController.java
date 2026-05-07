@@ -5,7 +5,9 @@ import com.spms.backend.dto.JiraIssueData;
 import com.spms.backend.dto.response.ScrumSyncResponse;
 import com.spms.backend.exception.SyncAlreadyRunningException;
 import com.spms.backend.model.JiraIntegration;
+import com.spms.backend.model.SprintIssueTracking;
 import com.spms.backend.repository.JiraIntegrationRepository;
+import com.spms.backend.repository.SprintIssueTrackingRepository;
 import com.spms.backend.service.ScrumSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -36,16 +38,18 @@ import java.util.Optional;
 public class ScrumSyncController {
 
     private final ScrumSyncService scrumSyncService;
-
     private final JiraIntegrationRepository jiraIntegrationRepository;
     private final JiraApiClient jiraApiClient;
+    private final SprintIssueTrackingRepository sprintIssueTrackingRepository;
 
     public ScrumSyncController(ScrumSyncService scrumSyncService,
                                 JiraIntegrationRepository jiraIntegrationRepository,
-                                JiraApiClient jiraApiClient) {
+                                JiraApiClient jiraApiClient,
+                                SprintIssueTrackingRepository sprintIssueTrackingRepository) {
         this.scrumSyncService = scrumSyncService;
         this.jiraIntegrationRepository = jiraIntegrationRepository;
         this.jiraApiClient = jiraApiClient;
+        this.sprintIssueTrackingRepository = sprintIssueTrackingRepository;
     }
 
     /**
@@ -100,6 +104,33 @@ public class ScrumSyncController {
             result.put("issues", issues);
         } catch (Exception e) {
             result.put("fetchResult", "ERROR: " + e.getMessage());
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/debug/tracking/{groupId}")
+    public ResponseEntity<Map<String, Object>> debugTracking(@PathVariable Long groupId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            List<SprintIssueTracking> records = sprintIssueTrackingRepository.findByGroup_Id(groupId);
+            result.put("count", records.size());
+            List<Map<String, Object>> rows = records.stream().map(r -> {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", r.getId());
+                m.put("issueKey", r.getIssueKey());
+                m.put("issueTitle", r.getIssueTitle());
+                m.put("issueDescription", r.getIssueDescription());
+                m.put("storyPoints", r.getStoryPoints());
+                m.put("prNumber", r.getPrNumber());
+                m.put("prMerged", r.getPrMerged());
+                m.put("assigneeGithubUsername", r.getAssigneeGithubUsername());
+                m.put("syncedAt", r.getSyncedAt() != null ? r.getSyncedAt().toString() : null);
+                return m;
+            }).toList();
+            result.put("records", rows);
+        } catch (Exception e) {
+            result.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
+            if (e.getCause() != null) result.put("cause", e.getCause().getMessage());
         }
         return ResponseEntity.ok(result);
     }
