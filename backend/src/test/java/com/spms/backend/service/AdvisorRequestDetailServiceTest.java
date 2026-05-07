@@ -217,7 +217,9 @@ class AdvisorRequestDetailServiceTest {
         @Override public void deleteAll() { store.clear(); }
 
         @Override public Page<Notification> findByToUser_UserId(Long toUserId, Pageable pageable) { return Page.empty(); }
+        @Override public Page<Notification> findByToUser_UserIdAndStatusNot(Long toUserId, NotificationStatus status, Pageable pageable) { return Page.empty(); }
         @Override public Page<Notification> findByToUser_UserIdAndReadStatus(Long toUserId, boolean readStatus, Pageable pageable) { return Page.empty(); }
+        @Override public Page<Notification> findByToUser_UserIdAndReadStatusAndStatusNot(Long toUserId, boolean readStatus, NotificationStatus status, Pageable pageable) { return Page.empty(); }
         @Override public Optional<Notification> findByGroupIdAndTypeAndStatus(Long groupId, NotificationType type, com.spms.backend.model.notification.NotificationStatus status) { return Optional.empty(); }
         @Override public Optional<Notification> findByGroupIdAndToUser_UserIdAndTypeAndStatus(Long groupId, Long toUserId, NotificationType type, com.spms.backend.model.notification.NotificationStatus status) { return Optional.empty(); }
         @Override public void deleteByToUser_UserId(Long userId) {}

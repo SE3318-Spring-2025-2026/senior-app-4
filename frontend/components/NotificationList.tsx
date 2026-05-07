@@ -8,6 +8,7 @@ import {
 
 type Props = {
     notifications: Notification[];
+    loading?: boolean;
     page: number;
     totalPages: number;
     onRespond: (id: number, decision: NotificationDecision) => Promise<void>;
@@ -16,8 +17,24 @@ type Props = {
     onNextPage: () => void;
 };
 
+function SkeletonCard() {
+    return (
+        <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-5 shadow-lg shadow-black/20 backdrop-blur animate-pulse">
+            <div className="flex items-start gap-4">
+                <div className="h-10 w-10 rounded-full bg-white/10 flex-shrink-0" />
+                <div className="flex-1 space-y-3">
+                    <div className="h-4 w-3/4 rounded-lg bg-white/10" />
+                    <div className="h-3 w-1/2 rounded-lg bg-white/5" />
+                    <div className="h-3 w-1/4 rounded-lg bg-white/5" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function NotificationList({
     notifications,
+    loading = false,
     page,
     totalPages,
     onRespond,
@@ -25,6 +42,16 @@ export default function NotificationList({
     onPrevPage,
     onNextPage,
 }: Props) {
+    if (loading) {
+        return (
+            <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                    <SkeletonCard key={i} />
+                ))}
+            </div>
+        );
+    }
+
     if (notifications.length === 0) {
         return (
             <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-8 text-center shadow-lg shadow-black/20 backdrop-blur">
