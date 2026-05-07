@@ -128,11 +128,21 @@ public class ValidationResultReadService {
             Long tid = entry.getKey();
             List<IssueValidationResult> teamResults = entry.getValue();
 
-            List<IssueSummary> issueSummaries = teamResults.stream()
+            // Per issueKey keep only the latest result to avoid double-counting re-runs
+            List<IssueValidationResult> deduped = teamResults.stream()
+                    .collect(Collectors.toMap(
+                            IssueValidationResult::getIssueKey,
+                            r -> r,
+                            (a, b) -> (a.getEvaluatedAt().compareTo(b.getEvaluatedAt()) >= 0) ? a : b
+                    ))
+                    .values().stream()
+                    .collect(Collectors.toList());
+
+            List<IssueSummary> issueSummaries = deduped.stream()
                     .map(r -> toIssueSummary(r, config))
                     .collect(Collectors.toList());
 
-            double overallScore = teamResults.stream()
+            double overallScore = deduped.stream()
                     .filter(r -> STATUS_VALIDATED.equals(r.getValidationStatus()))
                     .mapToDouble(r -> computeComposite(r, config))
                     .average()
