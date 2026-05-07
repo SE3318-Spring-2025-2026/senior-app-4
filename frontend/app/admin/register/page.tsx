@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { getToken, getUser, clearAuth } from "@/lib/auth";
+import { getToken, getUser } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
 
 export default function AdminProfessorRegisterPage() {
@@ -23,7 +22,7 @@ export default function AdminProfessorRegisterPage() {
     const user = getUser();
     if (!token || !user) { router.replace("/auth/login"); return; }
     if (user.requiresPasswordChange) { router.replace("/auth/change-password"); return; }
-    if (user.role !== "coordinator" && user.role !== "professor") {
+    if (user.role !== "coordinator") {
       router.replace("/dashboard");
       return;
     }

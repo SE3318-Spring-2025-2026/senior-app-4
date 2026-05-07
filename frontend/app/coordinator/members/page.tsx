@@ -73,7 +73,7 @@ function DashboardLayout() {
                 const data = Array.isArray(studentsRes.data) ? studentsRes.data : studentsRes.data.data || [];
                 setStudents(data);
                 if (groupsRes.data?.content) {
-                    setGroups(groupsRes.data.content.map((g: any) => ({ id: g.id, groupName: g.groupName })));
+                    setGroups(groupsRes.data.content.map((g: { id: number; groupName: string }) => ({ id: g.id, groupName: g.groupName })));
                 }
             })
             .catch((error) => console.error(error))
@@ -172,7 +172,7 @@ function DashboardLayout() {
                                     <thead>
                                         <tr className="bg-white/5 border-b border-white/10">
                                             <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Student Name</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Email / ID</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Student ID</th>
                                             <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Current Group</th>
                                             <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Actions</th>
                                         </tr>
@@ -184,7 +184,7 @@ function DashboardLayout() {
                                                     <div className="text-sm font-medium text-white">{student.fullName || `Student #${student.studentId || student.userId}`}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <div className="text-sm text-gray-400">{student.email || 'N/A'}</div>
+                                                    <div className="text-sm text-gray-400">{student.studentId || 'N/A'}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     {student.groupId ? (

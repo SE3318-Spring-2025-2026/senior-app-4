@@ -55,6 +55,7 @@ export default function AdvisorRequestPanel({
     const [requestingProfessorId, setRequestingProfessorId] = useState<number | null>(null);
     const [withdrawing, setWithdrawing] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
+    const [requestMessage, setRequestMessage] = useState("");
 
     const user = getUser();
     const currentUserId = getCurrentUserId();
@@ -120,7 +121,7 @@ export default function AdvisorRequestPanel({
     async function handleRequestAdvisor(professor: ProfessorDirectoryItem) {
         try {
             setRequestingProfessorId(professor.userId);
-            await createAdvisorRequest(groupId, professor.userId);
+            await createAdvisorRequest(groupId, professor.userId, requestMessage.trim() || undefined);
             await refreshRequestStatus();
             toast.success(`Advisor request sent to ${professor.fullName}.`);
         } catch (err) {
@@ -159,10 +160,6 @@ export default function AdvisorRequestPanel({
                         <p className="mt-2 max-w-2xl text-sm text-gray-400">
                             Browse available professors, send an advisor request, and manage
                             your current pending request from one place.
-                        </p>
-                        <p className="mt-2 max-w-2xl text-xs text-gray-500">
-                            TODO: switch this directory to backend-provided availability data
-                            when issue #80 exposes professor availability/filtering support.
                         </p>
                     </div>
 
@@ -217,6 +214,26 @@ export default function AdvisorRequestPanel({
                     </div>
                 ) : null}
 
+                {isLeader && !advisorId && !activeRequest && (
+                    <div className="mt-6">
+                        <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                            Message to advisor{" "}
+                            <span className="text-gray-600">(optional)</span>
+                        </label>
+                        <textarea
+                            value={requestMessage}
+                            onChange={(e) => setRequestMessage(e.target.value)}
+                            placeholder="Briefly introduce your group or explain why you'd like this professor as your advisor..."
+                            rows={3}
+                            maxLength={500}
+                            className="w-full rounded-xl border border-white/10 bg-gray-800/60 px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30 resize-none"
+                        />
+                        <p className="mt-1 text-right text-xs text-gray-600">
+                            {requestMessage.length}/500
+                        </p>
+                    </div>
+                )}
+
                 {loading ? (
                     <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {Array.from({ length: 3 }).map((_, index) => (
@@ -268,16 +285,6 @@ export default function AdvisorRequestPanel({
                                         )}
                                     </div>
 
-                                    <div className="mt-4 space-y-2 text-sm text-gray-300">
-                                        <p>
-                                            <span className="text-gray-500">GitHub:</span>{" "}
-                                            {professor.githubUsername || "Not linked"}
-                                        </p>
-                                        <p>
-                                            <span className="text-gray-500">Role:</span>{" "}
-                                            {professor.role}
-                                        </p>
-                                    </div>
 
                                     <button
                                         type="button"

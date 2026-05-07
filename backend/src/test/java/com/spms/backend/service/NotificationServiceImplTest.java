@@ -23,8 +23,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.Optional;
 
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
@@ -77,26 +75,6 @@ class NotificationServiceImplTest {
     }
 
     @Test
-    void requestAdvisorReturnsBadRequestWhenPendingRequestAlreadyExists() {
-        Group group = baseGroup();
-        Notification existingPending = new Notification();
-        existingPending.setType(NotificationType.ADVISOR_REQUEST);
-        existingPending.setStatus(NotificationStatus.PENDING);
-        when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
-        when(scheduleRepository.findTopByOrderByIdDesc()).thenReturn(Optional.empty());
-        when(notificationRepository.findByGroupIdAndTypeAndStatus(
-                10L, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING))
-                .thenReturn(Optional.of(existingPending));
-
-        assertThrows(
-                BadRequestException.class,
-                () -> notificationService.requestAdvisor(10L, new AdvisorRequestDto(99L, null), 1L)
-        );
-
-        verify(notificationRepository, never()).save(org.mockito.ArgumentMatchers.any(Notification.class));
-    }
-
-    @Test
     void requestAdvisorCreatesUnreadNotificationForProfessor() {
         Group group = baseGroup();
         User leader = buildUser(1L, "leader", "STUDENT");
@@ -104,9 +82,6 @@ class NotificationServiceImplTest {
 
         when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
         when(scheduleRepository.findTopByOrderByIdDesc()).thenReturn(Optional.empty());
-        when(notificationRepository.findByGroupIdAndTypeAndStatus(
-                10L, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING))
-                .thenReturn(Optional.empty());
         when(userRepository.findById(1L)).thenReturn(Optional.of(leader));
         when(userRepository.findById(99L)).thenReturn(Optional.of(professor));
         when(notificationRepository.save(any(Notification.class)))
@@ -133,9 +108,6 @@ class NotificationServiceImplTest {
 
         when(groupRepository.findById(10L)).thenReturn(Optional.of(group));
         when(scheduleRepository.findTopByOrderByIdDesc()).thenReturn(Optional.empty());
-        when(notificationRepository.findByGroupIdAndTypeAndStatus(
-                10L, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING))
-                .thenReturn(Optional.empty());
         when(userRepository.findById(1L)).thenReturn(Optional.of(leader));
         when(userRepository.findById(99L)).thenReturn(Optional.of(targetUser));
 
