@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import CommitteeGradingDrawer from "@/components/CommitteeGradingDrawer";
 import { getToken, getUser } from "@/lib/auth";
-import { mockGroups } from "@/lib/mock-groups";
-import { mockCommitteeSubmissions } from "@/lib/mock-submissions";
-import { CommitteeSubmissionPreview } from "@/lib/submission-types";
+import { fetchGroupDetail, type ApiGroupDetail } from "@/lib/groups-api";
+import { fetchSubmissions, type SubmissionSummary } from "@/lib/submissions-api";
+
+type PageState = "loading" | "unauthorized" | "ready" | "error";
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString("en-US", {
@@ -22,33 +23,59 @@ function formatDate(value: string) {
 export default function CommitteeGradingPage() {
   const router = useRouter();
   const params = useParams();
-  const [activeSubmission, setActiveSubmission] = useState<CommitteeSubmissionPreview | null>(null);
+  const [pageState, setPageState] = useState<PageState>("loading");
+  const [group, setGroup] = useState<ApiGroupDetail | null>(null);
+  const [submissions, setSubmissions] = useState<SubmissionSummary[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [activeSubmission, setActiveSubmission] = useState<SubmissionSummary | null>(null);
   const [recentlySubmittedId, setRecentlySubmittedId] = useState<number | null>(null);
 
-  const token = getToken();
-  const user = getUser();
+  const rawGroupId = params.groupId;
+  const groupId = Number(Array.isArray(rawGroupId) ? rawGroupId[0] : rawGroupId);
 
   useEffect(() => {
+    const token = getToken();
+    const user = getUser();
+
     if (!token || !user) {
       router.replace("/auth/login");
       return;
     }
-
     if (user.requiresPasswordChange) {
       router.replace("/auth/change-password");
+      return;
     }
-  }, [router, token, user]);
+    if (user.role !== "professor") {
+      setPageState("unauthorized");
+      return;
+    }
 
-  const rawGroupId = params.groupId;
-  const groupId = Number(Array.isArray(rawGroupId) ? rawGroupId[0] : rawGroupId);
-  const group = mockGroups.find((entry) => entry.groupId === groupId);
+    let cancelled = false;
 
-  const submissions = useMemo(
-    () => mockCommitteeSubmissions.filter((entry) => entry.groupId === groupId),
-    [groupId]
-  );
+    async function load() {
+      try {
+        const [groupData, subsData] = await Promise.all([
+          fetchGroupDetail(groupId),
+          fetchSubmissions({ teamId: String(groupId), size: 50 }),
+        ]);
+        if (!cancelled) {
+          setGroup(groupData);
+          setSubmissions(subsData.data ?? []);
+          setPageState("ready");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setErrorMsg(err instanceof Error ? err.message : "Failed to load data.");
+          setPageState("error");
+        }
+      }
+    }
 
-  if (!token || !user || user.requiresPasswordChange) {
+    load();
+    return () => { cancelled = true; };
+  }, [router, groupId]);
+
+  if (pageState === "loading") {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <svg className="w-6 h-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
@@ -59,7 +86,7 @@ export default function CommitteeGradingPage() {
     );
   }
 
-  if (user.role !== "professor") {
+  if (pageState === "unauthorized") {
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-950 px-6 text-white">
         <div className="max-w-md rounded-2xl border border-red-500/20 bg-red-500/8 p-8 text-center">
@@ -72,25 +99,27 @@ export default function CommitteeGradingPage() {
     );
   }
 
-  if (!group) {
+  if (pageState === "error" || !group) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-950 px-6 text-white">
         <div className="max-w-md rounded-2xl border border-white/10 bg-gray-900/80 p-8 text-center">
           <h1 className="text-xl font-semibold">Group not found</h1>
           <p className="mt-3 text-sm text-gray-400">
-            We could not find a grading workspace for this group.
+            {errorMsg ?? "We could not find a grading workspace for this group."}
           </p>
         </div>
       </main>
     );
   }
 
+  const advisor = group.members.find((m) => m.role === "ADVISOR");
+
   return (
     <>
       <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
         <div className="mx-auto max-w-5xl space-y-8">
           <div className="space-y-4">
-            <Link href={`/groups/${group.groupId}`} className="text-sm text-blue-400 hover:underline">
+            <Link href={`/groups/${group.id}`} className="text-sm text-blue-400 hover:underline">
               {"<- Back to group"}
             </Link>
 
@@ -107,30 +136,28 @@ export default function CommitteeGradingPage() {
                 </div>
                 <div className="rounded-xl bg-white/5 px-4 py-3">
                   <p className="text-xs text-gray-500">Advisor</p>
-                  <p className="mt-1 text-sm font-medium text-white">{group.advisorName || "Not Assigned"}</p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    {advisor ? advisor.fullName : "Not Assigned"}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* TODO(#74): replace mock submissions with real Process 3 professor-facing
-              list/detail endpoints when submission retrieval is implemented. */}
           {submissions.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/10 bg-gray-900/70 px-6 py-16 text-center shadow-lg shadow-black/20">
               <h2 className="text-xl font-semibold text-white">No submissions available</h2>
-              <p className="mt-2 text-gray-400">
-                This group does not have a grading-ready mock submission yet.
-              </p>
+              <p className="mt-2 text-gray-400">This group has no submissions yet.</p>
             </div>
           ) : (
             <div className="grid gap-6">
               {submissions.map((submission) => {
                 const readyForGrading = submission.status === "APPROVED";
-                const wasSubmitted = recentlySubmittedId === submission.submissionId;
+                const wasSubmitted = recentlySubmittedId === submission.id;
 
                 return (
                   <article
-                    key={submission.submissionId}
+                    key={submission.id}
                     className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -150,29 +177,25 @@ export default function CommitteeGradingPage() {
                         </div>
 
                         <div>
-                          <h2 className="text-xl font-semibold text-white">{submission.fileName}</h2>
+                          <h2 className="text-xl font-semibold text-white">
+                            {submission.deliverableType} — #{submission.id}
+                          </h2>
                           <p className="mt-2 text-sm text-gray-400">
-                            Submitted by {submission.submittedBy} on {formatDate(submission.submittedAt)}.
+                            Submitted on {formatDate(submission.submittedAt)}.
                           </p>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          <MetaPill label="Committee" value={submission.assignedCommitteeName} />
-                          <MetaPill label="Deadline" value={formatDate(submission.deadline)} />
-                          <MetaPill label="Comments" value={`${submission.commentsCount}`} />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {submission.deadline && (
+                            <MetaPill label="Deadline" value={formatDate(submission.deadline)} />
+                          )}
+                          {submission.revisionNumber != null && (
+                            <MetaPill label="Revision" value={`v${submission.revisionNumber}`} />
+                          )}
                         </div>
                       </div>
 
                       <div className="flex flex-col items-start gap-3 lg:items-end">
-                        <a
-                          href={submission.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10"
-                        >
-                          Download file
-                        </a>
-
                         <button
                           type="button"
                           onClick={() => setActiveSubmission(submission)}
@@ -189,7 +212,7 @@ export default function CommitteeGradingPage() {
 
                         {!readyForGrading && (
                           <p className="max-w-xs text-right text-xs text-amber-300/80">
-                            TODO: enable grading only after the real submission detail API confirms it is grade-ready.
+                            Grading is only available for APPROVED submissions.
                           </p>
                         )}
                       </div>
@@ -212,7 +235,7 @@ export default function CommitteeGradingPage() {
   );
 }
 
-function MetaPill({ label, value }: { label: string; value: string }) {
+function MetaPill({ label, value }: { readonly label: string; readonly value: string }) {
   return (
     <div className="rounded-xl bg-white/5 px-4 py-3">
       <p className="text-xs text-gray-500">{label}</p>

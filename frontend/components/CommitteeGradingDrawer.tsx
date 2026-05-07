@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getToken } from "@/lib/auth";
-import { CommitteeSubmissionPreview } from "@/lib/submission-types";
+import type { SubmissionSummary } from "@/lib/submissions-api";
 
 type Props = {
   open: boolean;
-  submission: CommitteeSubmissionPreview | null;
+  submission: SubmissionSummary | null;
   onClose: () => void;
   onSubmitted?: (submissionId: number) => void;
 };
@@ -36,7 +36,7 @@ function formatDate(value: string) {
   });
 }
 
-function getStatusTone(status: CommitteeSubmissionPreview["status"]) {
+function getStatusTone(status: SubmissionSummary["status"]) {
   switch (status) {
     case "APPROVED":
       return "bg-green-500/10 border border-green-500/20 text-green-300";
@@ -130,7 +130,7 @@ export default function CommitteeGradingDrawer({
     setSubmitting(true);
 
     try {
-      const response = await fetch(`${API}/submissions/${submission.submissionId}/grades`, {
+      const response = await fetch(`${API}/submissions/${submission.id}/grades`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -161,7 +161,7 @@ export default function CommitteeGradingDrawer({
       toast.success(successMessage);
       // TODO(#74): refresh graded submission summaries from real backend data after
       // professor submission listing/detail endpoints are wired.
-      onSubmitted?.(submission.submissionId);
+      onSubmitted?.(submission.id);
       onClose();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to submit the grade.");
@@ -188,7 +188,7 @@ export default function CommitteeGradingDrawer({
                   Committee Grading
                 </p>
                 <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Grade {submission.groupName}
+                  Grade {submission.teamName ?? `Team #${submission.teamId}`}
                 </h2>
                 <p className="mt-2 text-sm text-gray-400">
                   Review the deliverable metadata, download the file, and submit a final grade.
@@ -219,36 +219,18 @@ export default function CommitteeGradingDrawer({
                 </div>
 
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <InfoBlock label="Submitted by" value={submission.submittedBy} />
-                  <InfoBlock label="Committee" value={submission.assignedCommitteeName} />
-                  <InfoBlock label="Submitted at" value={formatDate(submission.submittedAt)} />
-                  <InfoBlock label="Deadline" value={formatDate(submission.deadline)} />
-                  <InfoBlock label="Comments so far" value={`${submission.commentsCount}`} />
+                  <InfoBlock label="Submission ID" value={`#${submission.id}`} />
                   <InfoBlock
-                    label="Latest review"
-                    value={submission.latestReviewDecision ?? "Pending"}
+                    label="Committee ID"
+                    value={submission.assignedCommitteeId == null ? "Not assigned" : `#${submission.assignedCommitteeId}`}
                   />
-                </div>
-
-                <div className="mt-5 rounded-xl border border-blue-500/20 bg-blue-500/10 p-4">
-                  <p className="text-xs text-blue-200">Deliverable file</p>
-                  <p className="mt-1 text-sm font-medium text-white">{submission.fileName}</p>
-                  <a
-                    href={submission.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-100"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M12 16.5V7.5m0 0-3 3m3-3 3 3M21 16.5v1.125A2.625 2.625 0 0118.375 20.25H5.625A2.625 2.625 0 013 17.625V16.5"
-                      />
-                    </svg>
-                    Download submission
-                  </a>
+                  <InfoBlock label="Submitted at" value={formatDate(submission.submittedAt)} />
+                  {submission.deadline && (
+                    <InfoBlock label="Deadline" value={formatDate(submission.deadline)} />
+                  )}
+                  {submission.revisionNumber != null && (
+                    <InfoBlock label="Revision" value={`v${submission.revisionNumber}`} />
+                  )}
                 </div>
               </div>
 

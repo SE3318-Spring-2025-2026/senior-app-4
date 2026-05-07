@@ -356,6 +356,7 @@ function SprintAwareAdviseeRow({
     trackingDetails: GroupTrackingDetail | null;
     loadingDetails: boolean;
 }) {
+    const router = useRouter();
     const status = assignment.status?.toUpperCase() ?? "UNKNOWN";
     const canRelease = status === "ADVISED";
     const { status: integrationStatus, loading: integrationLoading } = useIntegrationStatus(assignment.teamId);
@@ -392,17 +393,20 @@ function SprintAwareAdviseeRow({
                     </button>
                 </td>
                 <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => router.push(`/professor/submissions?groupId=${assignment.teamId}`)}
+                        className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity"
+                    >
                         <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
                             <span className="text-xs font-bold text-blue-400 uppercase">
                                 {getInitials(assignment.teamName)}
                             </span>
                         </div>
                         <div className="min-w-0">
-                            <p className="text-sm font-medium text-white truncate">{assignment.teamName}</p>
+                            <p className="text-sm font-medium text-white truncate hover:underline">{assignment.teamName}</p>
                             <p className="text-xs text-gray-600">Group #{assignment.teamId}</p>
                         </div>
-                    </div>
+                    </button>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-300">
                     {assignment.leaderName || "Not available"}

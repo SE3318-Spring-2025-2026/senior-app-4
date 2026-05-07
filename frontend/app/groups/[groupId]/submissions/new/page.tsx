@@ -23,7 +23,7 @@ function NewSubmissionPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const [authState, setAuthState] = useState<AuthState>("loading");
-  const [studentId, setStudentId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
   const [group, setGroup] = useState<ApiGroupDetail | null>(null);
   const [groupError, setGroupError] = useState<string | null>(null);
   const [reviewerComments, setReviewerComments] = useState<SubmissionReview[]>([]);
@@ -55,7 +55,7 @@ function NewSubmissionPageContent() {
       return;
     }
 
-    setStudentId(user.studentId ?? null);
+    setUserId(user.userId ?? null);
     setAuthState("ready");
   }, [router]);
 
@@ -144,7 +144,7 @@ function NewSubmissionPageContent() {
     return <SubmissionPageSpinner />;
   }
 
-  const member = group.members.find((m) => m.studentId === studentId);
+  const member = group.members.find((m) => String(m.userId) === String(userId));
   const isLeader = member?.role === "LEADER";
   const isMemberOfGroup = Boolean(member);
   const disabled = !isLeader;
