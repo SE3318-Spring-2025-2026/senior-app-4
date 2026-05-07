@@ -62,11 +62,11 @@ export async function fetchAdvisorRequestInfo(groupId: number): Promise<AdvisorR
     return res.json();
 }
 
-export async function createAdvisorRequest(groupId: number, professorId: number): Promise<void> {
+export async function createAdvisorRequest(groupId: number, professorId: number, message?: string): Promise<void> {
     const res = await fetch(`${API_BASE}/advisor-requests`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ teamId: groupId, professorId }),
+        body: JSON.stringify({ teamId: groupId, professorId, message: message ?? null }),
     });
 
     if (!res.ok) {

@@ -96,6 +96,9 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
     const [loadingExisting, setLoadingExisting] = useState(true);
     const [rows, setRows] = useState<CriterionRow[]>([newRow()]);
     const [saving, setSaving] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingValues, setEditingValues] = useState<{ name: string; description: string; weight: string }>({ name: "", description: "", weight: "" });
+    const [editSaving, setEditSaving] = useState(false);
 
     function newRow(): CriterionRow {
         return { key: ++rowCounter, name: "", description: "", weight: "" };
@@ -136,6 +139,50 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
 
     function removeRow(key: number) {
         setRows((prev) => prev.filter((r) => r.key !== key));
+    }
+
+    function startEdit(c: GradingCriterion) {
+        setEditingId(c.id!);
+        setEditingValues({ name: c.name, description: c.description, weight: String(c.weight) });
+    }
+
+    function cancelEdit() {
+        setEditingId(null);
+    }
+
+    async function saveEdit() {
+        const weight = parseFloat(editingValues.weight);
+        if (!editingValues.name.trim() || isNaN(weight) || weight <= 0) {
+            toast.error("Name and a positive weight are required.");
+            return;
+        }
+        setEditSaving(true);
+        try {
+            const res = await fetch(`${API_BASE}/grading-criteria/${editingId}`, {
+                method: "PUT",
+                headers: buildHeaders(),
+                body: JSON.stringify({
+                    deliverableType,
+                    name: editingValues.name.trim(),
+                    description: editingValues.description.trim(),
+                    weight,
+                }),
+            });
+            if (!res.ok) throw new Error("Failed to update criterion.");
+            setExisting((prev) =>
+                prev.map((c) =>
+                    c.id === editingId
+                        ? { ...c, name: editingValues.name.trim(), description: editingValues.description.trim(), weight }
+                        : c
+                )
+            );
+            setEditingId(null);
+            toast.success("Criterion updated.");
+        } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : "Failed to update criterion.");
+        } finally {
+            setEditSaving(false);
+        }
     }
 
     async function handleSubmit() {
@@ -209,19 +256,68 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
                         </div>
                     </div>
                     <div className="divide-y divide-white/5">
-                        {existing.map((c) => (
-                            <div key={c.id} className="px-6 py-3 flex items-center justify-between gap-4">
-                                <div className="min-w-0">
-                                    <p className="text-sm font-medium text-white truncate">{c.name}</p>
-                                    {c.description && (
-                                        <p className="text-xs text-gray-500 mt-0.5 truncate">{c.description}</p>
-                                    )}
+                        {existing.map((c) =>
+                            editingId === c.id ? (
+                                <div key={c.id} className="px-6 py-4 space-y-3">
+                                    <div className="grid grid-cols-[1fr_2fr_80px] gap-3">
+                                        <input
+                                            type="text"
+                                            value={editingValues.name}
+                                            onChange={(e) => setEditingValues((v) => ({ ...v, name: e.target.value }))}
+                                            className="rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/50 focus:outline-none"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={editingValues.description}
+                                            onChange={(e) => setEditingValues((v) => ({ ...v, description: e.target.value }))}
+                                            className="rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/50 focus:outline-none"
+                                        />
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            value={editingValues.weight}
+                                            onChange={(e) => setEditingValues((v) => ({ ...v, weight: e.target.value }))}
+                                            className="rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/50 focus:outline-none"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2 justify-end">
+                                        <button
+                                            onClick={cancelEdit}
+                                            disabled={editSaving}
+                                            className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white border border-white/10 hover:bg-white/5 transition-colors disabled:opacity-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={saveEdit}
+                                            disabled={editSaving}
+                                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-500 transition-colors disabled:opacity-50"
+                                        >
+                                            {editSaving ? "Saving…" : "Save"}
+                                        </button>
+                                    </div>
                                 </div>
-                                <span className="flex-shrink-0 text-sm font-semibold text-blue-400">
-                                    {c.weight}%
-                                </span>
-                            </div>
-                        ))}
+                            ) : (
+                                <div key={c.id} className="px-6 py-3 flex items-center justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium text-white truncate">{c.name}</p>
+                                        {c.description && (
+                                            <p className="text-xs text-gray-500 mt-0.5 truncate">{c.description}</p>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-3 flex-shrink-0">
+                                        <span className="text-sm font-semibold text-blue-400">{c.weight}%</span>
+                                        <button
+                                            onClick={() => startEdit(c)}
+                                            className="px-2.5 py-1 rounded-lg text-xs text-gray-400 hover:text-white border border-white/10 hover:bg-white/5 transition-colors"
+                                        >
+                                            Edit
+                                        </button>
+                                    </div>
+                                </div>
+                            )
+                        )}
                     </div>
                 </div>
             ) : null}

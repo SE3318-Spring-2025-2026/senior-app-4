@@ -90,13 +90,6 @@ public class NotificationServiceImpl implements NotificationService {
             }
         }
 
-        // ── P4.2: only 1 pending advisor request may exist at a time ───────────
-        Optional<Notification> existingPendingRequest = notificationRepository
-                .findByGroupIdAndTypeAndStatus(groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING);
-        if (existingPendingRequest.isPresent()) {
-            throw new BadRequestException("This group already has a pending advisor request.");
-        }
-
         // ── P4.1: Resolve users ────────────────────────────────────────────────
         User leader = userRepository.findById(leaderId)
                 .orElseThrow(() -> new BadRequestException("Leader user not found."));

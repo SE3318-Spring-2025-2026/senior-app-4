@@ -109,6 +109,13 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     @AuditableOperation(actionType = ActionType.GROUP_CREATED)
     public GroupResponseDto createGroup(GroupCreateRequestDto request, Long creatorId) {
+        User creator = userRepository.findById(creatorId)
+                .orElseThrow(() -> new BadRequestException("User not found."));
+
+        if (!"student".equalsIgnoreCase(creator.getRole())) {
+            throw new ForbiddenException("Only students can create groups.");
+        }
+
         ValidationResult studentExists = authService.validateStudentExists(creatorId);
         if (!studentExists.valid()) {
             throw new BadRequestException(studentExists.reason());
@@ -118,9 +125,6 @@ public class GroupServiceImpl implements GroupService {
         if (!notInGroup.valid()) {
             throw new BadRequestException(notInGroup.reason());
         }
-
-        User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new BadRequestException("Student not found."));
 
         Group group = new Group();
         group.setGroupName(request.groupName());
@@ -230,11 +234,20 @@ public class GroupServiceImpl implements GroupService {
                 .map(member -> member.getUser().getUserId())
                 .toList();
 
-        // Üyelerin rolünü sıfırla
+        // Danışmanın advisee count'unu azalt
+        User advisor = group.getAdvisor();
+        if (advisor != null) {
+            advisor.setCurrentAdviseeCount(Math.max(0, advisor.getCurrentAdviseeCount() - 1));
+            userRepository.save(advisor);
+        }
+
+        // Sadece student rolündeki üyelerin rolünü sıfırla
         for (GroupMember member : currentMembers) {
             User user = member.getUser();
-            user.setRole(STUDENT_ROLE);
-            userRepository.save(user);
+            if (STUDENT_ROLE.equalsIgnoreCase(user.getRole())) {
+                user.setRole(STUDENT_ROLE);
+                userRepository.save(user);
+            }
         }
 
         // JPA cascade/orphanRemoval çakışmasını önlemek için önce in-memory koleksiyonu temizle
@@ -540,19 +553,19 @@ public class GroupServiceImpl implements GroupService {
                 throw new com.spms.backend.exception.ConflictException(
                         "Group already has an assigned advisor. The advisor must release the group first.");
             }
-            if (groupRepository.countByAdvisor_UserId(professorId) > 0) {
-                throw new com.spms.backend.exception.ConflictException(
-                        "You are already advising another group. Release that group before accepting a new advisee.");
-            }
 
             group.setAdvisor(professor);
             group.setStatus(GroupStatus.ADVISED);
             group.setUpdatedAt(Instant.now());
             groupRepository.save(group);
 
+            professor.setCurrentAdviseeCount(professor.getCurrentAdviseeCount() + 1);
+            userRepository.save(professor);
+
             request.setStatus(NotificationStatus.ACCEPTED);
             notificationRepository.save(request);
 
+            // Auto-reject other professors' pending requests for this group
             List<Notification> otherRequests = notificationRepository.findByGroupIdAndTypeAndStatusAndToUser_UserIdNot(
                     groupId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, professorId);
             for (Notification otherReq : otherRequests) {
@@ -576,34 +589,6 @@ public class GroupServiceImpl implements GroupService {
                         "Auto-rejected pending advisor request for professor " + otherReq.getToUser().getUserId() + " ("
                                 + otherReq.getToUser().getFullName() + ") due to approval of a different advisor.");
                 auditLogRepository.save(log);
-            }
-
-            // Spec: "the advisor must release the team first in order them to make another advisee request."
-            List<Notification> otherGroupRequestsToSameProfessor =
-                    notificationRepository.findByToUser_UserIdAndTypeAndStatusAndGroupIdNot(
-                            professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, groupId);
-            for (Notification otherReq : otherGroupRequestsToSameProfessor) {
-                otherReq.setStatus(NotificationStatus.REJECTED);
-                notificationRepository.save(otherReq);
-
-                Notification leaderNotif = new Notification();
-                leaderNotif.setType(NotificationType.SYSTEM_ALERT);
-                leaderNotif.setStatus(NotificationStatus.PENDING);
-                leaderNotif.setMessage("Your advisor request to professor " + professor.getFullName()
-                        + " was automatically rejected because they accepted another group.");
-                leaderNotif.setGroupId(otherReq.getGroupId());
-                leaderNotif.setFromUser(professor);
-                leaderNotif.setToUser(otherReq.getFromUser());
-                notificationRepository.save(leaderNotif);
-
-                AuditLog occupiedLog = new AuditLog();
-                occupiedLog.setActionType(ActionType.ADVISOR_REJECTED);
-                occupiedLog.setUserId(professorId);
-                occupiedLog.setGroupId(otherReq.getGroupId());
-                occupiedLog.setEventDetails(
-                        "Auto-rejected pending advisor request from group " + otherReq.getGroupId()
-                                + " because professor " + professorId + " accepted a different group.");
-                auditLogRepository.save(occupiedLog);
             }
 
             Notification notif = new Notification();
@@ -661,16 +646,11 @@ public class GroupServiceImpl implements GroupService {
             if (group.getAdvisor() != null) {
                 throw new com.spms.backend.exception.ConflictException("Group already has an assigned advisor. The advisor must release the group first.");
             }
-            if (groupRepository.countByAdvisor_UserId(professorId) > 0) {
-                throw new com.spms.backend.exception.ConflictException(
-                        "You are already advising another group. Release that group before accepting a new advisee.");
-            }
             group.setAdvisor(professor);
             group.setStatus(GroupStatus.ADVISED);
             group.setUpdatedAt(Instant.now());
             groupRepository.save(group);
 
-            // Increment workload (FIX-1)
             professor.setCurrentAdviseeCount(professor.getCurrentAdviseeCount() + 1);
             userRepository.save(professor);
 
@@ -710,36 +690,6 @@ public class GroupServiceImpl implements GroupService {
                         "Auto-rejected pending advisor request for professor " + otherReq.getToUser().getUserId() + " ("
                                 + otherReq.getToUser().getFullName() + ") due to approval of a different advisor.");
                 auditLogRepository.save(log);
-            }
-
-            // Spec: "the advisor must release the team first in order them to make another advisee request."
-            // Once the professor is matched with this group, all PENDING requests from OTHER groups
-            // to this same professor must be auto-rejected — the professor is now occupied.
-            List<Notification> otherGroupRequestsToSameProfessor =
-                    notificationRepository.findByToUser_UserIdAndTypeAndStatusAndGroupIdNot(
-                            professorId, NotificationType.ADVISOR_REQUEST, NotificationStatus.PENDING, groupId);
-            for (Notification otherReq : otherGroupRequestsToSameProfessor) {
-                otherReq.setStatus(NotificationStatus.REJECTED);
-                notificationRepository.save(otherReq);
-
-                Notification leaderNotif = new Notification();
-                leaderNotif.setType(NotificationType.SYSTEM_ALERT);
-                leaderNotif.setStatus(NotificationStatus.PENDING);
-                leaderNotif.setMessage("Your advisor request to professor " + professor.getFullName()
-                        + " was automatically rejected because they accepted another group.");
-                leaderNotif.setGroupId(otherReq.getGroupId());
-                leaderNotif.setFromUser(professor);
-                leaderNotif.setToUser(otherReq.getFromUser());
-                notificationRepository.save(leaderNotif);
-
-                AuditLog occupiedLog = new AuditLog();
-                occupiedLog.setActionType(ActionType.ADVISOR_REJECTED);
-                occupiedLog.setUserId(professorId);
-                occupiedLog.setGroupId(otherReq.getGroupId());
-                occupiedLog.setEventDetails(
-                        "Auto-rejected pending advisor request from group " + otherReq.getGroupId()
-                                + " because professor " + professorId + " accepted a different group.");
-                auditLogRepository.save(occupiedLog);
             }
 
             Notification notif = new Notification();
