@@ -11,6 +11,7 @@ import com.spms.backend.model.User;
 import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.CommitteeAdvisorRepository;
 import com.spms.backend.repository.CommitteeRepository;
+import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.CommitteeNotificationService;
@@ -57,12 +58,16 @@ class AdvisorAssignmentServiceImplTest {
     @Mock
     private CommitteeNotificationService committeeNotificationService;
 
+    @Mock
+    private GroupCommitteeAssignmentRepository groupCommitteeAssignmentRepository;
+
     private AdvisorAssignmentServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new AdvisorAssignmentServiceImpl(groupRepository, auditLogRepository, notificationService,
-                committeeRepository, userRepository, committeeAdvisorRepository, committeeNotificationService);
+                committeeRepository, userRepository, committeeAdvisorRepository, committeeNotificationService,
+                groupCommitteeAssignmentRepository);
     }
 
     @Test

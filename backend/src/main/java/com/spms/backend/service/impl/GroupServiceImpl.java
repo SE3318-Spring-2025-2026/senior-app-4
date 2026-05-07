@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.data.jpa.domain.Specification;
 import com.spms.backend.repository.specification.GroupSpecification;
+import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 
 
 @Service
@@ -80,6 +81,7 @@ public class GroupServiceImpl implements GroupService {
 
     private final NotificationRepository notificationRepository;
     private final AuditLogRepository auditLogRepository;
+    private final GroupCommitteeAssignmentRepository groupCommitteeAssignmentRepository;
 
     public GroupServiceImpl(GroupRepository groupRepository,
                             GroupMemberRepository groupMemberRepository,
@@ -91,7 +93,8 @@ public class GroupServiceImpl implements GroupService {
                             GithubIntegrationRepository githubIntegrationRepository,
                             JiraApiClient jiraApiClient,
                             NotificationRepository notificationRepository,
-                            GithubApiClient githubApiClient) 
+                            GithubApiClient githubApiClient,
+                            GroupCommitteeAssignmentRepository groupCommitteeAssignmentRepository) 
                             {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
@@ -103,7 +106,9 @@ public class GroupServiceImpl implements GroupService {
         this.jiraApiClient = jiraApiClient;
         this.githubApiClient = githubApiClient;
         this.notificationRepository = notificationRepository;
-        this.auditLogRepository = auditLogRepository;}
+        this.auditLogRepository = auditLogRepository;
+        this.groupCommitteeAssignmentRepository = groupCommitteeAssignmentRepository;
+    }
 
     @Override
     @Transactional
@@ -264,9 +269,17 @@ public class GroupServiceImpl implements GroupService {
         // Üyeleri doğrudan veritabanından sil (cascade conflict olmadan)
         groupMemberRepository.deleteAllInBatch(currentMembers);
 
-        group.setStatus(GroupStatus.DISBANDED);
-        group.setUpdatedAt(Instant.now());
-        groupRepository.save(group);
+        // Delete integrations to avoid foreign key violations
+        githubIntegrationRepository.findByGroup_Id(groupId).ifPresent(githubIntegrationRepository::delete);
+        jiraIntegrationRepository.findByGroup_Id(groupId).ifPresent(jiraIntegrationRepository::delete);
+
+        // Remove committee assignments
+        groupCommitteeAssignmentRepository.deleteAllInBatch(
+                groupCommitteeAssignmentRepository.findByGroupId(groupId)
+        );
+
+        // Delete the group entirely from the database
+        groupRepository.delete(group);
 
         try {
             notificationService.sendGroupDisbandedNotification(groupId, requesterId, group.getGroupName(), memberIds);
@@ -427,7 +440,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     @AuditableOperation(actionType = ActionType.MEMBER_REMOVED)
-    public void removeMember(Long groupId, String studentId) {
+    public void removeMember(Long groupId, String studentId, Long newLeaderId, Long requesterId, String requesterRole) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found with id: " + groupId));
 
@@ -436,8 +449,28 @@ public class GroupServiceImpl implements GroupService {
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Member not found in this group"));
 
+        boolean isCoordinator = "coordinator".equalsIgnoreCase(requesterRole);
+
         if (group.getLeader().getUserId().equals(memberToRemove.getUser().getUserId())) {
-            throw new BadRequestException("Group leader cannot be removed.");
+            if (isCoordinator) {
+                if (group.getMembers().size() == 1) {
+                    // Only leader remains, disband the group
+                    disbandGroup(groupId, requesterId, requesterRole);
+                    return;
+                } else {
+                    if (newLeaderId == null) {
+                        throw new BadRequestException("You must provide a new leader ID when removing the current leader of a multi-member group.");
+                    }
+                    User newLeader = group.getMembers().stream()
+                            .map(GroupMember::getUser)
+                            .filter(u -> u.getUserId().equals(newLeaderId))
+                            .findFirst()
+                            .orElseThrow(() -> new BadRequestException("The new leader must be an existing member of the group."));
+                    group.setLeader(newLeader);
+                }
+            } else {
+                throw new BadRequestException("Group leader cannot be removed by students.");
+            }
         }
 
         group.getMembers().remove(memberToRemove);
@@ -479,7 +512,10 @@ public class GroupServiceImpl implements GroupService {
         User studentToAdd = userRepository.findByStudentId(studentId)
                 .orElseThrow(() -> new NotFoundException("Student not found."));
 
-        authService.validateNotInGroup(studentToAdd.getUserId());
+        ValidationResult validation = authService.validateNotInGroup(studentToAdd.getUserId());
+        if (!validation.valid()) {
+            throw new BadRequestException(validation.reason());
+        }
 
         GroupMember newMember = new GroupMember();
         newMember.setGroup(group);

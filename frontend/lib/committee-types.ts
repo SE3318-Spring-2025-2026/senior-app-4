@@ -6,6 +6,7 @@ export type Committee = {
     description?: string | null;
     status: CommitteeStatus;
     createdBy: number;
+    createdByName?: string;
     advisorCount?: number;
     juryCount?: number;
     groupCount?: number;
@@ -14,7 +15,8 @@ export type Committee = {
 };
 
 export type CommitteeMemberAssignment = {
-    id: number;
+    id: number;       // committeeAdvisorId / committeeJuryId (row ID)
+    userId: number;   // the professor's actual userId
     name: string;
     email: string;
     role: "ADVISOR" | "JURY";

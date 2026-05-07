@@ -57,6 +57,10 @@ export default function AdvisorRequestPanel({
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [requestMessage, setRequestMessage] = useState("");
 
+    const [searchQuery, setSearchQuery] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 6;
+
     const user = getUser();
     const currentUserId = getCurrentUserId();
     const isLeader =
@@ -113,6 +117,28 @@ export default function AdvisorRequestPanel({
 
     const requestButtonsDisabled = Boolean(activeRequest) || Boolean(advisorId) || !isLeader;
 
+    const assignedAdvisorName = useMemo(() => {
+        if (!advisorId) return null;
+        const prof = professors.find(p => p.userId === advisorId);
+        return prof ? prof.fullName : `Advisor #${advisorId}`;
+    }, [advisorId, professors]);
+
+    const filteredProfessors = useMemo(() => {
+        if (!searchQuery.trim()) return professors;
+        const q = searchQuery.toLowerCase();
+        return professors.filter(p => p.fullName.toLowerCase().includes(q) || p.email.toLowerCase().includes(q));
+    }, [professors, searchQuery]);
+
+    const totalPages = Math.ceil(filteredProfessors.length / ITEMS_PER_PAGE);
+    const paginatedProfessors = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredProfessors.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredProfessors, currentPage]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
+
     async function refreshRequestStatus() {
         const requestStatus = await fetchAdvisorRequestInfo(groupId);
         setActiveRequest(requestStatus);
@@ -165,7 +191,7 @@ export default function AdvisorRequestPanel({
 
                     <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-300">
                         {advisorId ? (
-                            <span>Advisor assigned: Advisor #{advisorId}</span>
+                            <span>Advisor assigned: {assignedAdvisorName}</span>
                         ) : activeRequest ? (
                             <span>Pending request: {activeRequest.professorName}</span>
                         ) : (
@@ -252,64 +278,103 @@ export default function AdvisorRequestPanel({
                         No professors are available to request right now.
                     </div>
                 ) : (
-                    <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        {professors.map((professor) => {
-                            const isRequestedProfessor =
-                                requestedProfessor?.userId === professor.userId ||
-                                requestedProfessorName === professor.fullName;
-                            const buttonDisabled =
-                                requestButtonsDisabled || requestingProfessorId !== null;
+                    <>
+                        <div className="mt-6 mb-4">
+                            <input
+                                type="text"
+                                placeholder="Search professors by name or email..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full sm:w-80 rounded-xl border border-white/10 bg-gray-800/60 px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+                            />
+                        </div>
 
-                            return (
-                                <article
-                                    key={professor.userId}
-                                    className={[
-                                        "rounded-2xl border p-5 shadow-lg backdrop-blur transition-all",
-                                        getProfessorAccentClass(isRequestedProfessor),
-                                    ].join(" ")}
+                        {filteredProfessors.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-sm text-gray-400">
+                                No professors match your search.
+                            </div>
+                        ) : (
+                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                {paginatedProfessors.map((professor) => {
+                                    const isRequestedProfessor =
+                                        requestedProfessor?.userId === professor.userId ||
+                                        requestedProfessorName === professor.fullName;
+                                    const buttonDisabled =
+                                        requestButtonsDisabled || requestingProfessorId !== null;
+
+                                    return (
+                                        <article
+                                            key={professor.userId}
+                                            className={[
+                                                "rounded-2xl border p-5 shadow-lg backdrop-blur transition-all",
+                                                getProfessorAccentClass(isRequestedProfessor),
+                                            ].join(" ")}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <h3 className="text-lg font-semibold text-white">
+                                                        {professor.fullName}
+                                                    </h3>
+                                                    <p className="mt-1 text-sm text-gray-400">
+                                                        {professor.email}
+                                                    </p>
+                                                </div>
+
+                                                {isRequestedProfessor && (
+                                                    <span className="rounded-full border border-blue-400/20 bg-blue-500/15 px-3 py-1 text-xs font-medium text-blue-200">
+                                                        Pending
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRequestAdvisor(professor)}
+                                                disabled={buttonDisabled}
+                                                className={[
+                                                    "mt-5 w-full rounded-xl px-4 py-2.5 text-sm font-medium transition",
+                                                    isRequestedProfessor
+                                                        ? "border border-blue-400/20 bg-blue-500/10 text-blue-100"
+                                                        : "bg-white text-gray-900 hover:bg-gray-100",
+                                                    buttonDisabled && !isRequestedProfessor
+                                                        ? "cursor-not-allowed border border-white/10 bg-white/5 text-gray-500"
+                                                        : "",
+                                                ].join(" ")}
+                                            >
+                                                {requestingProfessorId === professor.userId
+                                                    ? "Requesting..."
+                                                    : isRequestedProfessor
+                                                    ? "Request Pending"
+                                                    : "Request Advisor"}
+                                            </button>
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {totalPages > 1 && (
+                            <div className="mt-6 flex items-center justify-center gap-4">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white disabled:opacity-50 hover:bg-white/10 transition"
                                 >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div>
-                                            <h3 className="text-lg font-semibold text-white">
-                                                {professor.fullName}
-                                            </h3>
-                                            <p className="mt-1 text-sm text-gray-400">
-                                                {professor.email}
-                                            </p>
-                                        </div>
-
-                                        {isRequestedProfessor && (
-                                            <span className="rounded-full border border-blue-400/20 bg-blue-500/15 px-3 py-1 text-xs font-medium text-blue-200">
-                                                Pending
-                                            </span>
-                                        )}
-                                    </div>
-
-
-                                    <button
-                                        type="button"
-                                        onClick={() => handleRequestAdvisor(professor)}
-                                        disabled={buttonDisabled}
-                                        className={[
-                                            "mt-5 w-full rounded-xl px-4 py-2.5 text-sm font-medium transition",
-                                            isRequestedProfessor
-                                                ? "border border-blue-400/20 bg-blue-500/10 text-blue-100"
-                                                : "bg-white text-gray-900 hover:bg-gray-100",
-                                            buttonDisabled && !isRequestedProfessor
-                                                ? "cursor-not-allowed border border-white/10 bg-white/5 text-gray-500"
-                                                : "",
-                                        ].join(" ")}
-                                    >
-                                        {requestingProfessorId === professor.userId
-                                            ? "Requesting..."
-                                            : isRequestedProfessor
-                                              ? "Request Pending"
-                                              : "Request Advisor"}
-                                    </button>
-                                </article>
-                            );
-                        })}
-                    </div>
+                                    Previous
+                                </button>
+                                <span className="text-sm font-medium text-gray-400">
+                                    Page {currentPage} of {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white disabled:opacity-50 hover:bg-white/10 transition"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </section>
 

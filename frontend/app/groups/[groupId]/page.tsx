@@ -18,6 +18,7 @@ import {
     removeMemberApi,
     leaveGroupApi,
     addMemberApi,
+    coordinatorAddMemberApi,
     deleteGroupApi
 } from "@/lib/groups-api";
 //import { inviteMemberApi } from "@/lib/notifications-api";
@@ -71,6 +72,13 @@ export default function GroupDetailPage() {
     const [disbanding, setDisbanding] = useState(false);
     const [disbandError, setDisbandError] = useState("");
 
+    const [showLeaderModal, setShowLeaderModal] = useState(false);
+    const [memberToRemoveAsLeader, setMemberToRemoveAsLeader] = useState<string | null>(null);
+    const [newLeaderIdSelection, setNewLeaderIdSelection] = useState<string>("");
+
+    const [coordInviteId, setCoordInviteId] = useState("");
+    const [coordInviting, setCoordInviting] = useState(false);
+
     const currentUser = getUser();
     const token = getToken();
     const decoded = token ? decodeToken(token) : null;
@@ -88,6 +96,7 @@ export default function GroupDetailPage() {
         Number(group?.leaderId) === currentUserId;
 
     const isStudent = currentUser?.role?.toLowerCase() === "student";
+    const isCoordinator = currentUser?.role?.toLowerCase() === "coordinator";
 
     const isGroupMember =
         isStudent &&
@@ -197,18 +206,52 @@ export default function GroupDetailPage() {
         }
     }
 
-    async function handleRemoveMember(studentId: string) {
+    async function handleCoordInvite(e: React.FormEvent) {
+        e.preventDefault();
+        const studentId = parseInt(coordInviteId.trim(), 10);
+        if (Number.isNaN(studentId) || studentId <= 0) {
+            showToast("Please enter a valid numeric student ID.", "warning");
+            return;
+        }
+
+        setCoordInviting(true);
+        try {
+            await coordinatorAddMemberApi(groupId, studentId);
+            showToast("Student added successfully!", "success");
+            setCoordInviteId("");
+            const membersData = await fetchGroupMembers(groupId);
+            setGroup(prev => prev ? { ...prev, members: membersData } : prev);
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to add student.", "error");
+        } finally {
+            setCoordInviting(false);
+        }
+    }
+
+    async function handleRemoveMember(studentId: string, isLeaderMember: boolean) {
         setRemoveError("");
         setRemoveSuccess("");
 
+        if (isLeaderMember && isCoordinator && group?.members && group.members.length > 1) {
+            setMemberToRemoveAsLeader(studentId);
+            setShowLeaderModal(true);
+            return;
+        }
+
         const confirmed = window.confirm(
-            "Are you sure you want to remove this member from the group?"
+            isLeaderMember ? "This group will be completely deleted because you are removing the only member (the leader). Are you sure?" : "Are you sure you want to remove this member from the group?"
         );
         if (!confirmed) return;
 
         setRemovingMemberId(studentId);
         try {
             await removeMemberApi(groupId, studentId);
+
+            if (isLeaderMember && group?.members?.length === 1) {
+                showToast("Leader removed and group deleted.", "success");
+                window.location.href = "/groups";
+                return;
+            }
 
             setGroup((prev) => {
                 if (!prev) return prev;
@@ -229,6 +272,31 @@ export default function GroupDetailPage() {
             showToast(message, "error");
         } finally {
             setRemovingMemberId(null);
+        }
+    }
+
+    async function submitLeaderRemoval() {
+        if (!memberToRemoveAsLeader || !newLeaderIdSelection) {
+            showToast("Please select a new leader.", "warning");
+            return;
+        }
+        
+        const newLeaderIdNum = Number(newLeaderIdSelection);
+
+        setRemovingMemberId(memberToRemoveAsLeader);
+        setShowLeaderModal(false);
+        
+        try {
+            await removeMemberApi(groupId, memberToRemoveAsLeader, newLeaderIdNum);
+            showToast("Leader removed successfully. New leader assigned.", "success");
+            const membersData = await fetchGroupMembers(groupId);
+            setGroup(prev => prev ? { ...prev, members: membersData, leaderId: newLeaderIdNum } : prev);
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to remove leader.", "error");
+        } finally {
+            setRemovingMemberId(null);
+            setMemberToRemoveAsLeader(null);
+            setNewLeaderIdSelection("");
         }
     }
 
@@ -382,25 +450,25 @@ export default function GroupDetailPage() {
                             </div>
                         </Link>
 
-                        <Link href={`/groups/${group.id}/integrations/github`}>
-                            <div className="cursor-pointer">
-                                <GithubStatusCard
-                                    integration={
-                                        githubIntegration?.data?.status === "inactive"
-                                            ? undefined
-                                            : githubIntegration?.data
-                                    }
-                                />
-                            </div>
-                        </Link>
+                        <div className="cursor-default">
+                            <GithubStatusCard
+                                integration={
+                                    githubIntegration?.data?.status === "inactive"
+                                        ? undefined
+                                        : githubIntegration?.data
+                                }
+                            />
+                        </div>
 
-                        <JiraStatusCard
-                            integration={
-                                jiraIntegration?.data?.status === "inactive"
-                                    ? undefined
-                                    : jiraIntegration?.data
-                            }
-                        />
+                        <div className="cursor-default">
+                            <JiraStatusCard
+                                integration={
+                                    jiraIntegration?.data?.status === "inactive"
+                                        ? undefined
+                                        : jiraIntegration?.data
+                                }
+                            />
+                        </div>
 
                         <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
                             <p className="text-sm text-gray-400 mb-2">Created At</p>
@@ -413,22 +481,43 @@ export default function GroupDetailPage() {
                         </div>
                     </div>
 
-                    <AdvisorRequestPanel
-                        groupId={group.id}
-                        leaderId={group.leaderId}
-                        advisorId={group.advisorId ?? null}
-                    />
-
                     <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-7 shadow-lg shadow-black/20 backdrop-blur mb-6">
-                        <div className="flex items-center justify-between mb-5">
-                            <h2 className="text-2xl font-semibold">Members</h2>
-                            <span className="text-sm text-gray-400">
-                                {group.members?.length ?? 0} / 8
-                            </span>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-4">
+                            <div>
+                                <h2 className="text-2xl font-semibold">Members</h2>
+                                <span className="text-sm text-gray-400">
+                                    {group.members?.length ?? 0} / 8
+                                </span>
+                            </div>
+
+                            {isCoordinator && (
+                                <form onSubmit={handleCoordInvite} className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        placeholder="Student ID"
+                                        value={coordInviteId}
+                                        onChange={(e) => setCoordInviteId(e.target.value)}
+                                        className="rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition w-32"
+                                        min={1}
+                                        required
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={coordInviting || !coordInviteId.trim()}
+                                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        {coordInviting ? "Adding..." : "Add"}
+                                    </button>
+                                </form>
+                            )}
                         </div>
 
                         <div className="space-y-4">
-                            {group.members?.map((member: ApiGroupMember) => (
+                            {group.members?.map((member: ApiGroupMember) => {
+                                const isLeaderMember = member.role?.toLowerCase() === "leader";
+                                const canRemove = isCoordinator || (isLeader && !isLeaderMember);
+
+                                return (
                                 <div
                                     key={member.userId}
                                     className="flex items-center justify-between rounded-xl bg-white/5 px-5 py-4"
@@ -444,7 +533,7 @@ export default function GroupDetailPage() {
                                         <span
                                             className={[
                                                 "rounded-full px-3 py-1 text-xs font-medium capitalize",
-                                                member.role?.toLowerCase() === "leader"
+                                                isLeaderMember
                                                     ? "bg-blue-500/20 text-blue-400"
                                                     : "bg-white/10 text-gray-300",
                                             ].join(" ")}
@@ -452,9 +541,9 @@ export default function GroupDetailPage() {
                                             {member.role}
                                         </span>
 
-                                        {isLeader && member.role?.toLowerCase() !== "leader" && (
+                                        {canRemove && (
                                             <button
-                                                onClick={() => handleRemoveMember(member.studentId)}
+                                                onClick={() => handleRemoveMember(member.studentId, isLeaderMember)}
                                                 disabled={removingMemberId === member.studentId}
                                                 className="rounded-lg bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                             >
@@ -465,7 +554,7 @@ export default function GroupDetailPage() {
                                         )}
                                     </div>
                                 </div>
-                            ))}
+                            )})}
 
                             {(!group.members || group.members.length === 0) && (
                                 <p className="text-gray-500 text-sm">No members yet.</p>
@@ -483,6 +572,12 @@ export default function GroupDetailPage() {
                             </p>
                         )}
                     </div>
+
+                    <AdvisorRequestPanel
+                        groupId={group.id}
+                        leaderId={group.leaderId}
+                        advisorId={group.advisorId ?? null}
+                    />
 
                     {isLeader && (
                         <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-7 shadow-lg shadow-black/20 backdrop-blur mb-6">
@@ -582,6 +677,54 @@ export default function GroupDetailPage() {
                         </div>
                     )}
                 </div>
+
+                {/* Coordinator Leader Removal Modal */}
+                {showLeaderModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+                        <div className="bg-gray-900 border border-white/10 p-6 rounded-2xl shadow-xl w-full max-w-md">
+                            <h3 className="text-xl font-semibold text-white mb-2">Reassign Leader</h3>
+                            <p className="text-sm text-gray-400 mb-4">
+                                You are removing the current group leader. You must assign a new leader before proceeding.
+                            </p>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Select New Leader</label>
+                                <select 
+                                    className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    value={newLeaderIdSelection}
+                                    onChange={(e) => setNewLeaderIdSelection(e.target.value)}
+                                >
+                                    <option value="" disabled>-- Select a member --</option>
+                                    {group.members
+                                        ?.filter(m => m.studentId !== memberToRemoveAsLeader)
+                                        .map(m => (
+                                            <option key={m.userId} value={m.userId}>{m.fullName} ({m.studentId})</option>
+                                        ))}
+                                </select>
+                            </div>
+
+                            <div className="flex justify-end gap-3">
+                                <button 
+                                    onClick={() => {
+                                        setShowLeaderModal(false);
+                                        setMemberToRemoveAsLeader(null);
+                                        setNewLeaderIdSelection("");
+                                    }}
+                                    className="px-4 py-2 rounded-xl text-sm font-medium text-gray-300 hover:bg-white/5 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={submitLeaderRemoval}
+                                    disabled={!newLeaderIdSelection}
+                                    className="px-4 py-2 rounded-xl bg-red-600 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50 transition"
+                                >
+                                    Confirm Removal
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );

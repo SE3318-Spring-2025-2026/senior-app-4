@@ -342,9 +342,19 @@ export default function CoordinatorCommitteesPage() {
                                                     </p>
                                                 </div>
 
-                                                <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-300">
-                                                    {committee.status}
-                                                </span>
+                                                <span
+                                    className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                                        committee.status === "ACTIVE"
+                                            ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-300"
+                                            : committee.status === "INACTIVE"
+                                            ? "border-pink-500/40 bg-pink-500/15 text-pink-400"
+                                            : committee.status === "COMPLETED"
+                                            ? "border-orange-400/40 bg-orange-400/15 text-orange-300"
+                                            : "border-gray-500/20 bg-gray-500/10 text-gray-400"
+                                    }`}
+                                >
+                                    {committee.status}
+                                </span>
                                             </div>
 
                                             <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs text-gray-400">

@@ -18,6 +18,8 @@ import com.spms.backend.service.AdvisorAssignmentService;
 import com.spms.backend.service.AuditLogService;
 import com.spms.backend.service.CommitteeService;
 import com.spms.backend.service.JuryAssignmentService;
+import com.spms.backend.repository.UserRepository;
+import com.spms.backend.model.User;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -41,15 +43,18 @@ public class CommitteeController {
     private final AdvisorAssignmentService advisorAssignmentService;
     private final JuryAssignmentService juryAssignmentService;
     private final AuditLogService auditLogService;
+    private final UserRepository userRepository;
 
     public CommitteeController(CommitteeService committeeService,
             AdvisorAssignmentService advisorAssignmentService,
             JuryAssignmentService juryAssignmentService,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            UserRepository userRepository) {
         this.committeeService = committeeService;
         this.advisorAssignmentService = advisorAssignmentService;
         this.juryAssignmentService = juryAssignmentService;
         this.auditLogService = auditLogService;
+        this.userRepository = userRepository;
     }
 
     @PostMapping
@@ -336,15 +341,24 @@ public class CommitteeController {
 
         List<com.spms.backend.dto.response.GroupAssignmentDto> groupAssignments = c.getGroupAssignments() != null
                 ? c.getGroupAssignments().stream()
+                        .filter(ga -> ga.getGroup() != null)
                         .map(ga -> new com.spms.backend.dto.response.GroupAssignmentDto(
                                 ga.getAssignmentId(),
                                 ga.getGroup().getId(),
                                 ga.getGroup().getGroupName(),
+                                ga.getGroup().getMemberCount(),
                                 ga.getStatus(),
                                 ga.getExamDate(),
                                 ga.getAssignedAt()))
                         .collect(Collectors.toList())
                 : List.of();
+
+        String createdByName = "Unknown";
+        if (c.getCreatedBy() != null) {
+            createdByName = userRepository.findById(c.getCreatedBy())
+                    .map(User::getFullName)
+                    .orElse("Unknown User");
+        }
 
         return new CommitteeDetailDto(
                 c.getCommitteeId(),
@@ -352,6 +366,7 @@ public class CommitteeController {
                 c.getDescription(),
                 c.getStatus() != null ? c.getStatus().name() : null,
                 c.getCreatedBy(),
+                createdByName,
                 c.getCreatedAt(),
                 c.getUpdatedAt(),
                 advisors,

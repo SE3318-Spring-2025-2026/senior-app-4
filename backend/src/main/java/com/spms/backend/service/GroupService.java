@@ -44,7 +44,7 @@ public interface GroupService {
     //üye yöneyimi
     List<MemberResponseDto> getGroupMembers(Long groupId);
     void addMember(Long groupId, String studentId);
-    void removeMember(Long groupId, String studentId);
+    void removeMember(Long groupId, String studentId, Long newLeaderId, Long requesterId, String requesterRole);
     void leaveGroup(Long groupId, Long studentUserId);
     void bindGithubIntegration(Long groupId, Long requesterId, GithubBindingRequest request);
     void unbindGithubIntegration(Long groupId, Long requesterId);

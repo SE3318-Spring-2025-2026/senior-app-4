@@ -195,10 +195,14 @@ function CommitteeDetailDashboard() {
                             {committee?.committeeName ?? "Loading…"}
                             {committee && (
                                 <span
-                                    className={`px-2 py-0.5 rounded text-xs font-medium border ${
+                                    className={`px-3 py-1 rounded-full text-xs font-semibold border ${
                                         committee.status === "ACTIVE"
-                                            ? "bg-green-500/10 text-green-400 border-green-500/20"
-                                            : "bg-gray-500/10 text-gray-400 border-gray-500/20"
+                                            ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-300"
+                                            : committee.status === "INACTIVE"
+                                            ? "border-pink-500/40 bg-pink-500/15 text-pink-400"
+                                            : committee.status === "COMPLETED"
+                                            ? "border-orange-400/40 bg-orange-400/15 text-orange-300"
+                                            : "border-gray-500/20 bg-gray-500/10 text-gray-400"
                                     }`}
                                 >
                                     {committee.status}
@@ -250,23 +254,36 @@ function CommitteeDetailDashboard() {
                                                     <RuleItem label="Min Jury Members" value={rules.minJuryMembers} />
                                                     <RuleItem label="Max Jury Members" value={rules.maxJuryMembers} />
                                                 </RuleSection>
+                                                
                                                 <RuleSection title="Advisor Qualifications">
                                                     <RuleItem label="Requires President" value={rules.requiresPresident ? "Yes" : "No"} />
                                                     <RuleItem label="Requires Vice President" value={rules.requiresVicePresident ? "Yes" : "No"} />
                                                     <RuleItem label="Advisor Group Limit" value={rules.advisorGroupLimit} />
                                                 </RuleSection>
-                                                {rules.scheduleRules && rules.scheduleRules.length > 0 && (
+
+                                                {(rules.scheduleRules?.length ?? 0) > 0 && (
                                                     <RuleSection title="Schedule Rules">
-                                                        {rules.scheduleRules.map((r, i) => (
-                                                            <li key={i} className="text-sm text-gray-300 list-disc ml-4">{r}</li>
-                                                        ))}
+                                                        <div className="space-y-1">
+                                                            {rules.scheduleRules.map((r: string, i: number) => (
+                                                                <div key={i} className="text-sm text-gray-300 flex gap-2">
+                                                                    <span className="text-gray-500">•</span>
+                                                                    <span>{r}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </RuleSection>
                                                 )}
-                                                {rules.groupAssignmentRules && rules.groupAssignmentRules.length > 0 && (
+
+                                                {(rules.groupAssignmentRules?.length ?? 0) > 0 && (
                                                     <RuleSection title="Group Assignment Rules">
-                                                        {rules.groupAssignmentRules.map((r, i) => (
-                                                            <li key={i} className="text-sm text-gray-300 list-disc ml-4">{r}</li>
-                                                        ))}
+                                                        <div className="space-y-1">
+                                                            {rules.groupAssignmentRules.map((r: string, i: number) => (
+                                                                <div key={i} className="text-sm text-gray-300 flex gap-2">
+                                                                    <span className="text-gray-500">•</span>
+                                                                    <span>{r}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </RuleSection>
                                                 )}
                                             </div>

@@ -223,7 +223,8 @@ async function parseError(res: Response) {
 
 function normalizeCommitteeDetail(data: any): CommitteeDetail {
     const advisors = (data.advisors ?? []).map((advisor: any) => ({
-        id: advisor.id ?? advisor.committeeAdvisorId ?? advisor.userId,
+        id: advisor.id ?? advisor.committeeAdvisorId,
+        userId: advisor.userId ?? advisor.advisorId ?? advisor.id ?? advisor.committeeAdvisorId,
         name:
             advisor.name ??
             advisor.fullName ??
@@ -235,7 +236,8 @@ function normalizeCommitteeDetail(data: any): CommitteeDetail {
     }));
 
     const jury = (data.jury ?? data.juryMembers ?? []).map((member: any) => ({
-        id: member.id ?? member.juryMemberId,
+        id: member.id ?? member.committeeJuryId ?? member.juryMemberId,
+        userId: member.userId ?? member.juryUserId ?? member.id ?? member.juryMemberId,
         name: member.name ?? member.fullName ?? member.juryMemberName,
         email: member.email ?? member.juryMemberEmail ?? "",
         role: member.role ?? member.juryType ?? "JURY",
@@ -243,9 +245,9 @@ function normalizeCommitteeDetail(data: any): CommitteeDetail {
     }));
 
     const groups = (data.groups ?? data.groupAssignments ?? []).map((group: any) => ({
-        groupId: group.groupId,
-        groupName: group.groupName ?? `Group #${group.groupId}`,
-        membersCount: group.membersCount ?? 0,
+        groupId: group.groupId ?? group.id,
+        groupName: group.groupName ?? `Group #${group.groupId ?? group.id}`,
+        membersCount: group.membersCount ?? group.memberCount ?? 0,
         status: group.status,
         examDate: group.examDate,
     }));
