@@ -59,11 +59,16 @@ public class AdvisorAssignmentController {
             @RequestParam(value = "advisorId", required = false) Long advisorId,
             @RequestParam(value = "hasAdvisor", required = false) Boolean hasAdvisor) {
 
-        Long uid = Long.valueOf(userId.toString());
-        String r = role != null ? role.toString() : "";
-        AdvisorAssignmentListResponse body =
-                advisorAssignmentService.listAdvisorAssignments(r, uid, advisorId, hasAdvisor);
-        return ResponseEntity.ok(body);
+        try {
+            Long uid = Long.valueOf(userId.toString());
+            String r = role != null ? role.toString() : "";
+            AdvisorAssignmentListResponse body =
+                    advisorAssignmentService.listAdvisorAssignments(r, uid, advisorId, hasAdvisor);
+            return ResponseEntity.ok(body);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @PostMapping("/{groupId}/release")

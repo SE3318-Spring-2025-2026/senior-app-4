@@ -208,9 +208,9 @@ class AdvisorAssignmentServiceImplTest {
         }
 
         @Override
-        public List<Group> findAllNonDisbandedWithAdvisorAndLeaderFetched(GroupStatus disbandedStatus) {
+        public List<Group> findByStatusNot(com.spms.backend.model.GroupStatus status) {
             return store.values().stream()
-                    .filter(g -> g.getStatus() != disbandedStatus)
+                    .filter(g -> g.getStatus() != status)
                     .sorted(Comparator.comparing(Group::getId))
                     .toList();
         }
@@ -319,6 +319,12 @@ class AdvisorAssignmentServiceImplTest {
         @Override
         public Optional<AuditLog> findTopByGroupIdAndActionTypeOrderByCreatedAtDesc(
                 Long groupId, com.spms.backend.model.ActionType actionType) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<AuditLog> findTopByGroupIdAndActionTypeInOrderByCreatedAtDesc(
+                Long groupId, java.util.Collection<com.spms.backend.model.ActionType> actionTypes) {
             return Optional.empty();
         }
 

@@ -15,6 +15,21 @@ import {
 
 type Professor = { userId: number; fullName: string; email: string };
 
+const ASSIGNMENT_TYPE_STYLES: Record<string, string> = {
+    OVERRIDDEN: "text-orange-400 bg-orange-400/10 border-orange-400/20",
+    REQUESTED:  "text-blue-400 bg-blue-400/10 border-blue-400/20",
+    ASSIGNED:   "text-gray-400 bg-gray-400/10 border-gray-400/20",
+};
+
+function AssignmentTypeBadge({ type }: Readonly<{ type: string }>) {
+    const cls = ASSIGNMENT_TYPE_STYLES[type] ?? ASSIGNMENT_TYPE_STYLES.ASSIGNED;
+    return (
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${cls}`}>
+            {type}
+        </span>
+    );
+}
+
 export default function AdvisorOverridePage() {
     const authStatus = useAuthGuard("coordinator");
     if (authStatus === "loading") return <Spinner />;
@@ -61,7 +76,7 @@ function AdvisorOverrideLayout() {
                     </div>
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
                         <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                        <span className="text-xs text-gray-400">Coordinator</span>
+                        <span className="text-xs text-gray-400">System Online</span>
                     </div>
                 </div>
                 <div className="flex-1 p-8">
@@ -93,8 +108,8 @@ function OverridePanel() {
         ]).then(([assignmentData, userData]) => {
             setAssignments(assignmentData);
             setProfessors(userData.data ?? []);
-        }).catch(() => {
-            toast.error("Failed to load data.");
+        }).catch((err: unknown) => {
+            toast.error(err instanceof Error ? err.message : "Failed to load data.");
         }).finally(() => setLoading(false));
     }, []);
 
@@ -118,17 +133,21 @@ function OverridePanel() {
                 reason: overrideReason.trim() || undefined,
             });
             toast.success("Advisor assignment overridden successfully.");
-            // refresh assignments
-            const updated = await fetchAdvisorAssignments();
-            setAssignments(updated);
             setSelectedTeamId("");
             setSelectedAdvisorId("");
             setOverrideReason("");
         } catch (err: unknown) {
             toast.error(err instanceof Error ? err.message : "Override failed.");
+            return;
         } finally {
             setProcessing(false);
             setShowConfirm(false);
+        }
+        try {
+            const updated = await fetchAdvisorAssignments();
+            setAssignments(updated);
+        } catch {
+            toast.error("Assignment updated but failed to refresh the list. Please reload.");
         }
     };
 
@@ -162,8 +181,9 @@ function OverridePanel() {
                 <div className="p-6 space-y-5">
                     {/* Group Select */}
                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Select Group</label>
+                        <label htmlFor="select-group" className="text-xs font-medium text-gray-400 uppercase tracking-wider">Select Group</label>
                         <select
+                            id="select-group"
                             value={selectedTeamId}
                             onChange={(e) => setSelectedTeamId(e.target.value)}
                             className="w-full px-4 py-3 bg-gray-800 border border-white/10 rounded-xl text-sm text-white
@@ -189,8 +209,9 @@ function OverridePanel() {
 
                     {/* Professor Select */}
                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Select Professor</label>
+                        <label htmlFor="select-professor" className="text-xs font-medium text-gray-400 uppercase tracking-wider">Select Professor</label>
                         <select
+                            id="select-professor"
                             value={selectedAdvisorId}
                             onChange={(e) => setSelectedAdvisorId(e.target.value)}
                             className="w-full px-4 py-3 bg-gray-800 border border-white/10 rounded-xl text-sm text-white
@@ -208,11 +229,12 @@ function OverridePanel() {
 
                     {/* Reason */}
                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            Reason
-                            <span className="ml-1 text-gray-600 normal-case font-normal">(optional)</span>
+                        <label htmlFor="override-reason" className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            Reason{' '}
+                            <span className="text-gray-600 normal-case font-normal">(optional)</span>
                         </label>
                         <textarea
+                            id="override-reason"
                             value={overrideReason}
                             onChange={(e) => setOverrideReason(e.target.value)}
                             placeholder="Reason for this override assignment..."
@@ -266,13 +288,7 @@ function OverridePanel() {
                                     </td>
                                     <td className="px-6 py-3">
                                         {a.assignmentType ? (
-                                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
-                                                a.assignmentType === "OVERRIDDEN"
-                                                    ? "text-orange-400 bg-orange-400/10 border-orange-400/20"
-                                                    : "text-blue-400 bg-blue-400/10 border-blue-400/20"
-                                            }`}>
-                                                {a.assignmentType}
-                                            </span>
+                                            <AssignmentTypeBadge type={a.assignmentType} />
                                         ) : (
                                             <span className="text-xs text-gray-600">—</span>
                                         )}
@@ -302,12 +318,12 @@ function ConfirmOverrideModal({
     processing,
     onConfirm,
     onCancel,
-}: {
+}: Readonly<{
     hasExistingAdvisor: boolean;
     processing: boolean;
     onConfirm: () => void;
     onCancel: () => void;
-}) {
+}>) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
