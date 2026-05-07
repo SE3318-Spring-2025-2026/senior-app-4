@@ -157,7 +157,7 @@ public class ValidationResultReadService {
                     tid,
                     teamNames.getOrDefault(tid, "Unknown Team"),
                     overallScore,
-                    teamResults.size(),
+                    deduped.size(),
                     issueSummaries
             ));
         }
