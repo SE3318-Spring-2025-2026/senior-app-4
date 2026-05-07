@@ -9,7 +9,6 @@ import com.spms.backend.dto.request.SystemLogCreateRequestDto;
 import com.spms.backend.exception.P7ApiException;
 import com.spms.backend.model.*;
 import com.spms.backend.repository.*;
-import com.spms.backend.service.EncryptionService;
 import com.spms.backend.service.SystemLogService;
 import com.spms.backend.service.ValidationJobWriteService;
 import com.spms.backend.service.ValidationPipelineOrchestrator;
@@ -41,7 +40,6 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
     private final OpenAiValidationClient           openAiValidationClient;
     private final SystemLogService                 systemLogService;
     private final ValidationJobWriteService        writeService;
-    private final EncryptionService                encryptionService;
     private final ObjectMapper                     objectMapper;
 
     public ValidationPipelineOrchestratorImpl(
@@ -53,7 +51,6 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
             OpenAiValidationClient openAiValidationClient,
             SystemLogService systemLogService,
             ValidationJobWriteService writeService,
-            EncryptionService encryptionService,
             ObjectMapper objectMapper) {
         this.sprintIssueTrackingRepository   = sprintIssueTrackingRepository;
         this.issueValidationResultRepository = issueValidationResultRepository;
@@ -63,7 +60,6 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         this.openAiValidationClient          = openAiValidationClient;
         this.systemLogService                = systemLogService;
         this.writeService                    = writeService;
-        this.encryptionService               = encryptionService;
         this.objectMapper                    = objectMapper;
     }
 
@@ -146,6 +142,8 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         jobRef.setJobId(jobId);
         result.setJob(jobRef);
         result.setIssueKey(issueKey);
+        result.setIssueTitle(sit.getIssueTitle());
+        result.setIssueDescription(sit.getIssueDescription());
         result.setAssignee(sit.getAssigneeGithubUsername());
         result.setEvaluatedAt(Instant.now());
         result.setSprintId(sprintId);
@@ -173,7 +171,8 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         }
 
         GithubIntegration gh  = ghOpt.get();
-        String pat  = encryptionService.decrypt(gh.getGithubPatEncrypted());
+        // EncryptionConverter already decrypts githubPatEncrypted on entity load — use directly
+        String pat  = gh.getGithubPatEncrypted();
         String org  = gh.getOrganizationName();
         String repo = gh.getRepositoryName();
 
@@ -219,7 +218,9 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
 
         // 7.5 — AI implementation validation (1 retry, each attempt logged to D9)
         writeService.updateStep(jobId, ValidationJobStep.AI_IMPLEMENTATION_VALIDATION);
-        String issueDescription = "Issue: " + issueKey;
+        String issueDescription = sit.getIssueDescription() != null
+                ? sit.getIssueTitle() + "\n\n" + sit.getIssueDescription()
+                : (sit.getIssueTitle() != null ? sit.getIssueTitle() : issueKey);
         OpenAiCallResult implAiResult = callOpenAiWithD9Retry(
                 jobId, parentJobId, sprintId, teamId, issueKey, "7.5",
                 () -> openAiValidationClient.validateImplementation(

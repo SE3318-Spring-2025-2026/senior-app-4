@@ -1,7 +1,6 @@
 package com.spms.backend.controller;
 
 import com.spms.backend.dto.response.ScrumSyncResponse;
-import com.spms.backend.exception.SyncAlreadyRunningException;
 import com.spms.backend.service.ScrumSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -30,14 +29,6 @@ public class ScrumSyncController {
         this.scrumSyncService = scrumSyncService;
     }
 
-    /**
-     * POST /api/v1/scrum-sync/trigger
-     * Triggers the synchronization pipeline asynchronously.
-     * Returns 202 Accepted immediately without waiting for completion.
-     *
-     * @return 202 Accepted with sync status
-     * @throws SyncAlreadyRunningException (409 Conflict) if sync is already in progress
-     */
     @Operation(
         summary = "Trigger Scrum Synchronization",
         description = "Initiates asynchronous synchronization of JIRA and GitHub data for the active sprint. Returns immediately without waiting for completion."

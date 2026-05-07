@@ -16,7 +16,6 @@ import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.JiraIntegrationRepository;
 import com.spms.backend.repository.SprintIssueTrackingRepository;
 import com.spms.backend.repository.SprintRepository;
-import com.spms.backend.service.EncryptionService;
 import com.spms.backend.service.GithubDiscoveryService;
 import com.spms.backend.service.ScrumSyncService;
 import org.slf4j.Logger;
@@ -49,7 +48,6 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
     private final GithubIntegrationRepository githubIntegrationRepository;
     private final SprintIssueTrackingRepository sprintIssueTrackingRepository;
     private final SprintRepository sprintRepository;
-    private final EncryptionService encryptionService;
     private final GithubDiscoveryService githubDiscoveryService;
 
     public ScrumSyncServiceImpl(JiraApiClient jiraApiClient,
@@ -59,7 +57,6 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
                               GithubIntegrationRepository githubIntegrationRepository,
                               SprintIssueTrackingRepository sprintIssueTrackingRepository,
                               SprintRepository sprintRepository,
-                              EncryptionService encryptionService,
                               GithubDiscoveryService githubDiscoveryService) {
         this.jiraApiClient = jiraApiClient;
         this.githubApiClient = githubApiClient;
@@ -68,7 +65,6 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         this.githubIntegrationRepository = githubIntegrationRepository;
         this.sprintIssueTrackingRepository = sprintIssueTrackingRepository;
         this.sprintRepository = sprintRepository;
-        this.encryptionService = encryptionService;
         this.githubDiscoveryService = githubDiscoveryService;
     }
 
@@ -108,6 +104,7 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public void executeSyncPipeline() {
         logger.debug("Phase 1: Searching for active sprint context");
         var activeSprint = sprintRepository.findActiveSprintByDate(java.time.LocalDate.now());
@@ -144,7 +141,17 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         }
 
         var jira = jiraIntegration.get();
-        String decryptedJiraToken = encryptionService.decrypt(jira.getApiKey());
+
+        // jira_email was added in V9 migration — integrations created before that have NULL here.
+        // Re-saving the integration via the bind endpoint populates it; skip until then.
+        if (jira.getJiraEmail() == null || jira.getApiKey() == null) {
+            logger.warn("Skipping JIRA sync for group {}: email or API key is null. "
+                    + "Re-save the JIRA integration for this group to fix.", group.getId());
+            return;
+        }
+
+        // EncryptionConverter already decrypts apiKey on entity load — use directly
+        String decryptedJiraToken = jira.getApiKey();
 
         List<JiraIssueData> jiraIssues;
         try {
@@ -168,7 +175,8 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         }
 
         var github = githubIntegration.get();
-        String decryptedGithubPat = encryptionService.decrypt(github.getGithubPatEncrypted());
+        // EncryptionConverter already decrypts githubPatEncrypted on entity load — use directly
+        String decryptedGithubPat = github.getGithubPatEncrypted();
 
         sprintIssueTrackingRepository.deleteByGroup_IdAndSprint_Id(group.getId(), sprint.getId());
 
@@ -177,6 +185,8 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         for (JiraIssueData jiraIssue : jiraIssues) {
             SprintIssueTracking log = new SprintIssueTracking(group, sprint, jiraIssue.issueKey());
             log.setStoryPoints(jiraIssue.storyPoints());
+            log.setIssueTitle(jiraIssue.title());
+            log.setIssueDescription(jiraIssue.description());
             log.setSyncedAt(Instant.now());
 
             try {

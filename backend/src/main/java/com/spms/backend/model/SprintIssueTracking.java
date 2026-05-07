@@ -36,6 +36,12 @@ public class SprintIssueTracking {
     @Column(name = "pr_merged")
     private Boolean prMerged;
 
+    @Column(name = "issue_title", length = 500)
+    private String issueTitle;
+
+    @Column(name = "issue_description", columnDefinition = "TEXT")
+    private String issueDescription;
+
     @Column(name = "synced_at", nullable = false)
     private Instant syncedAt;
 
@@ -113,6 +119,22 @@ public class SprintIssueTracking {
 
     public void setPrMerged(Boolean prMerged) {
         this.prMerged = prMerged;
+    }
+
+    public String getIssueTitle() {
+        return issueTitle;
+    }
+
+    public void setIssueTitle(String issueTitle) {
+        this.issueTitle = issueTitle;
+    }
+
+    public String getIssueDescription() {
+        return issueDescription;
+    }
+
+    public void setIssueDescription(String issueDescription) {
+        this.issueDescription = issueDescription;
     }
 
     public Instant getSyncedAt() {

@@ -372,9 +372,14 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private void ensureRequesterIsGroupLeader(Group group, Long requesterId) {
-        if (!group.getLeader().getUserId().equals(requesterId)) {
-            throw new ForbiddenException("Only the group leader can manage JIRA integration.");
+        if (group.getLeader().getUserId().equals(requesterId)) {
+            return;
         }
+        User requester = userRepository.findById(requesterId).orElse(null);
+        if (requester != null && "coordinator".equalsIgnoreCase(requester.getRole())) {
+            return;
+        }
+        throw new ForbiddenException("Only the group leader can manage JIRA integration.");
     }
 
     private GroupResponseDto mapToSimpleDto(Group group) {
@@ -515,7 +520,8 @@ public class GroupServiceImpl implements GroupService {
         
         integration.setGroup(group);
         integration.setOrganizationName(request.organizationName().trim());
-        integration.setGithubPatEncrypted(request.githubPat().trim()); 
+        integration.setRepositoryName(request.repositoryName().trim());
+        integration.setGithubPatEncrypted(request.githubPat().trim());
         integration.setStatus(GithubIntegrationStatus.ACTIVE);
         integration.setUpdatedAt(Instant.now());
 

@@ -88,11 +88,11 @@ export default function GithubIntegrationPage() {
         githubStatus !== "inactive" &&
         githubStatus !== "error";
 
-    async function handleBind(githubPat: string, organizationName: string) {
+    async function handleBind(githubPat: string, organizationName: string, repositoryName: string) {
         try {
-            await bindGithubIntegration(groupId, githubPat, organizationName);
+            await bindGithubIntegration(groupId, githubPat, organizationName, repositoryName);
 
-            setStatusMessage(`GitHub organization "${organizationName}" bound successfully.`);
+            setStatusMessage(`GitHub organization "${organizationName}" / repo "${repositoryName}" bound successfully.`);
 
             const updated = await fetchGithubIntegration(groupId);
             setIntegration(updated);
