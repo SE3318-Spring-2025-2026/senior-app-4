@@ -309,3 +309,77 @@ body {
 [data-sonner-toaster] {
   font-family: var(--font-sans) !important;
 }
+
+.field {
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: #fff;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+}
+
+.field:focus {
+  border-color: rgba(59,130,246,0.6);
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.20);
+}
+
+.field::placeholder {
+  color: rgb(75,85,99);
+}
+
+.primaryButton,
+.secondaryButton,
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+
+.primaryButton {
+  background: rgb(37,99,235);
+  color: #fff;
+  padding: 0.5rem 1rem;
+}
+
+.primaryButton:hover {
+  background: rgb(59,130,246);
+}
+
+.secondaryButton {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: rgb(209,213,219);
+  padding: 0.5rem 1rem;
+}
+
+.secondaryButton:hover {
+  background: rgba(255,255,255,0.10);
+  color: #fff;
+}
+
+.iconButton {
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: rgb(209,213,219);
+}
+
+.iconButton:hover {
+  background: rgba(255,255,255,0.10);
+  color: #fff;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

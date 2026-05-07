@@ -6,6 +6,7 @@ export interface ActiveSprintInfo {
   startDate: string;
   endDate: string;
   daysRemaining: number;
+  requiredStoryPoints?: number | null;
 }
 
 export interface PerStudentSummary {

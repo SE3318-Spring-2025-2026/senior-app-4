@@ -24,10 +24,10 @@ export default function CreateCommitteeForm({ onSuccess, onCancel }: CreateCommi
 
         setLoading(true);
         try {
-            await createCommittee({ committeeName: name, description });
+            await createCommittee({ committeeName: name, description, status: "FORMING" });
             toast.success("Committee created successfully");
             onSuccess();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Failed to create committee", error);
         } finally {
             setLoading(false);

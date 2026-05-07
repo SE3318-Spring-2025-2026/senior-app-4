@@ -16,6 +16,7 @@ import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.JiraIntegrationRepository;
 import com.spms.backend.repository.SprintIssueTrackingRepository;
 import com.spms.backend.repository.SprintRepository;
+import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.GithubDiscoveryService;
 import com.spms.backend.service.ScrumSyncService;
 import org.slf4j.Logger;
@@ -49,6 +50,7 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
     private final SprintIssueTrackingRepository sprintIssueTrackingRepository;
     private final SprintRepository sprintRepository;
     private final GithubDiscoveryService githubDiscoveryService;
+    private final UserRepository userRepository;
 
     public ScrumSyncServiceImpl(JiraApiClient jiraApiClient,
                               GithubApiClient githubApiClient,
@@ -57,7 +59,8 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
                               GithubIntegrationRepository githubIntegrationRepository,
                               SprintIssueTrackingRepository sprintIssueTrackingRepository,
                               SprintRepository sprintRepository,
-                              GithubDiscoveryService githubDiscoveryService) {
+                              GithubDiscoveryService githubDiscoveryService,
+                              UserRepository userRepository) {
         this.jiraApiClient = jiraApiClient;
         this.githubApiClient = githubApiClient;
         this.groupRepository = groupRepository;
@@ -66,6 +69,7 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         this.sprintIssueTrackingRepository = sprintIssueTrackingRepository;
         this.sprintRepository = sprintRepository;
         this.githubDiscoveryService = githubDiscoveryService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -188,6 +192,12 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
             log.setIssueTitle(jiraIssue.title());
             log.setIssueDescription(jiraIssue.description());
             log.setSyncedAt(Instant.now());
+            if (jiraIssue.assigneeEmail() != null && !jiraIssue.assigneeEmail().isBlank()) {
+                userRepository.findByEmail(jiraIssue.assigneeEmail())
+                        .map(user -> user.getGithubUsername())
+                        .filter(username -> username != null && !username.isBlank())
+                        .ifPresent(log::setAssigneeGithubUsername);
+            }
 
             try {
                 Optional<String> branchName = githubDiscoveryService.findBranchForIssueKey(
@@ -208,7 +218,9 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
                         PrCheckResult pr = prResult.get();
                         log.setPrNumber(pr.prNumber());
                         log.setPrMerged(pr.merged());
-                        log.setAssigneeGithubUsername(pr.authorGithubUsername());
+                        if (log.getAssigneeGithubUsername() == null || log.getAssigneeGithubUsername().isBlank()) {
+                            log.setAssigneeGithubUsername(pr.authorGithubUsername());
+                        }
                     }
                 }
             } catch (Exception e) {

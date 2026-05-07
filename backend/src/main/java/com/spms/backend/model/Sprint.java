@@ -35,6 +35,9 @@ public class Sprint {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    @Column(name = "required_story_points")
+    private Integer requiredStoryPoints;
+
     public Sprint() {}
 
     public Sprint(String sprintName, LocalDate startDate, LocalDate endDate, String status) {
@@ -42,6 +45,18 @@ public class Sprint {
         this.startDate = startDate;
         this.endDate = endDate;
         this.status = status;
+    }
+
+    @PrePersist
+    void onCreate() {
+        Instant now = Instant.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = Instant.now();
     }
 
     public Long getId() {
@@ -98,5 +113,13 @@ public class Sprint {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Integer getRequiredStoryPoints() {
+        return requiredStoryPoints;
+    }
+
+    public void setRequiredStoryPoints(Integer requiredStoryPoints) {
+        this.requiredStoryPoints = requiredStoryPoints;
     }
 }

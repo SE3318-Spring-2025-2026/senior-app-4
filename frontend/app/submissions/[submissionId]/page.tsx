@@ -19,12 +19,14 @@ import Sidebar from "@/components/Sidebar";
 import { getToken, getUser } from "@/lib/auth";
 import {
   fetchSubmissionDetail,
+  fetchGradingCriteria,
   fetchSubmissionGrades,
   fetchSubmissionRevisionHistory,
   submitGrade,
   updateGrade,
   type DeliverableType,
   type GradeItem,
+  type GradingCriterion,
   type SubmissionDetail,
   type SubmissionGradeSummary,
   type SubmissionId,
@@ -79,6 +81,7 @@ function SubmissionDetailWorkspace() {
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
   const [revisionHistory, setRevisionHistory] = useState<SubmissionRevision[] | SubmissionRevisionNode[]>([]);
   const [gradeSummary, setGradeSummary] = useState<SubmissionGradeSummary | null>(null);
+  const [gradingCriteria, setGradingCriteria] = useState<GradingCriterion[]>([]);
   const [revisionWarning, setRevisionWarning] = useState<string | null>(null);
   const [gradeWarning, setGradeWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,9 +102,10 @@ function SubmissionDetailWorkspace() {
       setRevisionHistory(nextDetail.revisionHistory ?? []);
       setGradeSummary(nextDetail.gradeSummary ?? null);
 
-      const [revisionResult, gradesResult] = await Promise.allSettled([
+      const [revisionResult, gradesResult, criteriaResult] = await Promise.allSettled([
         fetchSubmissionRevisionHistory(submissionId),
         fetchSubmissionGrades(submissionId),
+        fetchGradingCriteria(nextDetail.deliverableType === "REVISED_PROPOSAL" ? "PROPOSAL" : nextDetail.deliverableType),
       ]);
 
       if (revisionResult.status === "fulfilled") {
@@ -123,8 +127,14 @@ function SubmissionDetailWorkspace() {
         setGradeWarning(
           gradesResult.reason instanceof Error
             ? gradesResult.reason.message
-            : "Grade details could not be loaded.",
+          : "Grade details could not be loaded.",
         );
+      }
+
+      if (criteriaResult.status === "fulfilled") {
+        setGradingCriteria(criteriaResult.value);
+      } else {
+        setGradingCriteria([]);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Submission detail could not be loaded.";
@@ -202,6 +212,7 @@ function SubmissionDetailWorkspace() {
                       <AnnotatedDocumentViewer
                         submissionId={detail.id}
                         htmlContent={detail.content}
+                        criteria={gradingCriteria}
                       />
                     </section>
                   )}
@@ -215,7 +226,7 @@ function SubmissionDetailWorkspace() {
 
                 <div className="space-y-6">
                   <ReviewPanel detail={detail} />
-                  <GradePanel summary={gradeSummary} warning={gradeWarning} submissionId={detail.id} onGraded={load} />
+                  <GradePanel summary={gradeSummary} warning={gradeWarning} submissionId={detail.id} criteria={gradingCriteria} onGraded={load} />
                   <FilePanel detail={detail} />
                 </div>
               </div>
@@ -415,11 +426,13 @@ function GradePanel({
   summary,
   warning,
   submissionId,
+  criteria,
   onGraded,
 }: {
   summary: SubmissionGradeSummary | null;
   warning: string | null;
   submissionId: SubmissionId;
+  criteria: GradingCriterion[];
   onGraded: () => void;
 }) {
   const grades = summary?.grades ?? [];
@@ -428,20 +441,57 @@ function GradePanel({
 
   const [gradeInput, setGradeInput] = useState<string>(myGrade ? String(myGrade.grade) : "");
   const [feedbackInput, setFeedbackInput] = useState<string>(myGrade?.feedback ?? "");
+  const [criteriaGrades, setCriteriaGrades] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const hasRubric = criteria.length > 0;
+  const rubricScore = hasRubric ? calculateRubricScore(criteria, criteriaGrades) : null;
+
+  useEffect(() => {
+    setGradeInput(myGrade ? String(myGrade.grade) : "");
+    setFeedbackInput(myGrade?.feedback ?? "");
+    const scoreByCriterion = new Map((myGrade?.criteriaScores ?? []).map((score) => [String(score.criteriaId), score.score]));
+    setCriteriaGrades(Object.fromEntries(
+      criteria.map((criterion) => [
+        String(criterion.id),
+        scoreByCriterion.has(String(criterion.id))
+          ? scoreToGrade(scoreByCriterion.get(String(criterion.id)) ?? 0, criterion.gradingType)
+          : "",
+      ]),
+    ));
+  }, [myGrade, criteria]);
 
   const handleSubmit = async () => {
-    const gradeNum = parseFloat(gradeInput);
-    if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 100) {
+    const payload: {
+      grade?: number;
+      feedback?: string;
+      criteriaScores?: { criterionId: number; grade: string }[];
+    } = hasRubric
+      ? {
+          feedback: feedbackInput,
+          criteriaScores: criteria.map((criterion) => ({
+            criterionId: criterion.id,
+            grade: criteriaGrades[String(criterion.id)],
+          })),
+        }
+      : {
+          grade: parseFloat(gradeInput),
+          feedback: feedbackInput,
+        };
+
+    if (hasRubric && (payload.criteriaScores ?? []).some((score) => !score.grade)) {
+      toast.error("Select a grade for every criterion.");
+      return;
+    }
+    if (!hasRubric && (payload.grade == null || isNaN(payload.grade) || payload.grade < 0 || payload.grade > 100)) {
       toast.error("Grade must be between 0 and 100.");
       return;
     }
     setSubmitting(true);
     try {
       if (myGrade) {
-        await updateGrade(submissionId, Number(myGrade.id), { grade: gradeNum, feedback: feedbackInput });
+        await updateGrade(submissionId, Number(myGrade.id), payload);
       } else {
-        await submitGrade(submissionId, { grade: gradeNum, feedback: feedbackInput });
+        await submitGrade(submissionId, payload);
       }
       toast.success(myGrade ? "Grade updated." : "Grade submitted.");
       onGraded();
@@ -494,6 +544,22 @@ function GradePanel({
 
       <div className="space-y-3 border-t border-white/8 pt-5">
         <p className="text-xs font-medium text-gray-400">{myGrade ? "Update your grade" : "Submit your grade"}</p>
+        {hasRubric && (
+          <div className="space-y-3">
+            {criteria.map((criterion) => (
+              <CriterionPicker
+                key={criterion.id}
+                criterion={criterion}
+                value={criteriaGrades[String(criterion.id)] ?? ""}
+                onChange={(value) => setCriteriaGrades((prev) => ({ ...prev, [String(criterion.id)]: value }))}
+              />
+            ))}
+            <div className="rounded-lg border border-white/10 bg-white/4 px-3 py-2 text-xs text-gray-400">
+              Rubric score: <span className="font-semibold text-white">{rubricScore == null ? "-" : rubricScore.toFixed(1)}</span>
+            </div>
+          </div>
+        )}
+        {!hasRubric && (
         <div className="flex items-center gap-3">
           <input
             type="number"
@@ -507,6 +573,7 @@ function GradePanel({
           />
           <span className="text-xs text-gray-500">/ 100</span>
         </div>
+        )}
         <textarea
           value={feedbackInput}
           onChange={(e) => setFeedbackInput(e.target.value)}
@@ -516,7 +583,7 @@ function GradePanel({
         />
         <button
           onClick={handleSubmit}
-          disabled={submitting || gradeInput === ""}
+          disabled={submitting || (!hasRubric && gradeInput === "")}
           className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-gray-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? "Submitting…" : myGrade ? "Update Grade" : "Submit Grade"}
@@ -532,11 +599,89 @@ function GradeRow({ grade }: { grade: GradeItem }) {
       <td className="px-4 py-3">
         <p className="font-medium text-white">{grade.professorName}</p>
         {grade.feedback && <p className="mt-1 line-clamp-2 text-xs text-gray-500">{grade.feedback}</p>}
+        {grade.criteriaScores && grade.criteriaScores.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {grade.criteriaScores.map((score) => (
+              <span key={String(score.criteriaId)} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-gray-400">
+                {score.criteriaName}: {formatGrade(score.score)}
+              </span>
+            ))}
+          </div>
+        )}
       </td>
       <td className="px-4 py-3 text-gray-300">{formatGrade(grade.grade)}</td>
       <td className="px-4 py-3 text-xs text-gray-500">{formatDateTime(grade.gradedAt)}</td>
     </tr>
   );
+}
+
+function CriterionPicker({
+  criterion,
+  value,
+  onChange,
+}: {
+  criterion: GradingCriterion;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const options = criterion.gradingType === "BINARY" ? ["S", "F"] : ["A", "B", "C", "D", "F"];
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-white">{criterion.name}</p>
+          {criterion.description && <p className="mt-1 text-xs text-gray-500">{criterion.description}</p>}
+        </div>
+        <span className="shrink-0 text-xs font-semibold text-blue-300">{criterion.weight}%</span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition ${
+              value === option
+                ? "border-amber-400/40 bg-amber-400 text-gray-950"
+                : "border-white/10 bg-white/5 text-gray-400 hover:text-white"
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function calculateRubricScore(criteria: GradingCriterion[], values: Record<string, string>) {
+  if (criteria.some((criterion) => !values[String(criterion.id)])) return null;
+  return criteria.reduce((sum, criterion) => {
+    const raw = gradeToScore(values[String(criterion.id)], criterion.gradingType);
+    return sum + (raw * criterion.weight) / 100;
+  }, 0);
+}
+
+function gradeToScore(grade: string, gradingType?: "SOFT" | "BINARY" | null) {
+  if (gradingType === "BINARY") {
+    return grade === "S" ? 100 : 0;
+  }
+  switch (grade) {
+    case "A": return 100;
+    case "B": return 80;
+    case "C": return 60;
+    case "D": return 50;
+    default: return 0;
+  }
+}
+
+function scoreToGrade(score: number, gradingType?: "SOFT" | "BINARY" | null) {
+  if (gradingType === "BINARY") return score >= 100 ? "S" : "F";
+  if (score >= 100) return "A";
+  if (score >= 80) return "B";
+  if (score >= 60) return "C";
+  if (score >= 50) return "D";
+  return "F";
 }
 
 function FilePanel({ detail }: { detail: SubmissionDetail }) {

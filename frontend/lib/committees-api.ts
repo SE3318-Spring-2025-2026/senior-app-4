@@ -13,6 +13,29 @@ const API_BASE =
 
 const USE_MOCK = false;
 
+type ApiRecord = Record<string, unknown>;
+
+function isApiRecord(value: unknown): value is ApiRecord {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asRecordArray(value: unknown): ApiRecord[] {
+    return Array.isArray(value) ? value.filter(isApiRecord) : [];
+}
+
+function textValue(value: unknown, fallback = "") {
+    return typeof value === "string" ? value : fallback;
+}
+
+function numberValue(value: unknown, fallback = 0) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim()) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return fallback;
+}
+
 let mockCommittees: Committee[] = [
     {
         committeeId: 1,
@@ -45,6 +68,7 @@ const mockCommitteeDetails: Record<number, Omit<CommitteeDetail, keyof Committee
         advisors: [
             {
                 id: 1,
+                userId: 1,
                 name: "Prof. Ali Mert",
                 email: "alimert@example.com",
                 role: "ADVISOR",
@@ -52,6 +76,7 @@ const mockCommitteeDetails: Record<number, Omit<CommitteeDetail, keyof Committee
             },
             {
                 id: 2,
+                userId: 2,
                 name: "Prof. Advisor",
                 email: "prof@spms-test.com",
                 role: "ADVISOR",
@@ -61,6 +86,7 @@ const mockCommitteeDetails: Record<number, Omit<CommitteeDetail, keyof Committee
         jury: [
             {
                 id: 3,
+                userId: 3,
                 name: "Professor One",
                 email: "prof.one@spms-test.com",
                 role: "JURY",
@@ -68,6 +94,7 @@ const mockCommitteeDetails: Record<number, Omit<CommitteeDetail, keyof Committee
             },
             {
                 id: 4,
+                userId: 4,
                 name: "Professor Two",
                 email: "prof.two@spms-test.com",
                 role: "JURY",
@@ -75,6 +102,7 @@ const mockCommitteeDetails: Record<number, Omit<CommitteeDetail, keyof Committee
             },
             {
                 id: 5,
+                userId: 5,
                 name: "Professor Three",
                 email: "prof.three@spms-test.com",
                 role: "JURY",
@@ -120,6 +148,7 @@ const mockCommitteeDetails: Record<number, Omit<CommitteeDetail, keyof Committee
         advisors: [
             {
                 id: 6,
+                userId: 6,
                 name: "Prof. Proposal Advisor",
                 email: "proposal.advisor@spms-test.com",
                 role: "ADVISOR",
@@ -129,6 +158,7 @@ const mockCommitteeDetails: Record<number, Omit<CommitteeDetail, keyof Committee
         jury: [
             {
                 id: 7,
+                userId: 7,
                 name: "Proposal Jury One",
                 email: "jury.one@spms-test.com",
                 role: "JURY",
@@ -136,6 +166,7 @@ const mockCommitteeDetails: Record<number, Omit<CommitteeDetail, keyof Committee
             },
             {
                 id: 8,
+                userId: 8,
                 name: "Proposal Jury Two",
                 email: "jury.two@spms-test.com",
                 role: "JURY",
@@ -221,35 +252,35 @@ async function parseError(res: Response) {
     }
 }
 
-function normalizeCommitteeDetail(data: any): CommitteeDetail {
-    const advisors = (data.advisors ?? []).map((advisor: any) => ({
-        id: advisor.id ?? advisor.committeeAdvisorId,
-        userId: advisor.userId ?? advisor.advisorId ?? advisor.id ?? advisor.committeeAdvisorId,
+function normalizeCommitteeDetail(data: ApiRecord): CommitteeDetail {
+    const advisors = asRecordArray(data.advisors).map((advisor) => ({
+        id: numberValue(advisor.id ?? advisor.committeeAdvisorId),
+        userId: numberValue(advisor.userId ?? advisor.advisorId ?? advisor.id ?? advisor.committeeAdvisorId),
         name:
-            advisor.name ??
-            advisor.fullName ??
-            advisor.advisorName ??
+            textValue(advisor.name) ||
+            textValue(advisor.fullName) ||
+            textValue(advisor.advisorName) ||
             `User #${advisor.userId ?? "-"}`,
-        email: advisor.email ?? advisor.advisorEmail ?? "",
-        role: advisor.role ?? "ADVISOR",
-        assignedAt: advisor.assignedAt ?? null,
+        email: textValue(advisor.email) || textValue(advisor.advisorEmail),
+        role: "ADVISOR" as const,
+        assignedAt: textValue(advisor.assignedAt),
     }));
 
-    const jury = (data.jury ?? data.juryMembers ?? []).map((member: any) => ({
-        id: member.id ?? member.committeeJuryId ?? member.juryMemberId,
-        userId: member.userId ?? member.juryUserId ?? member.id ?? member.juryMemberId,
-        name: member.name ?? member.fullName ?? member.juryMemberName,
-        email: member.email ?? member.juryMemberEmail ?? "",
-        role: member.role ?? member.juryType ?? "JURY",
-        assignedAt: member.assignedAt,
+    const jury = asRecordArray(data.jury ?? data.juryMembers).map((member) => ({
+        id: numberValue(member.id ?? member.committeeJuryId ?? member.juryMemberId),
+        userId: numberValue(member.userId ?? member.juryUserId ?? member.id ?? member.juryMemberId),
+        name: textValue(member.name) || textValue(member.fullName) || textValue(member.juryMemberName),
+        email: textValue(member.email) || textValue(member.juryMemberEmail),
+        role: "JURY" as const,
+        assignedAt: textValue(member.assignedAt),
     }));
 
-    const groups = (data.groups ?? data.groupAssignments ?? []).map((group: any) => ({
-        groupId: group.groupId ?? group.id,
-        groupName: group.groupName ?? `Group #${group.groupId ?? group.id}`,
-        membersCount: group.membersCount ?? group.memberCount ?? 0,
-        status: group.status,
-        examDate: group.examDate,
+    const groups = asRecordArray(data.groups ?? data.groupAssignments).map((group) => ({
+        groupId: numberValue(group.groupId ?? group.id),
+        groupName: textValue(group.groupName, `Group #${group.groupId ?? group.id}`),
+        membersCount: numberValue(group.membersCount ?? group.memberCount),
+        status: textValue(group.status),
+        examDate: textValue(group.examDate) || null,
     }));
 
     return {
@@ -262,8 +293,15 @@ function normalizeCommitteeDetail(data: any): CommitteeDetail {
         juryCount: jury.length,
         groupCount: groups.length,
 
-        recentAuditLogs: data.recentAuditLogs ?? [],
-    };
+        recentAuditLogs: asRecordArray(data.recentAuditLogs).map((log) => ({
+            id: numberValue(log.id ?? log.logId),
+            timestamp: textValue(log.timestamp) || textValue(log.createdAt),
+            userName: textValue(log.userName, `User #${log.userId ?? "-"}`),
+            action: textValue(log.action) || textValue(log.actionType),
+            entityType: textValue(log.entityType),
+            description: textValue(log.description),
+        })),
+    } as CommitteeDetail;
 }
 
 function getAuthHeaders() {
@@ -275,39 +313,39 @@ function getAuthHeaders() {
     };
 }
 
-function normalizeCommitteePage(data: any): CommitteePageResponse {
+function normalizeCommitteePage(data: ApiRecord): CommitteePageResponse {
     const rawCommittees = data?.content ?? data?.data ?? [];
-    const committees = rawCommittees.map((c: any) => normalizeCommitteeDetail(c));
+    const committees = asRecordArray(rawCommittees).map((c) => normalizeCommitteeDetail(c));
+    const pagination = isApiRecord(data.pagination) ? data.pagination : {};
 
     return {
         content: committees,
-        totalPages: data?.totalPages ?? data?.pagination?.totalPages ?? 1,
+        totalPages: numberValue(data?.totalPages ?? pagination.totalPages, 1),
         totalElements:
-            data?.totalElements ??
-            data?.pagination?.totalElements ??
-            data?.count ??
+            numberValue(data?.totalElements ?? pagination.totalElements ?? data?.count,
             committees.length,
+            ),
     };
 }
 
-function normalizeAuditLogPage(data: any): CommitteeAuditLogPageResponse {
-    const logs = data?.content ?? data?.data ?? [];
+function normalizeAuditLogPage(data: ApiRecord): CommitteeAuditLogPageResponse {
+    const logs = asRecordArray(data?.content ?? data?.data ?? []);
+    const pagination = isApiRecord(data.pagination) ? data.pagination : {};
 
     return {
-        content: logs.map((log: any) => ({
-            id: log.id ?? log.logId,
-            timestamp: log.timestamp ?? log.createdAt,
-            userName: log.userName ?? `User #${log.userId ?? "-"}`,
-            action: log.action ?? log.actionType,
-            entityType: log.entityType,
-            description: log.description,
+        content: logs.map((log) => ({
+            id: numberValue(log.id ?? log.logId),
+            timestamp: textValue(log.timestamp) || textValue(log.createdAt),
+            userName: textValue(log.userName, `User #${log.userId ?? "-"}`),
+            action: textValue(log.action) || textValue(log.actionType),
+            entityType: textValue(log.entityType),
+            description: textValue(log.description),
         })),
-        totalPages: data?.totalPages ?? data?.pagination?.totalPages ?? 1,
+        totalPages: numberValue(data?.totalPages ?? pagination.totalPages, 1),
         totalElements:
-            data?.totalElements ??
-            data?.pagination?.totalElements ??
-            data?.count ??
+            numberValue(data?.totalElements ?? pagination.totalElements ?? data?.count,
             logs.length,
+            ),
     };
 }
 
@@ -687,11 +725,18 @@ export async function removeJury(
 export type ValidationRules = {
     minAdvisors?: number;
     maxAdvisors?: number;
+    minJuryMembers?: number;
+    maxJuryMembers?: number;
     minJury?: number;
     maxJury?: number;
+    requiresPresident?: boolean;
+    requiresVicePresident?: boolean;
+    advisorGroupLimit?: number;
     scheduleWindow?: string;
+    scheduleRules: string[];
+    groupAssignmentRules: string[];
     explicitRules?: string[];
-    [key: string]: any;
+    [key: string]: string | number | boolean | string[] | null | undefined;
 };
 
 export async function fetchValidationRules(
@@ -707,7 +752,13 @@ export async function fetchValidationRules(
     });
 
     if (!res.ok) throw new Error(await parseError(res));
-    const data = await res.json();
+    const data: unknown = await res.json();
     // backend may wrap in { data: {...} } or return directly
-    return data?.data ?? data;
+    const payload = isApiRecord(data) ? data : {};
+    const raw = isApiRecord(payload.data) ? payload.data : payload;
+    return {
+        ...raw,
+        scheduleRules: Array.isArray(raw.scheduleRules) ? raw.scheduleRules.filter((item): item is string => typeof item === "string") : [],
+        groupAssignmentRules: Array.isArray(raw.groupAssignmentRules) ? raw.groupAssignmentRules.filter((item): item is string => typeof item === "string") : [],
+    } as ValidationRules;
 }

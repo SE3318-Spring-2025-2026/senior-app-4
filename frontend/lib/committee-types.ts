@@ -1,4 +1,4 @@
-export type CommitteeStatus = "ACTIVE" | "INACTIVE" | "COMPLETED";
+export type CommitteeStatus = "FORMING" | "ACTIVE" | "INACTIVE" | "COMPLETED";
 
 export type Committee = {
     committeeId: number;

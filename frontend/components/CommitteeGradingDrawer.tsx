@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getToken } from "@/lib/auth";
-import type { SubmissionSummary } from "@/lib/submissions-api";
+import { fetchGradingCriteria, type GradingCriterion, type SubmissionSummary } from "@/lib/submissions-api";
 
 type Props = {
   open: boolean;
@@ -73,15 +73,33 @@ export default function CommitteeGradingDrawer({
 }: Props) {
   const [gradeInput, setGradeInput] = useState("");
   const [comments, setComments] = useState("");
+  const [criteria, setCriteria] = useState<GradingCriterion[]>([]);
+  const [criteriaGrades, setCriteriaGrades] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setGradeInput("");
       setComments("");
+      setCriteria([]);
+      setCriteriaGrades({});
       setSubmitting(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !submission) return;
+    const deliverableType = submission.deliverableType === "REVISED_PROPOSAL" ? "PROPOSAL" : submission.deliverableType;
+    fetchGradingCriteria(deliverableType)
+      .then((items) => {
+        setCriteria(items);
+        setCriteriaGrades(Object.fromEntries(items.map((item) => [String(item.id), ""])));
+      })
+      .catch(() => {
+        setCriteria([]);
+        setCriteriaGrades({});
+      });
+  }, [open, submission]);
 
   if (!open || !submission) {
     return null;
@@ -116,7 +134,12 @@ export default function CommitteeGradingDrawer({
   };
 
   const handleSubmit = async () => {
-    if (!gradeInput) {
+    if (criteria.length > 0 && criteria.some((criterion) => !criteriaGrades[String(criterion.id)])) {
+      toast.error("Select a grade for every criterion.");
+      return;
+    }
+
+    if (criteria.length === 0 && !gradeInput) {
       toast.error("Enter a grade between 0 and 100.");
       return;
     }
@@ -137,7 +160,14 @@ export default function CommitteeGradingDrawer({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          grade: Number(gradeInput),
+          ...(criteria.length > 0
+            ? {
+                criteriaScores: criteria.map((criterion) => ({
+                  criterionId: criterion.id,
+                  grade: criteriaGrades[String(criterion.id)],
+                })),
+              }
+            : { grade: Number(gradeInput) }),
           feedback: comments.trim() || undefined,
         }),
       });
@@ -253,28 +283,41 @@ export default function CommitteeGradingDrawer({
                   </p>
                 </div>
 
-                <div className="mt-5 space-y-2">
-                  <label htmlFor="gradingScore" className="text-sm font-medium text-gray-300">
-                    Final grade
-                  </label>
-                  <input
-                    id="gradingScore"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    inputMode="decimal"
-                    value={gradeInput}
-                    onChange={handleGradeChange}
-                    onKeyDown={handleKeyDown}
-                    placeholder="0 - 100"
-                    disabled={submitting}
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-600 outline-none transition focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Only numeric values from 0 to 100 are accepted.
-                  </p>
-                </div>
+                {criteria.length > 0 ? (
+                  <div className="mt-5 space-y-3">
+                    {criteria.map((criterion) => (
+                      <DrawerCriterionPicker
+                        key={criterion.id}
+                        criterion={criterion}
+                        value={criteriaGrades[String(criterion.id)] ?? ""}
+                        onChange={(value) => setCriteriaGrades((prev) => ({ ...prev, [String(criterion.id)]: value }))}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-5 space-y-2">
+                    <label htmlFor="gradingScore" className="text-sm font-medium text-gray-300">
+                      Final grade
+                    </label>
+                    <input
+                      id="gradingScore"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      inputMode="decimal"
+                      value={gradeInput}
+                      onChange={handleGradeChange}
+                      onKeyDown={handleKeyDown}
+                      placeholder="0 - 100"
+                      disabled={submitting}
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-600 outline-none transition focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Only numeric values from 0 to 100 are accepted.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -312,6 +355,45 @@ export default function CommitteeGradingDrawer({
           </div>
         </div>
       </aside>
+    </div>
+  );
+}
+
+function DrawerCriterionPicker({
+  criterion,
+  value,
+  onChange,
+}: {
+  criterion: GradingCriterion;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const options = criterion.gradingType === "BINARY" ? ["S", "F"] : ["A", "B", "C", "D", "F"];
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-white">{criterion.name}</p>
+          {criterion.description && <p className="mt-1 text-xs text-gray-500">{criterion.description}</p>}
+        </div>
+        <span className="text-xs font-semibold text-blue-300">{criterion.weight}%</span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition ${
+              value === option
+                ? "border-blue-400/40 bg-blue-500 text-white"
+                : "border-white/10 bg-white/5 text-gray-400 hover:text-white"
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

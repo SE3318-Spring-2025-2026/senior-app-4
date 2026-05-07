@@ -29,6 +29,7 @@ import {
     type GithubIntegrationApiResponse,
     type JiraIntegrationApiResponse,
 } from "@/lib/integrations-api";
+import { fetchFinalGrades, type FinalGradeResponse } from "@/lib/final-grading-api";
 
 function formatDate(dateString: string) {
     return new Date(dateString).toLocaleString("en-US", {
@@ -40,6 +41,32 @@ function formatDate(dateString: string) {
     });
 }
 
+function FinalGradeCard({ data }: { data: FinalGradeResponse["data"] }) {
+    return (
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-6 shadow-lg shadow-black/20 backdrop-blur">
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <p className="mb-2 text-sm text-emerald-200">Final Grade</p>
+                    <p className="text-3xl font-semibold text-white">{Number(data.teamGrade).toFixed(2)}</p>
+                </div>
+                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-200">
+                    {data.published ? "Published" : "Draft"}
+                </span>
+            </div>
+            {data.students.length > 0 && (
+                <div className="mt-4 space-y-2">
+                    {data.students.map((student) => (
+                        <div key={student.userId} className="flex items-center justify-between gap-3 rounded-lg bg-black/15 px-3 py-2">
+                            <p className="truncate text-sm text-emerald-50">{student.fullName}</p>
+                            <p className="text-sm font-semibold text-white">{Number(student.finalGrade).toFixed(2)}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function GroupDetailPage() {
     const params = useParams();
     const groupId = Number(params.groupId);
@@ -49,6 +76,8 @@ export default function GroupDetailPage() {
         useState<GithubIntegrationApiResponse | null>(null);
     const [jiraIntegration, setJiraIntegration] =
         useState<JiraIntegrationApiResponse | null>(null);
+    const [finalGrades, setFinalGrades] =
+        useState<FinalGradeResponse["data"] | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -120,6 +149,7 @@ export default function GroupDetailPage() {
                     fetchGithubIntegration(groupId),
                     fetchJiraIntegration(groupId),
                 ]);
+                const finalGradeData = await fetchFinalGrades(groupId).catch(() => null);
 
                 if (cancelled) return;
 
@@ -130,6 +160,7 @@ export default function GroupDetailPage() {
                 setNewGroupName(groupData.groupName);
                 setGithubIntegration(githubData);
                 setJiraIntegration(jiraData);
+                setFinalGrades(finalGradeData?.data ?? null);
             } catch (err) {
                 if (cancelled) return;
                 const message =
@@ -469,6 +500,8 @@ export default function GroupDetailPage() {
                                 }
                             />
                         </div>
+
+                        {finalGrades && <FinalGradeCard data={finalGrades} />}
 
                         <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6 shadow-lg shadow-black/20 backdrop-blur">
                             <p className="text-sm text-gray-400 mb-2">Created At</p>

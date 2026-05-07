@@ -28,7 +28,7 @@ public class GradingCriteriaController {
             @RequestAttribute("jwt_userId") Object userId,
             @RequestAttribute("jwt_role") Object role) {
 
-        if (!"coordinator".equals(role)) {
+        if (!"coordinator".equals(normalizeRole(role))) {
             throw new ForbiddenException("Only coordinators can create grading criteria.");
         }
 
@@ -61,7 +61,7 @@ public class GradingCriteriaController {
             @Valid @RequestBody GradingCriteriaCreateRequestDto request,
             @RequestAttribute("jwt_role") Object role) {
 
-        GradingCriteriaDto updated = gradingCriteriaService.update(id, request, role.toString());
+        GradingCriteriaDto updated = gradingCriteriaService.update(id, request, normalizeRole(role));
 
         return ResponseEntity.ok(Map.of(
                 "status", "success",
@@ -76,7 +76,11 @@ public class GradingCriteriaController {
             @PathVariable Long id,
             @RequestAttribute("jwt_role") Object role) {
 
-        gradingCriteriaService.delete(id, role.toString());
+        gradingCriteriaService.delete(id, normalizeRole(role));
         return ResponseEntity.noContent().build();
+    }
+
+    private String normalizeRole(Object role) {
+        return role == null ? "" : role.toString().trim().toLowerCase();
     }
 }
