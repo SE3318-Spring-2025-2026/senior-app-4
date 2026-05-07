@@ -16,6 +16,14 @@ interface ActiveSprint {
   requiredStoryPoints: number | null;
 }
 
+interface SprintItem {
+  id: number;
+  sprintName: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+}
+
 export default function ValidationSprintsPage() {
   const authStatus = useAuthGuard(['coordinator', 'professor']);
   if (authStatus === 'loading') return <FullSpinner />;
@@ -26,8 +34,9 @@ export default function ValidationSprintsPage() {
 function SprintsLayout() {
   const router = useRouter();
   const [activeSprint, setActiveSprint] = useState<ActiveSprint | null>(null);
+  const [allSprints, setAllSprints] = useState<SprintItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [manualId, setManualId] = useState('');
+  const [sprintsLoading, setSprintsLoading] = useState(true);
 
   useEffect(() => {
     fetch(`${API_BASE}/schedules/active-sprint`, { headers: buildHeaders() })
@@ -35,9 +44,20 @@ function SprintsLayout() {
       .then((data: ActiveSprint | null) => { setActiveSprint(data); })
       .catch(() => { setActiveSprint(null); })
       .finally(() => setLoading(false));
+
+    fetch(`${API_BASE}/coordinator/sprints`, { headers: buildHeaders() })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: SprintItem[]) => {
+        const sorted = [...data].sort((a, b) => a.startDate.localeCompare(b.startDate));
+        setAllSprints(sorted);
+      })
+      .catch(() => setAllSprints([]))
+      .finally(() => setSprintsLoading(false));
   }, []);
 
-  const goToSprint = (id: string | number) => {
+  const isUpcoming = (sprint: SprintItem) => sprint.status === 'UPCOMING';
+
+  const goToSprint = (id: number) => {
     router.push(`/coordinator/ai-validation/sprints/${id}`);
   };
 
@@ -78,9 +98,7 @@ function SprintsLayout() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold text-white">{activeSprint.sprintName}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 font-mono">
-                        ID: {activeSprint.sprintId} · {activeSprint.startDate} → {activeSprint.endDate}
-                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">{activeSprint.startDate} → {activeSprint.endDate}</p>
                     </div>
                     <button
                       onClick={() => goToSprint(activeSprint.sprintId)}
@@ -98,40 +116,63 @@ function SprintsLayout() {
               </div>
             </div>
 
-            {/* Manual sprint ID */}
+            {/* All sprints list */}
             <div className="bg-gray-900 border border-white/8 rounded-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-white/5 flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
                   <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-white">Go to Sprint by ID</p>
-                  <p className="text-xs text-gray-500">Enter a sprint ID manually</p>
+                  <p className="text-sm font-semibold text-white">All Sprints</p>
+                  <p className="text-xs text-gray-500">Past and active sprints are accessible</p>
                 </div>
               </div>
-              <div className="p-6">
-                <form
-                  onSubmit={(e) => { e.preventDefault(); if (manualId.trim()) goToSprint(manualId.trim()); }}
-                  className="flex gap-3"
-                >
-                  <input
-                    type="number"
-                    min={1}
-                    value={manualId}
-                    onChange={(e) => setManualId(e.target.value)}
-                    placeholder="Sprint ID"
-                    className="flex-1 px-4 py-2.5 bg-gray-800 border border-white/10 rounded-xl text-sm text-white placeholder-gray-600 font-mono focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/30 transition-all"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!manualId.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-                  >
-                    Go
-                  </button>
-                </form>
+              <div className="divide-y divide-white/5">
+                {sprintsLoading ? (
+                  <div className="flex items-center gap-3 p-6">
+                    <svg className="w-4 h-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <span className="text-sm text-gray-500">Loading sprints…</span>
+                  </div>
+                ) : allSprints.length === 0 ? (
+                  <p className="text-sm text-gray-500 p-6">No sprints found.</p>
+                ) : (
+                  allSprints.map((sprint) => {
+                    const upcoming = isUpcoming(sprint);
+                    return (
+                      <div
+                        key={sprint.id}
+                        className={`flex items-center justify-between px-6 py-4 transition-colors ${upcoming ? 'opacity-40' : 'hover:bg-white/[0.02] cursor-pointer'}`}
+                        onClick={() => !upcoming && goToSprint(sprint.id)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                            sprint.status === 'ACTIVE'    ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                            sprint.status === 'UPCOMING'  ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+                            'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                          }`}>
+                            {sprint.status === 'ACTIVE' ? 'Active' : sprint.status === 'UPCOMING' ? 'Upcoming' : 'Completed'}
+                          </span>
+                          <div>
+                            <p className="text-sm font-medium text-white">{sprint.sprintName}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{sprint.startDate} → {sprint.endDate}</p>
+                          </div>
+                        </div>
+                        {upcoming ? (
+                          <span className="text-xs text-gray-600">Not available yet</span>
+                        ) : (
+                          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
