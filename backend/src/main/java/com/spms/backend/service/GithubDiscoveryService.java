@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -23,14 +24,11 @@ public class GithubDiscoveryService {
 
     private final RestTemplate restTemplate;
     private final GithubIntegrationRepository githubIntegrationRepository;
-    private final EncryptionService encryptionService;
 
     public GithubDiscoveryService(RestTemplateBuilder restTemplateBuilder,
-                                 GithubIntegrationRepository githubIntegrationRepository,
-                                 EncryptionService encryptionService) {
+                                 GithubIntegrationRepository githubIntegrationRepository) {
         this.restTemplate = restTemplateBuilder.build();
         this.githubIntegrationRepository = githubIntegrationRepository;
-        this.encryptionService = encryptionService;
     }
 
     public Optional<String> findBranchForIssueKey(Long groupId, String issueKey, String repositoryName) {
@@ -38,7 +36,7 @@ public class GithubDiscoveryService {
             GithubIntegration integration = githubIntegrationRepository.findByGroup_Id(groupId)
                     .orElseThrow(() -> new IllegalArgumentException("GitHub integration not found for group: " + groupId));
 
-            String decryptedPat = encryptionService.decrypt(integration.getGithubPatEncrypted());
+            String decryptedPat = integration.getGithubPatEncrypted();
             String orgName = integration.getOrganizationName();
 
             String url = String.format("https://api.github.com/repos/%s/%s/branches?per_page=100",
