@@ -29,6 +29,8 @@ public interface GroupService {
     //Rol bazlı sorgulama yapabilmek için requesterId ve requesterRole ekledim
     Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole, String status, String advisorAssigned, String groupName);
     
+    List<java.util.Map<String, Object>> getGroupLookup();
+    
     void disbandGroup(Long groupId, Long requesterId, String requesterRole);
 
     void bindJiraIntegration(Long groupId, Long requesterId, JiraBindingRequest request);

@@ -90,7 +90,11 @@ public class GroupController {
         return ResponseEntity.ok(groupService.getGroups(pageable, requesterId, requesterRole, status, advisorAssigned, groupName));
     }
 
-    
+    @GetMapping("/lookup")
+    public ResponseEntity<List<java.util.Map<String, Object>>> getGroupLookup() {
+        return ResponseEntity.ok(groupService.getGroupLookup());
+    }
+
     @GetMapping("/{groupId}")
     public ResponseEntity<GroupDetailDto> getGroupDetails(
             @PathVariable Long groupId,
