@@ -22,7 +22,4 @@ export function getErrorMessage(err: any, context?: string): string {
 export function handleApiError(err: any, context?: string) {
     const message = getErrorMessage(err, context);
     toast.error(message);
-    if (process.env.NODE_ENV === "development") {
-        console.error(`[API Error] ${context}:`, err);
-    }
 }

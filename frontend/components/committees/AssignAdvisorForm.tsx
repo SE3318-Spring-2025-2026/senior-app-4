@@ -52,7 +52,8 @@ export default function AssignAdvisorForm({ committeeId, onSuccess, onCancel }: 
             toast.success("Advisor assigned successfully");
             onSuccess();
         } catch (error: any) {
-            console.error("Failed to assign advisor", error);
+            const msg = error?.message || "Failed to assign advisor. Please check the data.";
+            toast.error(msg);
         } finally {
             setLoading(false);
         }
