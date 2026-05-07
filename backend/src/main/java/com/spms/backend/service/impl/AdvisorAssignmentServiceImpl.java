@@ -13,8 +13,10 @@ import com.spms.backend.model.User;
 import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.CommitteeRepository;
 import com.spms.backend.repository.CommitteeAdvisorRepository;
+import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.model.GroupCommitteeAssignment;
 import com.spms.backend.service.AdvisorAssignmentService;
 import com.spms.backend.service.CommitteeNotificationService;
 import com.spms.backend.service.NotificationService;
@@ -43,6 +45,7 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
     private final UserRepository userRepository;
     private final CommitteeAdvisorRepository committeeAdvisorRepository;
     private final CommitteeNotificationService committeeNotificationService;
+    private final GroupCommitteeAssignmentRepository groupCommitteeAssignmentRepository;
 
     public AdvisorAssignmentServiceImpl(
             GroupRepository groupRepository,
@@ -51,7 +54,8 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
             CommitteeRepository committeeRepository,
             UserRepository userRepository,
             CommitteeAdvisorRepository committeeAdvisorRepository,
-            CommitteeNotificationService committeeNotificationService) {
+            CommitteeNotificationService committeeNotificationService,
+            GroupCommitteeAssignmentRepository groupCommitteeAssignmentRepository) {
         this.groupRepository = groupRepository;
         this.auditLogRepository = auditLogRepository;
         this.notificationService = notificationService;
@@ -59,6 +63,7 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         this.userRepository = userRepository;
         this.committeeAdvisorRepository = committeeAdvisorRepository;
         this.committeeNotificationService = committeeNotificationService;
+        this.groupCommitteeAssignmentRepository = groupCommitteeAssignmentRepository;
     }
 
     @Override
@@ -227,6 +232,17 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
         committee.getAdvisors().add(committeeAdvisor);
         committeeRepository.save(committee);
 
+        // Advisor'ın sahip olduğu grupları otomatik olarak commiteye ekle
+        List<Group> advisorGroups = groupRepository.findByAdvisorId(advisorId);
+        for (Group group : advisorGroups) {
+            if (!groupCommitteeAssignmentRepository
+                    .existsByCommittee_CommitteeIdAndGroupId(committeeId, group.getId())) {
+                GroupCommitteeAssignment groupAssignment = new GroupCommitteeAssignment(
+                        committee, group.getId(), GroupCommitteeAssignment.STATUS_ASSIGNED, assignedBy);
+                groupCommitteeAssignmentRepository.save(groupAssignment);
+            }
+        }
+
         AuditLog auditLog = new AuditLog();
         auditLog.setActionType(ActionType.ADVISOR_ASSIGNED);
         auditLog.setUserId(assignedBy);
@@ -251,9 +267,29 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Advisor assignment not found"));
 
+        Long removedAdvisorId = assignment.getAdvisor().getUserId();
         committee.getAdvisors().remove(assignment);
         committeeAdvisorRepository.delete(assignment);
         committeeRepository.save(committee);
+
+        // Advisor'a ait grupları commiteden kaldır
+        // (sadece bu advisor'ın danıştığı ve başka bir advisor tarafından da commiteye eklenmemiş olanlar)
+        List<Group> advisorGroups = groupRepository.findByAdvisorId(removedAdvisorId);
+        for (Group group : advisorGroups) {
+            // Bu grubun advisorı hala bu kişi mi kontrol et (group'taki advisor field'ı)
+            boolean groupStillAdvisedBySameAdvisor = group.getAdvisor() != null
+                    && group.getAdvisor().getUserId().equals(removedAdvisorId);
+            // Commitede başka bir advisor var mı bu gruba karşılık gelen?
+            boolean otherAdvisorCoversGroup = committee.getAdvisors().stream()
+                    .anyMatch(ca -> ca.getAdvisor() != null
+                            && groupRepository.findByAdvisorId(ca.getAdvisor().getUserId())
+                                    .stream().anyMatch(g -> g.getId().equals(group.getId())));
+            if (!otherAdvisorCoversGroup) {
+                groupCommitteeAssignmentRepository
+                        .findByCommittee_CommitteeIdAndGroupId(committeeId, group.getId())
+                        .ifPresent(groupCommitteeAssignmentRepository::delete);
+            }
+        }
 
         AuditLog auditLog = new AuditLog();
         auditLog.setActionType(ActionType.MEMBER_REMOVED);

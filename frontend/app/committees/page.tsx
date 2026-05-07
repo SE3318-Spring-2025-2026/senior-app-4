@@ -37,19 +37,12 @@ export default function CommitteesPage() {
 function getStatusColor(status: string | undefined) {
     switch (status) {
         case "ACTIVE":
-            // turkuaz
-            return "border-teal-500/20 bg-teal-500/10 text-teal-400";
-            
+            return "border-cyan-400/40 bg-cyan-400/15 text-cyan-300 font-semibold";
         case "INACTIVE":
-            // koyu pembe
-            return "border-pink-500/20 bg-pink-500/10 text-pink-400";
-            
+            return "border-pink-500/40 bg-pink-500/15 text-pink-400 font-semibold";
         case "COMPLETED":
-            // turuncu
-            return "border-orange-500/20 bg-orange-500/10 text-orange-400";
-            
+            return "border-orange-400/40 bg-orange-400/15 text-orange-300 font-semibold";
         default:
-            // Beklenmedik bir durum gelirse standart Gri tonu
             return "border-gray-500/20 bg-gray-500/10 text-gray-400";
     }
 }

@@ -6,6 +6,7 @@ public record GroupAssignmentDto(
         Long assignmentId,
         Long groupId,
         String groupName,
+        int membersCount,
         String status,
         Instant examDate,
         Instant assignedAt) {}
