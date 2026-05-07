@@ -162,16 +162,26 @@ public class SubmissionGradeService {
             throw new IllegalArgumentException("Professor has already submitted a grade for this submission");
         }
 
+        // Check if professor is the direct group advisor
+        boolean isDirectAdvisor = groupRepository.findById(submission.getGroupId())
+                .map(g -> g.getAdvisor() != null && g.getAdvisor().getUserId().equals(professorId))
+                .orElse(false);
+
         GroupCommitteeAssignment assignment = assignmentRepository
                 .findTopByGroupIdAndStatusOrderByAssignedAtDesc(submission.getGroupId(), "ASSIGNED")
-                .orElseThrow(() -> new IllegalStateException("No active committee assigned to this group"));
+                .orElse(null);
 
-        Committee committee = assignment.getCommittee();
+        boolean isAuthorized = isDirectAdvisor;
+        Committee committee = null;
 
-        boolean isAuthorized = committee.getAdvisors().stream()
-                .anyMatch(adv -> adv.getAdvisor().getUserId().equals(professorId)) ||
-                committee.getJuryMembers().stream()
-                        .anyMatch(jury -> jury.getJuryMember().getUserId().equals(professorId));
+        if (assignment != null) {
+            committee = assignment.getCommittee();
+            isAuthorized = isAuthorized ||
+                    committee.getAdvisors().stream()
+                            .anyMatch(adv -> adv.getAdvisor().getUserId().equals(professorId)) ||
+                    committee.getJuryMembers().stream()
+                            .anyMatch(jury -> jury.getJuryMember().getUserId().equals(professorId));
+        }
 
         if (!isAuthorized) {
             throw new SecurityException("Professor is not authorized to grade this submission");
@@ -190,7 +200,9 @@ public class SubmissionGradeService {
             grade = gradeRepository.save(grade);
         }
 
-        int totalCommitteeMembersCount = committee.getAdvisors().size() + committee.getJuryMembers().size();
+        int totalCommitteeMembersCount = committee != null
+                ? committee.getAdvisors().size() + committee.getJuryMembers().size()
+                : 1;
         List<SubmissionGrade> allGrades = gradeRepository.findBySubmissionId(submissionId);
 
         boolean isGradingComplete = false;
@@ -208,8 +220,10 @@ public class SubmissionGradeService {
             String notificationMsg = "Grading is complete for Submission " + submissionId + ". Final grade: "
                     + String.format("%.2f", average);
 
-            notificationService.createSystemAlert(committee.getCreatedBy(), notificationMsg, "GRADING_COMPLETE",
-                    "{\"submissionId\": " + submissionId + "}");
+            if (committee != null) {
+                notificationService.createSystemAlert(committee.getCreatedBy(), notificationMsg, "GRADING_COMPLETE",
+                        "{\"submissionId\": " + submissionId + "}");
+            }
 
             Group group = groupRepository.findById(submission.getGroupId())
                     .orElseThrow(() -> new IllegalStateException("Group not found"));
