@@ -122,8 +122,7 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
             try {
                 processSingleGroup(group, sprint);
             } catch (Exception e) {
-                logger.error("Failed to sync group: {} — {}: {}", group.getId(),
-                        e.getClass().getSimpleName(), e.getMessage(), e);
+                logger.error("Failed to sync group: {}", group.getId(), e);
             }
         }
 
@@ -132,12 +131,12 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
 
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     protected void processSingleGroup(Group group, com.spms.backend.model.Sprint sprint) {
-        logger.info("SYNC-TRACE group={} sprint={}", group.getId(), sprint.getId());
+        logger.debug("Processing group: {} for sprint: {}", group.getId(), sprint.getId());
 
         // Phase 2: Fetch JIRA issues
         var jiraIntegration = jiraIntegrationRepository.findByGroup_Id(group.getId());
         if (jiraIntegration.isEmpty()) {
-            logger.info("SYNC-TRACE group={} — no JIRA integration, skipping", group.getId());
+            logger.debug("No JIRA integration found for group: {}", group.getId());
             return;
         }
 
@@ -146,8 +145,8 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         // jira_email was added in V9 migration — integrations created before that have NULL here.
         // Re-saving the integration via the bind endpoint populates it; skip until then.
         if (jira.getJiraEmail() == null || jira.getApiKey() == null) {
-            logger.warn("SYNC-TRACE group={} — jiraEmail={} apiKeyNull={}, skipping",
-                    group.getId(), jira.getJiraEmail(), jira.getApiKey() == null);
+            logger.warn("Skipping JIRA sync for group {}: email or API key is null. "
+                    + "Re-save the JIRA integration for this group to fix.", group.getId());
             return;
         }
 
@@ -162,16 +161,16 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
                 decryptedJiraToken,
                 jira.getProjectKey()
             );
-            logger.info("SYNC-TRACE group={} — fetched {} JIRA issues", group.getId(), jiraIssues.size());
+            logger.debug("Fetched {} JIRA issues for group: {}", jiraIssues.size(), group.getId());
         } catch (Exception e) {
-            logger.error("SYNC-TRACE group={} — JIRA fetch failed: {}", group.getId(), e.getMessage());
+            logger.error("Failed to fetch JIRA issues for group: {}", group.getId(), e);
             return;
         }
 
         // Phase 3 & 4: GitHub data fetch and merge/persist
         var githubIntegration = githubIntegrationRepository.findByGroup_Id(group.getId());
         if (githubIntegration.isEmpty()) {
-            logger.info("SYNC-TRACE group={} — no GitHub integration, skipping", group.getId());
+            logger.debug("No GitHub integration found for group: {}", group.getId());
             return;
         }
 
@@ -179,9 +178,7 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         // EncryptionConverter already decrypts githubPatEncrypted on entity load — use directly
         String decryptedGithubPat = github.getGithubPatEncrypted();
 
-        logger.info("SYNC-TRACE group={} — deleting old records for sprint={}", group.getId(), sprint.getId());
         sprintIssueTrackingRepository.deleteByGroup_IdAndSprint_Id(group.getId(), sprint.getId());
-        logger.info("SYNC-TRACE group={} — delete done, building {} tracking logs", group.getId(), jiraIssues.size());
 
         List<SprintIssueTracking> trackingLogs = new ArrayList<>();
 
@@ -222,9 +219,8 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
             trackingLogs.add(log);
         }
 
-        logger.info("SYNC-TRACE group={} — saving {} tracking logs", group.getId(), trackingLogs.size());
         sprintIssueTrackingRepository.saveAll(trackingLogs);
-        logger.info("SYNC-TRACE group={} — saveAll done", group.getId());
+        logger.info("Synced {} tracking records for group: {}", trackingLogs.size(), group.getId());
     }
 
     @Override
