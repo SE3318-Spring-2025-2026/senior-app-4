@@ -38,6 +38,9 @@ public class User {
     @Column(name = "requires_password_change")
     private boolean requiresPasswordChange;
 
+    @Column(name = "password_reset_token")
+    private String passwordResetToken;
+
     @Column(name = "current_advisee_count", nullable = false)
     private Integer currentAdviseeCount = 0;
 
@@ -54,6 +57,7 @@ public class User {
         this.role = other.role;
         this.createdAt = other.createdAt;
         this.requiresPasswordChange = other.requiresPasswordChange;
+        this.passwordResetToken = other.passwordResetToken;
         this.currentAdviseeCount = other.currentAdviseeCount;
     }
 
@@ -127,6 +131,14 @@ public class User {
 
     public void setRequiresPasswordChange(boolean requiresPasswordChange) {
         this.requiresPasswordChange = requiresPasswordChange;
+    }
+
+    public String getPasswordResetToken() {
+        return passwordResetToken;
+    }
+
+    public void setPasswordResetToken(String passwordResetToken) {
+        this.passwordResetToken = passwordResetToken;
     }
 
     public Integer getCurrentAdviseeCount() {

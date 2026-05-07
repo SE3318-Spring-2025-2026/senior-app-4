@@ -89,7 +89,7 @@ function MyAdviseesLayout() {
                     </div>
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
                         <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                        <span className="text-xs text-gray-400">D2 Groups</span>
+                        <span className="text-xs text-gray-400">System Online</span>
                     </div>
                 </div>
                 <div className="flex-1 p-8">

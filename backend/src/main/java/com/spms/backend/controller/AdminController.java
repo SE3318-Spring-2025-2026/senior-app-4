@@ -5,7 +5,7 @@ import com.spms.backend.dto.response.ResetLinkResponse;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.model.User;
 import com.spms.backend.repository.UserRepository;
-import com.spms.backend.service.PasswordHashingService;
+import com.spms.backend.service.EmailService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -34,18 +34,18 @@ import com.spms.backend.repository.AuditLogRepository;
 public class AdminController {
 
     private final UserRepository userRepository;
-    private final PasswordHashingService passwordHashingService;
+    private final EmailService emailService;
     private final AuditLogRepository auditLogRepository;
 
     public AdminController(UserRepository userRepository,
-                           PasswordHashingService passwordHashingService,
+                           EmailService emailService,
                            AuditLogRepository auditLogRepository) {
         this.userRepository = userRepository;
-        this.passwordHashingService = passwordHashingService;
+        this.emailService = emailService;
         this.auditLogRepository = auditLogRepository;
     }
 
-    @Operation(summary = "Generate one-time password reset link for a professor")
+    @Operation(summary = "Generate one-time password reset link and send via email")
     @PostMapping("/generate-reset-link")
     public ResponseEntity<ResetLinkResponse> generateResetLink(
             @Valid @RequestBody ResetLinkRequest request
@@ -54,20 +54,18 @@ public class AdminController {
                 .orElseThrow(() -> new BadRequestException(
                         "Professor not found for the given email."));
 
-        // Tek kullanımlık token üret
         String resetToken = UUID.randomUUID().toString();
 
-        // Geçici şifre olarak token'ı hash'le ve kullanıcıyı güncelle
-        user.setPasswordHash(passwordHashingService.hashPassword(resetToken));
+        user.setPasswordResetToken(resetToken);
         user.setRequiresPasswordChange(true);
         userRepository.save(user);
 
-        String resetUrl = "http://localhost:3000/auth/change-password?token=" + resetToken;
+        emailService.sendPasswordResetEmail(user.getEmail(), user.getFullName(), resetToken);
 
         return ResponseEntity.ok(new ResetLinkResponse(
-                "Password reset link generated successfully.",
+                "Password reset email sent successfully.",
                 resetToken,
-                resetUrl
+                null
         ));
     }
     @Operation(summary = "Get global audit logs")
