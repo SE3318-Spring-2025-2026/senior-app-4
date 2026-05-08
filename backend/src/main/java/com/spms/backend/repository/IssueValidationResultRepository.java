@@ -2,6 +2,8 @@ package com.spms.backend.repository;
 
 import com.spms.backend.model.IssueValidationResult;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,4 +19,16 @@ public interface IssueValidationResultRepository extends JpaRepository<IssueVali
     List<IssueValidationResult> findBySprintIdAndTeamId(Long sprintId, Long teamId);
     List<IssueValidationResult> findBySprintIdAndTeamIdAndValidationStatus(Long sprintId, Long teamId, String validationStatus);
     Optional<IssueValidationResult> findTopByIssueKeyOrderByEvaluatedAtDesc(String issueKey);
+
+    @Query("SELECT r FROM IssueValidationResult r WHERE r.sprintId = :sprintId AND r.teamId = :teamId " +
+           "AND r.validationStatus = 'VALIDATED' AND r.evaluatedAt = " +
+           "(SELECT MAX(r2.evaluatedAt) FROM IssueValidationResult r2 WHERE r2.sprintId = :sprintId " +
+           "AND r2.teamId = :teamId AND r2.issueKey = r.issueKey AND r2.validationStatus = 'VALIDATED')")
+    List<IssueValidationResult> findLatestValidatedBySprintIdAndTeamId(@Param("sprintId") Long sprintId,
+                                                                        @Param("teamId") Long teamId);
+
+    @Query("SELECT r.issueKey FROM IssueValidationResult r WHERE r.sprintId = :sprintId " +
+           "AND r.teamId = :teamId AND r.validationStatus = 'VALIDATED'")
+    List<String> findValidatedIssueKeysBySprintIdAndTeamId(@Param("sprintId") Long sprintId,
+                                                            @Param("teamId") Long teamId);
 }

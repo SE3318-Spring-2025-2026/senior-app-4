@@ -51,6 +51,15 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     @Query("SELECT s FROM Submission s WHERE s.committeeId IN :committeeIds")
     Page<Submission> findByCommitteeIdIn(@Param("committeeIds") List<Long> committeeIds, Pageable pageable);
 
+    @Query("SELECT s FROM Submission s WHERE s.groupId IN :groupIds AND " +
+           "(:status IS NULL OR s.status = :status) AND " +
+           "(:deliverableType IS NULL OR s.deliverableType = :deliverableType)")
+    Page<Submission> findByGroupIdInWithFilters(
+            @Param("groupIds") List<Long> groupIds,
+            @Param("status") SubmissionStatus status,
+            @Param("deliverableType") DeliverableType deliverableType,
+            Pageable pageable);
+
     @Query("SELECT s FROM Submission s WHERE s.committeeId IN :committeeIds AND " +
            "(:groupId IS NULL OR s.groupId = :groupId) AND " +
            "(:status IS NULL OR s.status = :status) AND " +

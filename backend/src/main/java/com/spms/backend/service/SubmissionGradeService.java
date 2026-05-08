@@ -1,37 +1,36 @@
 package com.spms.backend.service;
 
-import com.spms.backend.dto.response.GradeItemDTO;
-import com.spms.backend.dto.response.CriteriaScoreDTO;
-import com.spms.backend.dto.response.GradeListResponse;
 import com.spms.backend.dto.request.CriteriaScoreRequest;
 import com.spms.backend.dto.request.GradeSubmissionRequest;
+import com.spms.backend.dto.response.CriteriaScoreDTO;
+import com.spms.backend.dto.response.GradeItemDTO;
+import com.spms.backend.dto.response.GradeListResponse;
 import com.spms.backend.dto.response.GradeSubmissionResponse;
 import com.spms.backend.dto.response.SuccessResponse;
+import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.model.Committee;
+import com.spms.backend.model.GradingCriteria;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupCommitteeAssignment;
 import com.spms.backend.model.Submission;
 import com.spms.backend.model.SubmissionGrade;
 import com.spms.backend.model.SubmissionGradeCriterionScore;
 import com.spms.backend.model.User;
-import com.spms.backend.model.GradingCriteria;
 import com.spms.backend.model.enums.SubmissionStatus;
 import com.spms.backend.model.enums.GradingType;
+import com.spms.backend.repository.GradingCriteriaRepository;
 import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupRepository;
-import com.spms.backend.repository.GradingCriteriaRepository;
 import com.spms.backend.repository.SubmissionGradeRepository;
 import com.spms.backend.repository.SubmissionGradeCriterionScoreRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import com.spms.backend.repository.UserRepository;
-import com.spms.backend.service.NotificationService;
 import com.spms.backend.repository.ScheduleRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -74,11 +73,11 @@ public class SubmissionGradeService {
     public GradeListResponse getSubmissionGrades(Long submissionId, String userRole) {
         submissionRepository.findById(submissionId)
             .orElseThrow(() -> new IllegalArgumentException("Submission not found with ID: " + submissionId));
-            
+
         List<SubmissionGrade> grades = gradeRepository.findBySubmissionId(submissionId);
-        
-        final int[] totalCommitteeMembers = {3}; 
-        
+
+        final int[] totalCommitteeMembers = {3};
+
         Submission sub = submissionRepository.findById(submissionId).orElse(null);
         if (sub != null) {
             assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(sub.getGroupId(), "ASSIGNED")
@@ -90,19 +89,20 @@ public class SubmissionGradeService {
 
         int gradeCount = grades.size();
         boolean isGradingComplete = (gradeCount >= totalCommitteeMembers[0]);
-        
+
         Double averageGrade = null;
         if (!grades.isEmpty() && isGradingComplete) {
             averageGrade = grades.stream().mapToDouble(SubmissionGrade::getScore).average().orElse(0.0);
         }
 
         List<GradeItemDTO> gradeItems = new ArrayList<>();
-        
+
         if (!"STUDENT".equalsIgnoreCase(userRole)) {
             gradeItems = grades.stream().map(g -> {
                 String name = userRepository.findById(g.getProfessorId())
                         .map(User::getFullName)
                         .orElse("Unknown");
+
                 return new GradeItemDTO(
                         g.getId(),
                         g.getProfessorId(),
@@ -113,7 +113,7 @@ public class SubmissionGradeService {
                         g.getGradedAt()
                 );
             }).collect(Collectors.toList());
-            
+
             if (!isGradingComplete && !grades.isEmpty()) {
                 averageGrade = grades.stream().mapToDouble(SubmissionGrade::getScore).average().orElse(0.0);
             }
@@ -151,18 +151,27 @@ public class SubmissionGradeService {
             throw new IllegalArgumentException("Professor has already submitted a grade for this submission");
         }
 
+        boolean isDirectAdvisor = groupRepository.findById(submission.getGroupId())
+                .map(g -> g.getAdvisor() != null && g.getAdvisor().getUserId().equals(professorId))
+                .orElse(false);
+
         RubricGrade rubricGrade = resolveRubricGrade(submission, request);
 
         GroupCommitteeAssignment assignment = assignmentRepository
                 .findTopByGroupIdAndStatusOrderByAssignedAtDesc(submission.getGroupId(), "ASSIGNED")
-                .orElseThrow(() -> new IllegalStateException("No active committee assigned to this group"));
+                .orElse(null);
 
-        Committee committee = assignment.getCommittee();
+        boolean isAuthorized = isDirectAdvisor;
+        Committee committee = null;
 
-        boolean isAuthorized = committee.getAdvisors().stream()
-                .anyMatch(adv -> adv.getAdvisor().getUserId().equals(professorId)) ||
-                committee.getJuryMembers().stream()
-                        .anyMatch(jury -> jury.getJuryMember().getUserId().equals(professorId));
+        if (assignment != null) {
+            committee = assignment.getCommittee();
+            isAuthorized = isAuthorized ||
+                    committee.getAdvisors().stream()
+                            .anyMatch(adv -> adv.getAdvisor().getUserId().equals(professorId)) ||
+                    committee.getJuryMembers().stream()
+                            .anyMatch(jury -> jury.getJuryMember().getUserId().equals(professorId));
+        }
 
         if (!isAuthorized) {
             throw new SecurityException("Professor is not authorized to grade this submission");
@@ -173,18 +182,17 @@ public class SubmissionGradeService {
         grade.setProfessorId(professorId);
         grade.setScore(rubricGrade.score());
         grade.setFeedback(request.getFeedback());
-        
         grade = gradeRepository.save(grade);
         saveCriterionScores(grade, rubricGrade.criterionScores());
 
-        int totalCommitteeMembersCount = committee.getAdvisors().size() + committee.getJuryMembers().size();
+        int totalCommitteeMembersCount = committee != null
+                ? committee.getAdvisors().size() + committee.getJuryMembers().size()
+                : 1;
         List<SubmissionGrade> allGrades = gradeRepository.findBySubmissionId(submissionId);
 
         boolean isGradingComplete = false;
         if (allGrades.size() >= totalCommitteeMembersCount) {
             isGradingComplete = true;
-            // The submission grade is the committee average; the PDF final grade
-            // formula is calculated at the team/student level by FinalGradeCalculationService.
             double average = allGrades.stream()
                     .mapToDouble(SubmissionGrade::getScore)
                     .average()
@@ -199,13 +207,15 @@ public class SubmissionGradeService {
 
             String notificationMsg = "Grading is complete for Submission " + submissionId + ". Final grade: "
                     + String.format("%.2f", average);
-            
-            notificationService.createSystemAlert(committee.getCreatedBy(), notificationMsg, "GRADING_COMPLETE",
-                    "{\"submissionId\": " + submissionId + "}");
+
+            if (committee != null) {
+                notificationService.createSystemAlert(committee.getCreatedBy(), notificationMsg, "GRADING_COMPLETE",
+                        "{\"submissionId\": " + submissionId + "}");
+            }
 
             Group group = groupRepository.findById(submission.getGroupId())
                     .orElseThrow(() -> new IllegalStateException("Group not found"));
-            
+
             if (group.getLeader() != null) {
                 notificationService.createSystemAlert(group.getLeader().getUserId(), notificationMsg, "GRADING_COMPLETE",
                         "{\"submissionId\": " + submissionId + "}");
@@ -217,21 +227,17 @@ public class SubmissionGradeService {
 
     @Transactional
     public SuccessResponse updateGrade(Long submissionId, Long gradeId, Long professorId, GradeSubmissionRequest request) {
-        // 1. Validate grade exists → 404
         SubmissionGrade grade = gradeRepository.findById(gradeId)
                 .orElseThrow(() -> new com.spms.backend.exception.NotFoundException("Grade not found with ID: " + gradeId));
 
-        // 2. Validate grade belongs to specified submission → 404
         if (!grade.getSubmissionId().equals(submissionId)) {
             throw new com.spms.backend.exception.NotFoundException("Grade not found for the specified submission");
         }
 
-        // 3. Ownership check: professor can only update own grade → 403
         if (!grade.getProfessorId().equals(professorId)) {
             throw new com.spms.backend.exception.ForbiddenException("Professor can only update their own grade record");
         }
 
-        // 4. D10 Schedule Deadline Check → 403
         scheduleRepository.findTopByOrderByIdDesc().ifPresent(schedule -> {
             if (schedule.getGradingDeadline() != null
                     && java.time.Instant.now().isAfter(schedule.getGradingDeadline())) {
@@ -239,19 +245,16 @@ public class SubmissionGradeService {
             }
         });
 
-        // 5. Update the grade fields
         RubricGrade rubricGrade = resolveRubricGrade(submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new com.spms.backend.exception.NotFoundException("Submission not found")), request);
         grade.setScore(rubricGrade.score());
         grade.setFeedback(request.getFeedback());
         grade.setGradedAt(java.time.LocalDateTime.now());
-        gradeRepository.save(grade);
-        if (criterionScoreRepository != null) {
-            criterionScoreRepository.deleteByGrade_Id(gradeId);
-            saveCriterionScores(grade, rubricGrade.criterionScores());
-        }
 
-        // 6. Recalculate average if grading is complete
+        gradeRepository.save(grade);
+        criterionScoreRepository.deleteByGrade_Id(gradeId);
+        saveCriterionScores(grade, rubricGrade.criterionScores());
+
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new com.spms.backend.exception.NotFoundException("Submission not found"));
 

@@ -21,12 +21,11 @@ type PageState = "loading" | "results" | "progress" | "empty" | "forbidden" | "e
 
 export default function SprintAiValidationPage() {
   const authStatus = useAuthGuard(["coordinator", "professor"]);
-  if (authStatus === "loading") return <FullSpinner />;
   if (authStatus === "denied") return <AccessDenied />;
-  return <SprintPageLayout />;
+  return <SprintPageLayout authLoading={authStatus === "loading"} />;
 }
 
-function SprintPageLayout() {
+function SprintPageLayout({ authLoading }: { authLoading: boolean }) {
   const params = useParams<{ sprintId: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,11 +46,11 @@ function SprintPageLayout() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isCoordinator) return;
+    if (!isCoordinator || authLoading) return;
     fetchGroups(0, 200)
       .then((page) => setTeamsForTrigger(page.content.map((g) => ({ id: String(g.id), name: g.groupName }))))
       .catch(() => setTeamsForTrigger([]));
-  }, [isCoordinator]);
+  }, [isCoordinator, authLoading]);
 
   const syncJobIdToUrl = useCallback(
     (id: number | null) => {
@@ -99,27 +98,28 @@ function SprintPageLayout() {
     setErrorMessage(null);
 
     try {
-      const active = await getActiveJobForSprint(sprintId);
+      const [active] = await Promise.all([
+        getActiveJobForSprint(sprintId).catch(() => null),
+        loadResults(selectedTeamId || undefined),
+      ]);
       if (active) {
         setJobId(active.data.jobId);
         syncJobIdToUrl(active.data.jobId);
         setPageState("progress");
-        return;
+      } else {
+        syncJobIdToUrl(null);
+        setJobId(null);
       }
-      syncJobIdToUrl(null);
-      setJobId(null);
-      await loadResults(selectedTeamId || undefined);
     } catch (err: unknown) {
       const error = err as Error & { httpStatus?: number };
       if (error.httpStatus === 403) {
         setPageState("forbidden");
-      } else {
-        await loadResults(selectedTeamId || undefined);
       }
     }
   }, [loadResults, selectedTeamId, sprintId, syncJobIdToUrl]);
 
   useEffect(() => {
+    if (authLoading) return;
     const raw = searchParams.get("jobId");
     if (raw) {
       setJobId(Number(raw));
@@ -128,7 +128,7 @@ function SprintPageLayout() {
       loadPage();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sprintId]);
+  }, [sprintId, authLoading]);
 
   const handleJobStarted = (newJobId: number) => {
     setShowModal(false);
@@ -288,14 +288,6 @@ function EmptyState({
           Run AI Validation
         </button>
       )}
-    </div>
-  );
-}
-
-function FullSpinner() {
-  return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
     </div>
   );
 }

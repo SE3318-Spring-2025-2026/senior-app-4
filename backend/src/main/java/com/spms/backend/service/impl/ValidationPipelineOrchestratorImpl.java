@@ -127,6 +127,19 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
                     .findByJob_JobIdAndValidationStatus(job.getParentJob().getJobId(), STATUS_FAILED)
                     .stream().map(IssueValidationResult::getIssueKey).collect(Collectors.toSet());
             all = all.stream().filter(s -> failedKeys.contains(s.getIssueKey())).collect(Collectors.toList());
+        } else {
+            // Skip issues already VALIDATED in a previous run for this sprint+team
+            Long sprintId = job.getSprint().getId();
+            Long teamId = job.getTeam() != null ? job.getTeam().getId() : null;
+            if (teamId != null) {
+                Set<String> alreadyValidated = new java.util.HashSet<>(
+                        issueValidationResultRepository.findValidatedIssueKeysBySprintIdAndTeamId(sprintId, teamId));
+                if (!alreadyValidated.isEmpty()) {
+                    all = all.stream()
+                            .filter(s -> !alreadyValidated.contains(s.getIssueKey()))
+                            .collect(Collectors.toList());
+                }
+            }
         }
 
         return all;
