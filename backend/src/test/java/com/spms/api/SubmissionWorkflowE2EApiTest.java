@@ -21,6 +21,7 @@ import com.spms.backend.service.FileStorageService;
 import com.spms.backend.service.TokenService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -32,6 +33,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import io.restassured.http.ContentType;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +43,6 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -114,9 +116,6 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
     void seedSharedFixture() {
         tx = new TransactionTemplate(txManager);
 
-        // Mock FileStorageService so no real Supabase HTTP is made during tests
-        when(fileStorageService.store(any())).thenReturn("https://fake.supabase.co/test-file.pdf");
-
         // Coordinator — also becomes committee.createdBy (used for Gap F assertion)
         User coordinator = createCoordinator("Coord-79", TestDataFactory.uniqueEmail());
         coordinatorId = coordinator.getUserId();
@@ -162,11 +161,18 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
     }
 
     /**
-     * Creates a fresh group per upload test so each test starts with no existing
+     * Re-stubs FileStorageService before every test. Spring Boot 3.x's MockitoTestExecutionListener
+     * calls Mockito.reset() on all @MockBean instances after each test method, so a @BeforeAll stub
+     * would be cleared from the 2nd test onwards.
+     *
+     * Also creates a fresh group per test so each upload test starts with no existing
      * root submission, avoiding the duplicate-root 400 collision.
      */
     @BeforeEach
-    void freshGroupForUploadTests() {
+    void perTestSetup() {
+        // Re-stub after Mockito.reset() — must be in @BeforeEach, not @BeforeAll
+        when(fileStorageService.store(any())).thenReturn("https://fake.supabase.co/test-file.pdf");
+
         freshGroupId = tx.execute(s -> {
             Group g = new Group();
             g.setGroupName("FreshGroup79 " + System.nanoTime());
@@ -178,6 +184,47 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
         });
     }
 
+    /**
+     * Removes all test-seeded data to prevent unique-constraint violations on repeated runs
+     * against a persistent (non-ephemeral) database.
+     */
+    @AfterAll
+    void cleanupFixture() {
+        tx.executeWithoutResult(s -> {
+            // Order matters: children before parents (FK constraints)
+            em.createNativeQuery("DELETE FROM grades WHERE professor_id IN (:ids)")
+                    .setParameter("ids", List.of(advisor1Id, jury1Id, jury2Id))
+                    .executeUpdate();
+            em.createNativeQuery("DELETE FROM submission_reviews WHERE reviewer_id IN (:ids)")
+                    .setParameter("ids", List.of(advisor1Id, jury1Id, jury2Id))
+                    .executeUpdate();
+            em.createNativeQuery("DELETE FROM deliverables WHERE committee_id = :cid")
+                    .setParameter("cid", committeeId)
+                    .executeUpdate();
+            em.createNativeQuery("DELETE FROM group_committee_assignments WHERE committee_id = :cid")
+                    .setParameter("cid", committeeId)
+                    .executeUpdate();
+            em.createNativeQuery("DELETE FROM committee_advisors WHERE committee_id = :cid")
+                    .setParameter("cid", committeeId)
+                    .executeUpdate();
+            em.createNativeQuery("DELETE FROM committee_jury_members WHERE committee_id = :cid")
+                    .setParameter("cid", committeeId)
+                    .executeUpdate();
+            em.createNativeQuery("DELETE FROM committees WHERE committee_id = :cid")
+                    .setParameter("cid", committeeId)
+                    .executeUpdate();
+            em.createNativeQuery("DELETE FROM notifications WHERE to_user_id IN (:ids)")
+                    .setParameter("ids", List.of(coordinatorId, leaderId, advisor1Id, jury1Id, jury2Id))
+                    .executeUpdate();
+            em.createNativeQuery("DELETE FROM groups WHERE leader_id = :lid")
+                    .setParameter("lid", leaderId)
+                    .executeUpdate();
+            em.createNativeQuery("DELETE FROM users WHERE user_id IN (:ids)")
+                    .setParameter("ids", List.of(coordinatorId, leaderId, advisor1Id, jury1Id, jury2Id))
+                    .executeUpdate();
+        });
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     //  3.1 Submit Deliverable — POST /submissions
     // ═══════════════════════════════════════════════════════════════════════
@@ -185,7 +232,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
     @Test
     @DisplayName("POST /submissions (PROPOSAL, valid) → 201, PENDING_REVIEW, committee notified (p3_1)")
     void uploadProposal_validRequest_returns201AndNotifiesCommittee() {
-        long notifBefore = countSystemAlerts(advisor1Id, "SUBMISSION_ALERT");
+        long notifBefore = countSubmissionAlerts(advisor1Id);
 
         // Uses freshGroupId — a new group per test, so no duplicate-root collision
         given()
@@ -207,10 +254,10 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
 
         // Side-effect S-9: committee members receive a SYSTEM_ALERT about the submission.
         // createSystemAlert stores: "New PROPOSAL submitted by Group: <name> | submissionId:<id>"
-        // Scoped check: any new SYSTEM_ALERT for advisor1 after the call is sufficient
-        // (freshGroupId group is unique per test, so cross-test pollution is impossible).
-        assertTrue(countNotificationsSince(advisor1Id, notifBefore),
-                "Spec §3.1 side-effect: committee advisor must receive SUBMISSION_ALERT");
+        // Exact-delta assertion: before + 1 == after. The discriminator "submitted by Group" is
+        // present in every submission notification message and scoped to this user.
+        assertEquals(notifBefore + 1, countSubmissionAlerts(advisor1Id),
+                "Spec §3.1 side-effect: committee advisor must receive exactly one SUBMISSION_ALERT");
     }
 
     @Test
@@ -373,8 +420,12 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
     void createReview_approvedDecision_setsSubmissionToApproved() {
         Long submissionId = seedProposalWithStatus(SubmissionStatus.PENDING_REVIEW);
 
+        // Note: production DTO (CreateReviewRequestDto) uses "comment" (singular).
+        // Spec §3.4 (ReviewCreateRequest) says "comments" (plural) — this is a known
+        // DTO-vs-spec naming gap. Test pins the production DTO field name.
         given()
                 .header("Authorization", "Bearer " + advisor1Token)
+                .contentType(ContentType.JSON)
                 .body(Map.of("comment", "Looks good.", "status", "APPROVED"))
         .when()
                 .post("/api/v1/submissions/" + submissionId + "/reviews")
@@ -395,6 +446,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
 
         given()
                 .header("Authorization", "Bearer " + advisor1Token)
+                .contentType(ContentType.JSON)
                 .body(Map.of("comment", "Please revise section 2.", "status", "REVISION_REQUESTED"))
         .when()
                 .post("/api/v1/submissions/" + submissionId + "/reviews")
@@ -413,6 +465,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
     void createReview_submissionNotFound_returns404() {
         given()
                 .header("Authorization", "Bearer " + advisor1Token)
+                .contentType(ContentType.JSON)
                 .body(Map.of("comment", "test", "status", "APPROVED"))
         .when()
                 .post("/api/v1/submissions/" + Long.MAX_VALUE + "/reviews")
@@ -462,6 +515,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
         // Jury2 posts the final (3rd) grade via HTTP
         given()
                 .header("Authorization", "Bearer " + jury2Token)
+                .contentType(ContentType.JSON)
                 .body(Map.of("grade", 90.0))
         .when()
                 .post("/api/v1/submissions/" + submissionId + "/grades")
@@ -525,6 +579,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
 
         given()
                 .header("Authorization", "Bearer " + advisor1Token)
+                .contentType(ContentType.JSON)
                 .body(Map.of("grade", 88.0))
         .when()
                 .post("/api/v1/submissions/" + submissionId + "/grades")
@@ -548,6 +603,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
 
         given()
                 .header("Authorization", "Bearer " + jury1Token)
+                .contentType(ContentType.JSON)
                 .body(Map.of("grade", 70.0))
         .when()
                 .post("/api/v1/submissions/" + submissionId + "/grades")
@@ -611,14 +667,12 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
     }
 
     /**
-     * Returns true if the current SYSTEM_ALERT count for the user exceeds the given baseline.
-     * Used for SUBMISSION_ALERT side-effect checks where an exact count isn't meaningful
-     * because the stored message text doesn't embed the alertType discriminator.
+     * Counts SYSTEM_ALERT notifications for a user that contain the submission notification
+     * message prefix emitted by SubmissionServiceImpl: "submitted by Group".
+     * Uses the same exact-delta pattern as countGradingCompleteAlerts.
      */
-    private boolean countNotificationsSince(Long toUserId, long baseline) {
-        List<Notification> all = notificationRepository
-                .findByToUser_UserIdAndTypeOrderByCreatedAtDesc(toUserId, NotificationType.SYSTEM_ALERT);
-        return all.size() > baseline;
+    private long countSubmissionAlerts(Long toUserId) {
+        return countSystemAlerts(toUserId, "submitted by Group");
     }
 
     /** Mirrors SubmissionGradingMultiStateApiTest.createCoordinator (TestDataFactory has no coordinator helper). */
