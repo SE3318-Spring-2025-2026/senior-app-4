@@ -133,14 +133,11 @@ public class AuthController {
             throw new BadRequestException("newPassword is required.");
         }
 
-        User user = userRepository.findAll().stream()
-                .filter(u -> u.isRequiresPasswordChange()
-                        && u.getPasswordHash() != null
-                        && passwordHashingService.matchesPassword(token, u.getPasswordHash()))
-                .findFirst()
+        User user = userRepository.findByPasswordResetToken(token)
                 .orElseThrow(() -> new UnauthorizedException("Invalid or expired reset token."));
 
         user.setPasswordHash(passwordHashingService.hashPassword(newPassword));
+        user.setPasswordResetToken(null);
         user.setRequiresPasswordChange(false);
         userRepository.save(user);
 
