@@ -2,11 +2,12 @@
 
 import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
-import { Suspense, useEffect, useState, useRef } from "react"; // useRef eklendi
+import { Suspense, useEffect, useState, useRef } from "react";
 import { fetchCommittees } from "@/lib/committees-api";
-import { Committee } from "@/lib/committee-types";
+import { CommitteeListItem } from "@/lib/committee-types";
 import { showToast } from "@/components/toast/ToastContext";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { getUser } from "@/lib/auth";
 
 export default function CommitteesPage() {
     return (
@@ -17,12 +18,15 @@ export default function CommitteesPage() {
 }
 
 function CommitteesPageContent() {
-    const [committees, setCommittees] = useState<Committee[]>([]);
+    const [committees, setCommittees] = useState<CommitteeListItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     const router = useRouter();
     const searchParams = useSearchParams();
     const pathname = usePathname();
+
+    const currentUser = getUser();
+    const currentUserId = currentUser?.userId ? Number(currentUser.userId) : null;
 
     const initialStatus = searchParams.get("status") || "ALL";
     const initialSearch = searchParams.get("search") || "";
@@ -38,39 +42,37 @@ function CommitteesPageContent() {
     const [pageSize, setPageSize] = useState(initialPageSize);
     const [totalPages, setTotalPages] = useState(1);
 
-    // YENİ: Yarış durumunu (race condition) önlemek için her isteğe bir ID vereceğiz
     const fetchIdRef = useRef(0);
 
-    // YENİ: Senin özel renk tercihlerine göre güncellenmiş yardımcı fonksiyon
-function getStatusColor(status: string | undefined) {
-    switch (status) {
-        case "ACTIVE":
-            return "border-cyan-400/40 bg-cyan-400/15 text-cyan-300 font-semibold";
-        case "INACTIVE":
-            return "border-pink-500/40 bg-pink-500/15 text-pink-400 font-semibold";
-        case "COMPLETED":
-            return "border-orange-400/40 bg-orange-400/15 text-orange-300 font-semibold";
-        default:
-            return "border-gray-500/20 bg-gray-500/10 text-gray-400";
+    function getStatusColor(status: string | undefined) {
+        switch (status) {
+            case "ACTIVE":
+                return "border-cyan-400/40 bg-cyan-400/15 text-cyan-300 font-semibold";
+            case "INACTIVE":
+                return "border-pink-500/40 bg-pink-500/15 text-pink-400 font-semibold";
+            case "COMPLETED":
+                return "border-orange-400/40 bg-orange-400/15 text-orange-300 font-semibold";
+            default:
+                return "border-gray-500/20 bg-gray-500/10 text-gray-400";
+        }
     }
-}
+
+    function isMyCommittee(committee: CommitteeListItem): boolean {
+        if (!currentUserId) return false;
+        const inAdvisors = committee.advisors?.some((a) => a.userId === currentUserId) ?? false;
+        const inJury = committee.jury?.some((j) => j.userId === currentUserId) ?? false;
+        return inAdvisors || inJury;
+    }
+
     function updateUrlParams(updates: Record<string, string | number>) {
         const params = new URLSearchParams(searchParams.toString());
-
         Object.entries(updates).forEach(([key, value]) => {
-            if (
-                value === "" ||
-                value === "ALL" ||
-                value === "created_desc" ||
-                value === 1 ||
-                value === 10
-            ) {
+            if (value === "" || value === "ALL" || value === "created_desc" || value === 1 || value === 10) {
                 params.delete(key);
             } else {
                 params.set(key, String(value));
             }
         });
-
         const query = params.toString();
         router.replace(query ? `${pathname}?${query}` : pathname);
     }
@@ -83,44 +85,23 @@ function getStatusColor(status: string | undefined) {
         nextSize = pageSize
     ) {
         setLoading(true);
-        
-        // YENİ: Her yeni istekte ID'yi 1 artırıyoruz
         const currentFetchId = ++fetchIdRef.current;
 
         try {
-            const response = await fetchCommittees(
-                nextPage - 1,
-                nextSize,
-                nextStatus,
-                nextSearch,
-                nextSort
-            );
-
-            // YENİ: Eğer bu istekten sonra başka bir istek atıldıysa, bu eski gelen cevabı YOKSAY!
-            if (currentFetchId !== fetchIdRef.current) {
-                return;
-            }
-
+            const response = await fetchCommittees(nextPage - 1, nextSize, nextStatus, nextSearch, nextSort);
+            if (currentFetchId !== fetchIdRef.current) return;
             setCommittees(response.content);
             setTotalPages(response.totalPages);
         } catch (err) {
-            // Hatayı sadece en son istekte göster
             if (currentFetchId === fetchIdRef.current) {
-                showToast(
-                    err instanceof Error ? err.message : "Failed to load committees.",
-                    "error"
-                );
+                showToast(err instanceof Error ? err.message : "Failed to load committees.", "error");
             }
         } finally {
-            // Yüklenme durumunu sadece en son istekte kapat
-            if (currentFetchId === fetchIdRef.current) {
-                setLoading(false);
-            }
+            if (currentFetchId === fetchIdRef.current) setLoading(false);
         }
     }
-// Arama kutusuna yazı yazıldığında anında (0 gecikme ile) arama işlemi
+
     useEffect(() => {
-        // setTimeout'u tamamen kaldırdık! Tuşa basıldığı an state güncellenir ve arama başlar.
         setPage(1);
         setSearchQuery(searchInput);
         updateUrlParams({ search: searchInput, page: 1 });
@@ -132,11 +113,17 @@ function getStatusColor(status: string | undefined) {
 
     function handlePageChange(nextPage: number) {
         if (nextPage < 1 || nextPage > totalPages) return;
-
         setPage(nextPage);
         updateUrlParams({ page: nextPage });
         loadCommittees(nextPage, statusFilter, searchQuery, sortOption, pageSize);
     }
+
+    // Sort: my committees first
+    const displayCommittees = [...committees].sort((a, b) => {
+        const aScore = isMyCommittee(a) ? 0 : 1;
+        const bScore = isMyCommittee(b) ? 0 : 1;
+        return aScore - bScore;
+    });
 
     return (
         <div className="min-h-screen bg-gray-950 flex">
@@ -225,53 +212,60 @@ function getStatusColor(status: string | undefined) {
                         ) : (
                             <>
                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                    {committees.map((committee) => (
-                                        <Link
-                                            key={committee.committeeId}
-                                            href={`/committees/${committee.committeeId}`}
-                                        >
-                                            <div className="h-full cursor-pointer rounded-2xl border border-white/10 bg-gray-950 p-5 transition hover:border-blue-500/40 hover:bg-white/5">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div>
-                                                        <h3 className="font-semibold text-white">
-                                                            {committee.committeeName}
-                                                        </h3>
-                                                        <p className="mt-1 text-sm text-gray-400">
-                                                            {committee.description || "No description"}
-                                                        </p>
+                                    {displayCommittees.map((committee) => {
+                                        const mine = isMyCommittee(committee);
+                                        return (
+                                            <Link
+                                                key={committee.committeeId}
+                                                href={`/committees/${committee.committeeId}`}
+                                            >
+                                                <div
+                                                    className={`h-full cursor-pointer rounded-2xl border p-5 transition ${
+                                                        mine
+                                                            ? "border-blue-500/60 bg-blue-950/40 shadow-lg shadow-blue-500/20 ring-1 ring-blue-500/30 hover:border-blue-400/80 hover:shadow-blue-400/30"
+                                                            : "border-white/10 bg-gray-950 hover:border-blue-500/40 hover:bg-white/5"
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <h3 className="font-semibold text-white truncate">
+                                                                    {committee.committeeName}
+                                                                </h3>
+                                                                {mine && (
+                                                                    <span className="shrink-0 rounded-full bg-blue-500/20 border border-blue-400/40 px-2 py-0.5 text-xs font-semibold text-blue-300">
+                                                                        Your Committee
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="mt-1 text-sm text-gray-400 truncate">
+                                                                {committee.description || "No description"}
+                                                            </p>
+                                                        </div>
+
+                                                        <span className={`shrink-0 rounded-full border px-3 py-1 text-xs ${getStatusColor(committee.status)}`}>
+                                                            {committee.status}
+                                                        </span>
                                                     </div>
 
-                                                    <span className={`rounded-full border px-3 py-1 text-xs ${getStatusColor(committee.status)}`}>
-                                                         {committee.status} {/*dinamik renklendirme eklendi dk */}
-                                                    </span>
+                                                    <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs text-gray-400">
+                                                        <div className={`rounded-lg p-2 ${mine ? "bg-blue-500/10" : "bg-white/5"}`}>
+                                                            <p className="text-white">{committee.advisorCount ?? 0}</p>
+                                                            Advisors
+                                                        </div>
+                                                        <div className={`rounded-lg p-2 ${mine ? "bg-blue-500/10" : "bg-white/5"}`}>
+                                                            <p className="text-white">{committee.juryCount ?? 0}</p>
+                                                            Jury
+                                                        </div>
+                                                        <div className={`rounded-lg p-2 ${mine ? "bg-blue-500/10" : "bg-white/5"}`}>
+                                                            <p className="text-white">{committee.groupCount ?? 0}</p>
+                                                            Groups
+                                                        </div>
+                                                    </div>
                                                 </div>
-
-                                                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs text-gray-400">
-                                                    <div className="rounded-lg bg-white/5 p-2">
-                                                        <p className="text-white">
-                                                            {committee.advisorCount ?? 0}
-                                                        </p>
-                                                        Advisors
-                                                    </div>
-
-                                                    <div className="rounded-lg bg-white/5 p-2">
-                                                        <p className="text-white">
-                                                            {committee.juryCount ?? 0}
-                                                        </p>
-                                                        Jury
-                                                    </div>
-
-                                                    <div className="rounded-lg bg-white/5 p-2">
-                                                        <p className="text-white">
-                                                            {committee.groupCount ?? 0}
-                                                        </p>
-                                                        Groups
-                                                    </div>
-                                                </div>
-
-                                            </div>
-                                        </Link>
-                                    ))}
+                                            </Link>
+                                        );
+                                    })}
                                 </div>
 
                                 <div className="mt-8 flex items-center justify-center gap-3">

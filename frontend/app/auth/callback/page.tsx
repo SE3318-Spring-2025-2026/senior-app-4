@@ -43,6 +43,7 @@ function CallbackContent() {
 
         setAuth(data.token, {
           userId: Number(claims.userId),
+          name: (claims.fullName as string) || undefined,
           studentId: claims.studentId as string | undefined,
           githubUsername: claims.githubUsername as string | undefined,
           role: (claims.role as string) ?? "student",

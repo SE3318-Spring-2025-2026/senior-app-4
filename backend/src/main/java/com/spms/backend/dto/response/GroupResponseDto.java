@@ -6,6 +6,7 @@ public record GroupResponseDto(
         String groupName,
         Long leaderId,
         Long advisorId,
+        String advisorName,
         String status,
         int memberCount,
         Instant createdAt,

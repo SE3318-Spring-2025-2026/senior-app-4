@@ -43,7 +43,7 @@ function mapApiGroupToUiGroup(apiGroup: ApiGroupListItem): Group {
         leaderId: apiGroup.leaderId,
         leaderName: `Leader #${apiGroup.leaderId}`,
         advisorId: apiGroup.advisorId ?? null,
-        advisorName: apiGroup.advisorId ? `Advisor #${apiGroup.advisorId}` : "Not Assigned",
+        advisorName: apiGroup.advisorName ?? (apiGroup.advisorId ? `Advisor #${apiGroup.advisorId}` : "Not Assigned"),
         memberCount: apiGroup.memberCount,
         members: [],
         githubBound: apiGroup.githubBound ?? false,

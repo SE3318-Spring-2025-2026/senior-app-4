@@ -14,6 +14,12 @@ export type Committee = {
     updatedAt?: string;
 };
 
+/** Extended list item that may include member arrays from the API response */
+export type CommitteeListItem = Committee & {
+    advisors?: { userId: number; name: string; role: string }[];
+    jury?: { userId: number; name: string; role: string }[];
+};
+
 export type CommitteeMemberAssignment = {
     id: number;       // committeeAdvisorId / committeeJuryId (row ID)
     userId: number;   // the professor's actual userId
@@ -54,7 +60,7 @@ export type CommitteeFormValues = {
 };
 
 export type CommitteePageResponse = {
-    content: Committee[];
+    content: CommitteeListItem[];
     totalPages: number;
     totalElements: number;
 };

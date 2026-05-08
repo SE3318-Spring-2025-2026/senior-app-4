@@ -255,12 +255,16 @@ export default function Sidebar({ activePage }: { activePage: string }) {
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0">
             <span className="text-xs font-semibold text-blue-400 uppercase">
-              {user.role?.slice(0, 2)}
+              {user.name
+                ? user.name.trim().split(/\s+/).filter(Boolean).length > 1
+                  ? user.name.trim().split(/\s+/)[0][0] + user.name.trim().split(/\s+/).at(-1)![0]
+                  : user.name.trim().slice(0, 2)
+                : user.role?.slice(0, 2)}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate capitalize">{user.role}</p>
-            {user.studentId && <p className="text-xs text-gray-500 truncate">{user.studentId}</p>}
+            <p className="text-sm font-medium text-white truncate">{user.name || user.role}</p>
+            <p className="text-xs text-gray-500 truncate capitalize">{user.role}</p>
           </div>
         </div>
         <button onClick={handleLogout} className="w-full mt-2 flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/5 transition-colors">

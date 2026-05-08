@@ -5,6 +5,7 @@ export type ApiGroupListItem = {
     groupName: string;
     leaderId: number;
     advisorId: number | null;
+    advisorName: string | null;
     status: string;
     memberCount: number;
     createdAt: string;

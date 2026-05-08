@@ -1,6 +1,7 @@
 import { getToken } from "@/lib/auth";
 import {
     Committee,
+    CommitteeListItem,
     CommitteeAuditLog,
     CommitteeAuditLogPageResponse,
     CommitteeDetail,

@@ -505,14 +505,14 @@ function GradePanel({
     try {
       let payload;
       if (hasCriteria) {
-        const criterionScores = criteria.map((c) => {
+        const criteriaScores = criteria.map((c) => {
           const val = criterionInputs[c.id];
           return {
             criterionId: c.id,
             score: c.gradingType === "SOFT" ? letterToScore(val) : Number(val),
           };
         });
-        payload = { feedback: feedbackInput || undefined, criterionScores };
+        payload = { feedback: feedbackInput || undefined, criteriaScores };
       } else {
         const gradeNum = parseFloat(gradeInput);
         if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 100) {

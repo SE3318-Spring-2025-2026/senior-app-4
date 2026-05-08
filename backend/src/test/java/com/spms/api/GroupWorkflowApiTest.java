@@ -91,7 +91,7 @@ class GroupWorkflowControllerTest {
     void createGroup_creatorBecomesLeader() throws Exception {
         GroupCreateRequestDto request = new GroupCreateRequestDto("Test Group");
         GroupResponseDto response = new GroupResponseDto(
-                1L, "Test Group", 1L, null, "FORMING", 1, Instant.now(), false, false);
+                1L, "Test Group", 1L, null, null, "FORMING", 1, Instant.now(), false, false);
 
         when(groupService.createGroup(any(GroupCreateRequestDto.class), eq(1L)))
                 .thenReturn(response);
@@ -117,7 +117,7 @@ class GroupWorkflowControllerTest {
     @DisplayName("GET /groups → 200: Created group appears in list")
     void listGroups_containsCreatedGroup() throws Exception {
         GroupResponseDto dto = new GroupResponseDto(
-                1L, "Existing Group", 1L, null, "FORMING", 1, Instant.now(), false, false);
+                1L, "Existing Group", 1L, null, null, "FORMING", 1, Instant.now(), false, false);
         Page<GroupResponseDto> page = new PageImpl<>(List.of(dto), PageRequest.of(0, 20), 1);
 
         when(groupService.getGroups(any(Pageable.class), eq(1L), eq("student"), any(), any(), any()))
