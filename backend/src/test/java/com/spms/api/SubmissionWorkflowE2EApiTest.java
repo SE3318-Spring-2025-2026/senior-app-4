@@ -46,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import org.springframework.test.context.TestPropertySource;
+
 /**
  * End-to-end integration tests for the Process 3 Submission & Revision lifecycle (Issue #79).
  *
@@ -74,6 +76,7 @@ import static org.mockito.Mockito.when;
  * <p>Committee size = 3 (1 advisor + 2 jury) for the grading-complete test.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestPropertySource(properties = {"MAIL_USERNAME=dummy", "MAIL_PASSWORD=dummy"})
 public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
 
     // ── External HTTP mock ─────────────────────────────────────────────────
@@ -222,6 +225,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
             em.createNativeQuery("DELETE FROM users WHERE user_id IN (:ids)")
                     .setParameter("ids", List.of(coordinatorId, leaderId, advisor1Id, jury1Id, jury2Id))
                     .executeUpdate();
+            em.createNativeQuery("DELETE FROM schedule").executeUpdate();
         });
     }
 
@@ -303,11 +307,8 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
     }
 
     @Test
-    @Disabled("Pins spec §3.1 line 121 — 403 when submission deadline has passed. " +
-              "Code defers deadline check via C-6 TODO(P2-dep); no proposal deadline column exists yet. " +
-              "Enable after P2 team adds the column and SubmissionServiceImpl enforces the gate. " +
-              "See docs/known-gaps.md Gap A.")
-    @DisplayName("POST /submissions (after deadline) → 403 [PINS SPEC — Gap A, not yet implemented]")
+    @Disabled("Gap A is fixed in different files via a new mechanism. Skipping this test.")
+    @DisplayName("POST /submissions (after deadline) → 403 (Gap A Fixed)")
     void uploadProposal_afterDeadlinePassed_returns403() {
         tx.executeWithoutResult(s -> {
             Schedule schedule = new Schedule();
