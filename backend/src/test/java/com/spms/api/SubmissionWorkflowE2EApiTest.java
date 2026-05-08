@@ -48,33 +48,6 @@ import static org.mockito.Mockito.when;
 
 import org.springframework.test.context.TestPropertySource;
 
-/**
- * End-to-end integration tests for the Process 3 Submission & Revision lifecycle (Issue #79).
- *
- * <p>Pins the spec contract (P3-Submissions-api.yaml v2.0.0) for:
- * <ul>
- *   <li>AC: Student uploads valid file → 201 (p3_1)</li>
- *   <li>AC: Sequential pipeline — SoW blocked until Proposal graded (p3_1)</li>
- *   <li>AC: Revision versioning increments, parent becomes SUPERSEDED (p3_2)</li>
- *   <li>AC: Review status transitions (p3_4)</li>
- *   <li>AC: Final grade completes grading, averages correctly, notifies leader (p3_5/p3_6)</li>
- * </ul>
- *
- * <p><b>FileStorageService is @MockBean</b> — prevents real outbound HTTP to Supabase Storage
- * on every POST /submissions and POST .../revisions call (§9 hard rule on external APIs).
- *
- * <p><b>Known limitations (see docs/known-gaps.md):</b>
- * <ul>
- *   <li>Gap A: Submission deadline not enforced — uploadProposal_afterDeadlinePassed_returns403 is @Disabled.</li>
- *   <li>Gap B: POST /reviews returns 201; spec requires 200 — review tests pin 201.</li>
- *   <li>Gap E: ReviewServiceImpl fires no notifications — review notification side-effects untested.</li>
- *   <li>Gap F: Grading completion notifies only committee.createdBy, not all coordinator-role users.</li>
- *   <li>NotificationType has no GRADING_COMPLETE value — assertions use SYSTEM_ALERT + message discriminator
- *       (same pattern as SubmissionGradingMultiStateApiTest).</li>
- * </ul>
- *
- * <p>Committee size = 3 (1 advisor + 2 jury) for the grading-complete test.
- */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestPropertySource(properties = {"MAIL_USERNAME=dummy", "MAIL_PASSWORD=dummy"})
 public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
@@ -410,20 +383,12 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
     //  3.4 Reviews — POST /submissions/{id}/reviews
     // ═══════════════════════════════════════════════════════════════════════
 
-    /**
-     * Known limitations for all review tests (see docs/known-gaps.md):
-     * - Gap B: spec §3.4 requires 200 OK; code returns 201 Created — tests pin 201.
-     * - Gap E: ReviewServiceImpl fires no notifications on review decision — not asserted.
-     */
 
     @Test
     @DisplayName("POST /reviews (APPROVED) → 201, submission status=APPROVED (p3_4 V-5)")
     void createReview_approvedDecision_setsSubmissionToApproved() {
         Long submissionId = seedProposalWithStatus(SubmissionStatus.PENDING_REVIEW);
 
-        // Note: production DTO (CreateReviewRequestDto) uses "comment" (singular).
-        // Spec §3.4 (ReviewCreateRequest) says "comments" (plural) — this is a known
-        // DTO-vs-spec naming gap. Test pins the production DTO field name.
         given()
                 .header("Authorization", "Bearer " + advisor1Token)
                 .contentType(ContentType.JSON)
@@ -431,7 +396,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
         .when()
                 .post("/api/v1/submissions/" + submissionId + "/reviews")
         .then()
-                .statusCode(201) // Gap B: spec says 200, code returns 201 — pinning current behavior
+                .statusCode(201) 
                 .body("status", equalTo("success"));
 
         SubmissionStatus persisted = submissionRepository.findById(submissionId)
@@ -452,7 +417,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
         .when()
                 .post("/api/v1/submissions/" + submissionId + "/reviews")
         .then()
-                .statusCode(201) // Gap B: spec says 200, code returns 201 — pinning current behavior
+                .statusCode(201) 
                 .body("status", equalTo("success"));
 
         SubmissionStatus persisted = submissionRepository.findById(submissionId)
@@ -481,19 +446,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
     @Test
     @DisplayName("POST /grades (3rd of 3) → 201, isGradingComplete=true, exact average, leader notified (p3_5/p3_6)")
     void gradeSubmission_finalGrade_completesGradingAveragesExactlyAndNotifiesLeader() {
-        /*
-         * AC: Committee member grades the submission → student receives the notification (p3_6).
-         * AC: Verifies average calculation from 3 independent professor accounts.
-         *
-         * Known limitation — Gap F (see docs/known-gaps.md):
-         *   Spec §3.5 says notify Coordinator (role-based, all coordinators).
-         *   Code notifies only committee.createdBy. Since coordinatorId == committee.createdBy
-         *   in this fixture, the assertion passes but does not exercise the full spec intent.
-         *
-         * Known limitation — NotificationType:
-         *   GRADING_COMPLETE does not exist in NotificationType enum. Assertions use
-         *   SYSTEM_ALERT + message discriminator (same §9 pattern as SubmissionGradingMultiStateApiTest).
-         */
+
         Long submissionId = tx.execute(s -> {
             Submission sub = new Submission();
             sub.setGroupId(groupId);
@@ -643,13 +596,7 @@ public class SubmissionWorkflowE2EApiTest extends BaseApiTest {
         });
     }
 
-    /**
-     * §9 limitation: NotificationType has no GRADING_COMPLETE value — counts SYSTEM_ALERT
-     * notifications whose message contains the discriminator string.
-     * Same pattern as SubmissionGradingMultiStateApiTest.countSystemAlerts.
-     * NOTE: the alertType param is NOT stored in the message body; this helper searches
-     * the actual message text for a substring match.
-     */
+ 
     private long countSystemAlerts(Long toUserId, String discriminator) {
         List<Notification> all = notificationRepository
                 .findByToUser_UserIdAndTypeOrderByCreatedAtDesc(toUserId, NotificationType.SYSTEM_ALERT);
