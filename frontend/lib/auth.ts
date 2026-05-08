@@ -3,6 +3,7 @@ const USER_KEY = "spms_user";
 
 export interface AuthUser {
   userId?: number;
+  name?: string;
   studentId?: string;
   githubUsername?: string;
   role: string;

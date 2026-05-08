@@ -28,7 +28,7 @@ public class CoordinatorSprintController {
     @Operation(summary = "List all sprints")
     @GetMapping
     public ResponseEntity<List<SprintDto>> getAllSprints(HttpServletRequest request) {
-        if (!isCoordinator(request)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!isCoordinator(request) && !isProfessor(request)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return ResponseEntity.ok(sprintService.getAllSprints());
     }
 
@@ -63,5 +63,9 @@ public class CoordinatorSprintController {
 
     private boolean isCoordinator(HttpServletRequest request) {
         return "coordinator".equals(request.getAttribute("jwt_role"));
+    }
+
+    private boolean isProfessor(HttpServletRequest request) {
+        return "professor".equals(request.getAttribute("jwt_role"));
     }
 }

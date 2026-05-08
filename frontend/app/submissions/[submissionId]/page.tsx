@@ -604,7 +604,7 @@ function GradePanel({
     try {
       let payload;
       if (hasCriteria) {
-        const criterionScores = criteria.map((c) => {
+        const criteriaScores = criteria.map((c) => {
           const val = criterionInputs[c.id];
           return {
             criterionId: c.id,

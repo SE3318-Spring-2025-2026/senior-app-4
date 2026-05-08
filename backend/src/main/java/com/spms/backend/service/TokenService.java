@@ -44,6 +44,7 @@ public class TokenService {
         payload.put("email", user.getEmail());
         payload.put("studentId", user.getStudentId());
         payload.put("githubUsername", user.getGithubUsername());
+        payload.put("fullName", user.getFullName());
         payload.put("role", user.getRole());
         payload.put("requiresPasswordChange", user.isRequiresPasswordChange());
         payload.put("iat", issuedAt.getEpochSecond());

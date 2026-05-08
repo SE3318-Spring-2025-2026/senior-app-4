@@ -407,11 +407,13 @@ public class GroupServiceImpl implements GroupService {
         boolean hasJira = jiraIntegrationRepository.findByGroup_Id(group.getId()).isPresent();
         boolean hasGithub = githubIntegrationRepository.findByGroup_Id(group.getId()).isPresent();
 
+        User advisor = group.getAdvisor();
         return new GroupResponseDto(
                 group.getId(),
                 group.getGroupName(),
                 group.getLeader().getUserId(),
-                group.getAdvisor() != null ? group.getAdvisor().getUserId() : null,
+                advisor != null ? advisor.getUserId() : null,
+                advisor != null ? advisor.getFullName() : null,
                 group.getStatus().name(),
                 group.getMemberCount(),
                 group.getCreatedAt(),
