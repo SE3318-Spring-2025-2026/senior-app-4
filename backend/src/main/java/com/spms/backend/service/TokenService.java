@@ -41,6 +41,7 @@ public class TokenService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("sub", user.getUserId() != null ? user.getUserId().toString() : "");
         payload.put("userId", user.getUserId());
+        payload.put("email", user.getEmail());
         payload.put("studentId", user.getStudentId());
         payload.put("githubUsername", user.getGithubUsername());
         payload.put("fullName", user.getFullName());

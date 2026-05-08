@@ -47,3 +47,18 @@ supabase:
   service-role-key: ${supabase.service-role-key}
   storage:
     bucket: ${supabase.storage.bucket:submissions}
+
+spring.mail:
+  host: smtp.gmail.com
+  port: 587
+  username: ${MAIL_USERNAME}
+  password: ${MAIL_PASSWORD}
+  properties:
+    mail:
+      smtp:
+        auth: true
+        starttls:
+          enable: true
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}

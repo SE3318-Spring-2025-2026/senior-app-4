@@ -53,6 +53,15 @@ public class InMemoryUserRepository extends AbstractStubJpaRepository<User, Long
     }
 
     @Override
+    public Optional<User> findByPasswordResetToken(String passwordResetToken) {
+        if (!StringUtils.hasText(passwordResetToken)) return Optional.empty();
+        return usersById.values().stream()
+                .filter(u -> passwordResetToken.equals(u.getPasswordResetToken()))
+                .map(User::new)
+                .findFirst();
+    }
+
+    @Override
     public Optional<User> findByGithubUsername(String githubUsername) {
         String normalized = normalizeGithubUsername(githubUsername);
         if (normalized == null) return Optional.empty();
