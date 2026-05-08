@@ -18,6 +18,7 @@ import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import { getToken, getUser } from "@/lib/auth";
 import {
+  createReview,
   fetchCriteriaForDeliverableType,
   fetchSubmissionDetail,
   fetchSubmissionGrades,
@@ -34,6 +35,10 @@ import {
   type SubmissionRevisionNode,
   type SubmissionStatus,
 } from "@/lib/submissions-api";
+import {
+  fetchDemonstrationGrade,
+  saveDemonstrationGrade,
+} from "@/lib/final-grading-api";
 
 const AnnotatedDocumentViewer = dynamic(
   () => import("@/components/AnnotatedDocumentViewer"),
@@ -189,6 +194,12 @@ function SubmissionDetailWorkspace() {
             </div>
           ) : error || !detail ? (
             <ErrorState message={error ?? "Submission detail was not returned by the API."} />
+          ) : detail.deliverableType === "DEMONSTRATION" && !detail.assignedCommitteeId ? (
+            /* Advisor-direct presentation grade — rubric grading panel */
+            <div className="space-y-6">
+              <SubmissionHeader detail={detail} />
+              <PresentationGradePanel groupId={Number(detail.teamId)} onSaved={load} />
+            </div>
           ) : (
             <div className="space-y-6">
               <SubmissionHeader detail={detail} />
@@ -222,8 +233,8 @@ function SubmissionDetailWorkspace() {
                   />
                 </div>
 
-                <div className="space-y-6">
-                  <ReviewPanel detail={detail} />
+                <div className="sticky top-8 self-start space-y-6 max-h-[calc(100vh-8rem)] overflow-y-auto">
+                  <ReviewPanel detail={detail} onReviewed={load} />
                   <GradePanel summary={gradeSummary} warning={gradeWarning} submissionId={detail.id} criteria={criteria} onGraded={load} />
                   <FilePanel detail={detail} />
                 </div>
@@ -404,19 +415,107 @@ function RevisionTreeNode({
   );
 }
 
-function ReviewPanel({ detail }: { detail: SubmissionDetail }) {
+function ReviewPanel({ detail, onReviewed }: { detail: SubmissionDetail; onReviewed: () => void }) {
   const latestStatus = detail.reviewSummary?.latestStatus;
+  const [modalOpen, setModalOpen] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const canRequestRevision =
+    detail.status !== "GRADED" &&
+    detail.status !== "SUPERSEDED" &&
+    detail.status !== "REJECTED" &&
+    detail.status !== "REVISION_REQUESTED";
+
+  const handleRequestRevision = async () => {
+    if (!feedback.trim()) {
+      toast.error("Feedback is required when requesting a revision.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createReview(detail.id, { decision: "REVISION_REQUESTED", comments: feedback.trim() });
+      toast.success("Revision requested. The student has been notified.");
+      setModalOpen(false);
+      setFeedback("");
+      onReviewed();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to request revision.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <section className="rounded-2xl border border-white/8 bg-gray-900 p-6">
-      <div className="mb-5 flex items-center gap-2">
-        <CheckCircle2 className="h-4 w-4 text-green-300" />
-        <h3 className="text-sm font-semibold text-white">Review Summary</h3>
-      </div>
-      <div className="grid gap-3">
-        <InfoTile label="Total reviews" value={`${detail.reviewSummary?.totalReviews ?? 0}`} />
-        <InfoTile label="Latest decision" value={latestStatus ? reviewDecisionLabel(latestStatus) : "Pending"} />
-      </div>
-    </section>
+    <>
+      <section className="rounded-2xl border border-white/8 bg-gray-900 p-6">
+        <div className="mb-5 flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 text-green-300" />
+          <h3 className="text-sm font-semibold text-white">Review Summary</h3>
+        </div>
+        <div className="grid gap-3">
+          <InfoTile label="Total reviews" value={`${detail.reviewSummary?.totalReviews ?? 0}`} />
+          <InfoTile label="Latest decision" value={latestStatus ? reviewDecisionLabel(latestStatus) : "Pending"} />
+        </div>
+
+        {canRequestRevision && (
+          <div className="mt-4 border-t border-white/8 pt-4">
+            <button
+              type="button"
+              onClick={() => setModalOpen(true)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-sm font-medium text-orange-300 transition hover:bg-orange-500/20"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+              </svg>
+              Request Revision
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* Request Revision Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-gray-900 p-6 shadow-2xl">
+            <h2 className="text-base font-semibold text-white">Request Revision</h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Your feedback will be sent to the student as a notification. They will be able to submit one revision.
+            </p>
+            <div className="mt-4">
+              <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                Feedback <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="Explain what needs to be revised..."
+                rows={5}
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-orange-500/50 focus:outline-none resize-none"
+              />
+            </div>
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setModalOpen(false); setFeedback(""); }}
+                disabled={submitting}
+                className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-gray-400 transition hover:bg-white/5 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRequestRevision}
+                disabled={submitting || !feedback.trim()}
+                className="flex-1 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? "Sending…" : "Send Request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -512,7 +611,7 @@ function GradePanel({
             score: c.gradingType === "SOFT" ? letterToScore(val) : Number(val),
           };
         });
-        payload = { feedback: feedbackInput || undefined, criterionScores };
+        payload = { feedback: feedbackInput || undefined, criteriaScores: criterionScores };
       } else {
         const gradeNum = parseFloat(gradeInput);
         if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 100) {
@@ -764,6 +863,156 @@ function scoreToGrade(score: number, gradingType?: "SOFT" | "BINARY" | null) {
   if (score >= 60) return "C";
   if (score >= 50) return "D";
   return "F";
+}
+
+const PRES_SOFT_OPTIONS = [
+  { label: "A", score: 100 },
+  { label: "B", score: 80 },
+  { label: "C", score: 60 },
+  { label: "D", score: 50 },
+  { label: "F", score: 0 },
+] as const;
+
+function presLetterToScore(letter: string): number {
+  return PRES_SOFT_OPTIONS.find((o) => o.label === letter)?.score ?? 0;
+}
+
+function PresentationGradePanel({ groupId, onSaved }: { groupId: number; onSaved: () => void }) {
+  const [criteria, setCriteria] = useState<GradingCriteriaItem[]>([]);
+  const [inputs, setInputs] = useState<Record<number, string>>({});
+  const [savedGrade, setSavedGrade] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      fetchCriteriaForDeliverableType("DEMONSTRATION"),
+      fetchDemonstrationGrade(groupId),
+    ]).then(([crit, existing]) => {
+      if (cancelled) return;
+      setCriteria(crit);
+      setInputs(Object.fromEntries(crit.map((c) => [c.id, ""])));
+      setSavedGrade(existing);
+    }).catch(() => undefined).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [groupId]);
+
+  const weightedScore: number | null = (() => {
+    if (criteria.some((c) => !inputs[c.id])) return null;
+    let totalWeight = 0;
+    let weightedSum = 0;
+    for (const c of criteria) {
+      const val = inputs[c.id];
+      const score = c.gradingType === "BINARY" ? (val === "100" ? 100 : 0) : presLetterToScore(val);
+      totalWeight += c.weight;
+      weightedSum += score * c.weight;
+    }
+    return totalWeight === 0 ? null : weightedSum / totalWeight;
+  })();
+
+  const allFilled = criteria.length > 0 && criteria.every((c) => !!inputs[c.id]);
+
+  const handleSave = async () => {
+    if (weightedScore === null) { toast.error("Fill all criteria first."); return; }
+    setSaving(true);
+    try {
+      const grade = parseFloat(weightedScore.toFixed(2));
+      await saveDemonstrationGrade(groupId, grade);
+      setSavedGrade(grade);
+      toast.success("Presentation grade saved.");
+      onSaved();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save grade.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-32 items-center justify-center rounded-2xl border border-white/8 bg-gray-900">
+        <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/8 bg-gray-900 p-6">
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Star className="h-4 w-4 text-purple-300" />
+          <h3 className="text-sm font-semibold text-white">Presentation Grade (Sunum Puanı)</h3>
+        </div>
+        {savedGrade !== null && (
+          <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-xs font-medium text-purple-300">
+            Current: {savedGrade.toFixed(1)} / 100
+          </span>
+        )}
+      </div>
+
+      {criteria.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-white/10 bg-white/4 px-4 py-8 text-center">
+          <p className="text-sm font-medium text-white">No rubric criteria defined</p>
+          <p className="mt-1 text-xs text-gray-500">Add DEMONSTRATION criteria in the coordinator rubrics page first.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {criteria.map((c) => (
+            <div key={c.id} className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{c.name}</p>
+                  {c.description && <p className="mt-0.5 text-xs text-gray-500">{c.description}</p>}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className={`rounded border px-2 py-0.5 text-xs font-medium ${c.gradingType === "BINARY" ? "border-amber-500/20 bg-amber-500/10 text-amber-300" : "border-blue-500/20 bg-blue-500/10 text-blue-300"}`}>
+                    {c.gradingType === "BINARY" ? "Binary" : "Soft"}
+                  </span>
+                  <span className="text-xs text-gray-500">{c.weight}%</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {c.gradingType === "BINARY" ? (
+                  [{ label: "S", score: "100" }, { label: "F", score: "0" }].map(({ label, score }) => (
+                    <button key={label} type="button"
+                      onClick={() => setInputs((prev) => ({ ...prev, [c.id]: score }))}
+                      className={`rounded-lg border px-5 py-2 text-sm font-medium transition ${inputs[c.id] === score
+                        ? label === "S" ? "border-green-500/40 bg-green-500/20 text-green-300" : "border-red-500/40 bg-red-500/20 text-red-300"
+                        : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"}`}>
+                      {label}
+                    </button>
+                  ))
+                ) : (
+                  PRES_SOFT_OPTIONS.map(({ label }) => (
+                    <button key={label} type="button"
+                      onClick={() => setInputs((prev) => ({ ...prev, [c.id]: label }))}
+                      className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${inputs[c.id] === label
+                        ? "border-purple-500/40 bg-purple-500/20 text-purple-200"
+                        : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"}`}>
+                      {label}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          ))}
+
+          {weightedScore !== null && (
+            <div className="flex items-center justify-between rounded-xl border border-purple-500/20 bg-purple-500/10 px-4 py-3">
+              <span className="text-xs text-purple-200">Weighted score preview</span>
+              <span className="text-sm font-semibold text-purple-300">{weightedScore.toFixed(1)} / 100</span>
+            </div>
+          )}
+
+          <button type="button" onClick={handleSave} disabled={saving || !allFilled}
+            className="w-full rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50">
+            {saving ? "Saving…" : "Save Presentation Grade"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FilePanel({ detail }: { detail: SubmissionDetail }) {

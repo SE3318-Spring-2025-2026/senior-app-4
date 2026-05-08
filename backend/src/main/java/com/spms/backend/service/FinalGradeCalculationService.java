@@ -646,4 +646,36 @@ public class FinalGradeCalculationService {
             this.label = label;
         }
     }
+
+    @Transactional
+    public void saveDemonstrationGrade(Long groupId, Double grade) {
+        if (grade < 0 || grade > 100) {
+            throw new BadRequestException("Demonstration grade must be between 0 and 100.");
+        }
+        groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found: " + groupId));
+
+        Optional<Submission> existing = submissionRepository
+                .findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(groupId, DeliverableType.DEMONSTRATION);
+
+        Submission s = existing.orElseGet(Submission::new);
+        if (s.getId() == null) {
+            s.setGroupId(groupId);
+            s.setDeliverableType(DeliverableType.DEMONSTRATION);
+            s.setContent("");
+            s.setVersion(1);
+        }
+        s.setFinalGrade(grade);
+        s.setStatus(SubmissionStatus.GRADED);
+        submissionRepository.save(s);
+        recalculateGroupIfReady(groupId);
+    }
+
+    @Transactional(readOnly = true)
+    public Double getDemonstrationGrade(Long groupId) {
+        return submissionRepository
+                .findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(groupId, DeliverableType.DEMONSTRATION)
+                .map(Submission::getFinalGrade)
+                .orElse(null);
+    }
 }

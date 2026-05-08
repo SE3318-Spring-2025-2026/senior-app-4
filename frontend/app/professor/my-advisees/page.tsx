@@ -598,7 +598,6 @@ function SprintAwareAdviseeRow({
         </>
     );
 }
-
 function AdvisorSprintGradeForm({ groupId, sprintId }: { groupId: number; sprintId: number }) {
     const [scrumGrade, setScrumGrade] = useState<SoftGrade>("A");
     const [codeReviewGrade, setCodeReviewGrade] = useState<SoftGrade>("A");
@@ -629,7 +628,11 @@ function AdvisorSprintGradeForm({ groupId, sprintId }: { groupId: number; sprint
             setCodeReviewGrade(suggestion.data.suggestedGrade);
             toast.success(`AI suggests ${suggestion.data.suggestedGrade} for code review.`);
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : "AI suggestion is unavailable.");
+            const msg = err instanceof Error ? err.message : "AI suggestion is unavailable.";
+            const isNoResult = msg.toLowerCase().includes("no ai validation result");
+            toast.error(isNoResult
+                ? "AI validation has not been run for this sprint yet. Ask your coordinator to trigger it."
+                : msg);
         } finally {
             setSuggesting(false);
         }

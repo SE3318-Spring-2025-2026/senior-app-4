@@ -100,6 +100,33 @@ public class FinalGradingController {
         return ResponseEntity.ok(Map.of("status", "success", "data", grades));
     }
 
+    @PostMapping("/groups/{groupId}/demonstration-grade")
+    public ResponseEntity<Map<String, Object>> saveDemonstrationGrade(
+            @PathVariable Long groupId,
+            @RequestBody Map<String, Double> body,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+        requireAdvisorAccess(role, Long.valueOf(userId.toString()), groupId);
+        Double grade = body.get("grade");
+        if (grade == null) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "grade is required"));
+        }
+        finalGradeCalculationService.saveDemonstrationGrade(groupId, grade);
+        return ResponseEntity.ok(Map.of("status", "success"));
+    }
+
+    @GetMapping("/groups/{groupId}/demonstration-grade")
+    public ResponseEntity<Map<String, Object>> getDemonstrationGrade(
+            @PathVariable Long groupId,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+        requireAdvisorAccess(role, Long.valueOf(userId.toString()), groupId);
+        Double grade = finalGradeCalculationService.getDemonstrationGrade(groupId);
+        Map<String, Object> data = new java.util.HashMap<>();
+        data.put("grade", grade);
+        return ResponseEntity.ok(Map.of("status", "success", "data", data));
+    }
+
     @GetMapping("/groups/{groupId}/sprints/{sprintId}/ai-code-review-suggestion")
     public ResponseEntity<AiCodeReviewSuggestionResponse> getAiCodeReviewSuggestion(
             @PathVariable Long groupId,

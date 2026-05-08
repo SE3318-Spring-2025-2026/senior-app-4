@@ -5,6 +5,7 @@ import com.spms.backend.dto.response.ReviewDto;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
+import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupMember;
 import com.spms.backend.model.Review;
 import com.spms.backend.model.Submission;
@@ -12,9 +13,11 @@ import com.spms.backend.model.User;
 import com.spms.backend.model.enums.ReviewStatus;
 import com.spms.backend.model.enums.SubmissionStatus;
 import com.spms.backend.repository.GroupMemberRepository;
+import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.ReviewRepository;
 import com.spms.backend.repository.SubmissionRepository;
 import com.spms.backend.repository.UserRepository;
+import com.spms.backend.service.NotificationService;
 import com.spms.backend.service.ReviewService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,15 +32,21 @@ public class ReviewServiceImpl implements ReviewService {
     private final SubmissionRepository submissionRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
+    private final GroupRepository groupRepository;
+    private final NotificationService notificationService;
 
     public ReviewServiceImpl(ReviewRepository reviewRepository,
                              SubmissionRepository submissionRepository,
                              GroupMemberRepository groupMemberRepository,
-                             UserRepository userRepository) {
+                             UserRepository userRepository,
+                             GroupRepository groupRepository,
+                             NotificationService notificationService) {
         this.reviewRepository = reviewRepository;
         this.submissionRepository = submissionRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
+        this.groupRepository = groupRepository;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -94,6 +103,19 @@ public class ReviewServiceImpl implements ReviewService {
         // Advance submission status based on review decision
         if (status == ReviewStatus.REVISION_REQUESTED) {
             submission.setStatus(SubmissionStatus.REVISION_REQUESTED);
+            // Notify group leader with the reviewer's feedback
+            groupRepository.findById(submission.getGroupId()).ifPresent(group -> {
+                if (group.getLeader() != null) {
+                    String feedback = (request.comment() != null && !request.comment().isBlank())
+                            ? request.comment() : "(No feedback provided)";
+                    String msg = "Revision requested for your submission #" + submissionId
+                            + " by " + reviewer.getFullName() + ". Feedback: " + feedback;
+                    notificationService.createSystemAlert(
+                            group.getLeader().getUserId(), msg,
+                            "REVISION_REQUESTED",
+                            "{\"submissionId\":" + submissionId + "}");
+                }
+            });
         } else if (status == ReviewStatus.APPROVED) {
             submission.setStatus(SubmissionStatus.APPROVED);
         }

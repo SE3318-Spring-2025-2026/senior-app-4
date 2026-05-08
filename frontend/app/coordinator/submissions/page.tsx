@@ -246,8 +246,14 @@ function SubmissionRow({ submission: s }: { submission: SubmissionSummary }) {
       <td className="px-5 py-4">
         <SubmissionStatusBadge status={s.status} />
       </td>
-      <td className="px-5 py-4 text-gray-400 text-center">
-        {s.revisionNumber ?? "—"}
+      <td className="px-5 py-4 text-center">
+        {(s.revisionNumber ?? 1) > 1 ? (
+          <span className="inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-300">
+            Rev. {s.revisionNumber}
+          </span>
+        ) : (
+          <span className="text-gray-600 text-xs">v1</span>
+        )}
       </td>
       <td className="px-5 py-4 text-gray-400 whitespace-nowrap">
         {formatDate(s.submittedAt)}

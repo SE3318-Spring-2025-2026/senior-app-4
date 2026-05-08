@@ -354,7 +354,7 @@ export interface CriterionScorePayload {
 export interface GradePayload {
   grade?: number;
   feedback?: string;
-  criterionScores?: CriterionScorePayload[];
+  criteriaScores?: CriterionScorePayload[];
 }
 
 export interface GradingCriteriaItem {
