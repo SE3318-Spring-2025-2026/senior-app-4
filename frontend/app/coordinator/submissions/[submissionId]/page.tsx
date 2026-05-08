@@ -176,6 +176,28 @@ function SubmissionDetailWorkspace() {
             </div>
           ) : error || !detail ? (
             <ErrorState message={error ?? "Submission detail was not returned by the API."} />
+          ) : detail.deliverableType === "DEMONSTRATION" && !detail.assignedCommitteeId ? (
+            /* Advisor-direct presentation grade — read-only for coordinator */
+            <div className="space-y-6">
+              <SubmissionHeader detail={detail} />
+              <div className="rounded-2xl border border-purple-500/20 bg-purple-500/10 p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <Star className="h-5 w-5 text-purple-300" />
+                  <h3 className="text-sm font-semibold text-white">Presentation Grade</h3>
+                </div>
+                <p className="text-sm text-gray-400">
+                  This grade was entered directly by the group's advisor via the Presentation Grade panel.
+                </p>
+                {detail.gradeSummary?.averageGrade != null && (
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-purple-500/30 bg-gray-950 px-5 py-3">
+                    <span className="text-2xl font-bold text-purple-300">
+                      {detail.gradeSummary.averageGrade.toFixed(1)}
+                    </span>
+                    <span className="text-sm text-gray-500">/ 100</span>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="space-y-6">
               <SubmissionHeader detail={detail} />
@@ -203,7 +225,7 @@ function SubmissionDetailWorkspace() {
                   />
                 </div>
 
-                <div className="space-y-6">
+                <div className="sticky top-8 self-start space-y-6 max-h-[calc(100vh-8rem)] overflow-y-auto">
                   <ReviewPanel detail={detail} onReviewed={load} />
                   <GradePanel summary={gradeSummary} warning={gradeWarning} />
                   <FilePanel detail={detail} />

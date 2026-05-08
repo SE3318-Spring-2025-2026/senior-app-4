@@ -189,14 +189,14 @@ public class SubmissionServiceImpl implements SubmissionService {
                     .stream().map(g -> g.getId()).toList();
 
             if (teamId != null) {
-                // Specific group requested: allow if professor is committee member or direct advisor
-                boolean isCommitteeMember = !committeeIds.isEmpty();
+                // Specific group requested: direct advisor takes priority over committee membership
+                // because committeeIds may belong to OTHER groups, not necessarily this teamId.
                 boolean isDirectAdvisor = adviseeGroupIds.contains(teamId);
-                if (isCommitteeMember) {
+                if (isDirectAdvisor) {
+                    page = submissionRepository.findWithFilters(teamId, statusFilter, null, typeFilter, pageable);
+                } else if (!committeeIds.isEmpty()) {
                     page = submissionRepository.findByCommitteeIdInWithFilters(
                             committeeIds, teamId, statusFilter, typeFilter, pageable);
-                } else if (isDirectAdvisor) {
-                    page = submissionRepository.findWithFilters(teamId, statusFilter, null, typeFilter, pageable);
                 } else {
                     page = Page.empty(pageable);
                 }

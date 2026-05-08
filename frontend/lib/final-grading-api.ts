@@ -163,6 +163,28 @@ export async function saveSprintAdvisorGrade(payload: {
   return body.data;
 }
 
+export async function fetchDemonstrationGrade(groupId: number): Promise<number | null> {
+  const res = await fetch(`${API_BASE}/final-grading/groups/${groupId}/demonstration-grade`, {
+    headers: buildHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const body = await res.json() as { data?: { grade?: number | null } };
+  return body.data?.grade ?? null;
+}
+
+export async function saveDemonstrationGrade(groupId: number, grade: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/final-grading/groups/${groupId}/demonstration-grade`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ grade }),
+  });
+  if (!res.ok) {
+    const msg = await parseError(res);
+    throw new Error(msg);
+  }
+}
+
 export async function fetchAiCodeReviewSuggestion(groupId: number, sprintId: number): Promise<AiCodeReviewSuggestion> {
   const res = await fetch(`${API_BASE}/final-grading/groups/${groupId}/sprints/${sprintId}/ai-code-review-suggestion`, {
     headers: buildHeaders(),

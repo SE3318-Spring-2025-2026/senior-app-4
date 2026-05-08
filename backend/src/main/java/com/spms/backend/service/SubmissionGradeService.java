@@ -70,22 +70,15 @@ public class SubmissionGradeService {
         this.finalGradeCalculationService = finalGradeCalculationService;
     }
 
+    @Transactional
     public GradeListResponse getSubmissionGrades(Long submissionId, String userRole) {
-        submissionRepository.findById(submissionId)
+        Submission submission = submissionRepository.findById(submissionId)
             .orElseThrow(() -> new IllegalArgumentException("Submission not found with ID: " + submissionId));
 
         List<SubmissionGrade> grades = gradeRepository.findBySubmissionId(submissionId);
 
-        final int[] totalCommitteeMembers = {3};
-
-        Submission sub = submissionRepository.findById(submissionId).orElse(null);
-        if (sub != null) {
-            assignmentRepository.findTopByGroupIdAndStatusOrderByAssignedAtDesc(sub.getGroupId(), "ASSIGNED")
-                .ifPresent(assignment -> {
-                    Committee committee = assignment.getCommittee();
-                    totalCommitteeMembers[0] = committee.getAdvisors().size() + committee.getJuryMembers().size();
-                });
-        }
+        // Grading is complete when the direct advisor submits a grade (threshold = 1).
+        final int[] totalCommitteeMembers = {1};
 
         int gradeCount = grades.size();
         boolean isGradingComplete = (gradeCount >= totalCommitteeMembers[0]);
@@ -93,6 +86,15 @@ public class SubmissionGradeService {
         Double averageGrade = null;
         if (!grades.isEmpty() && isGradingComplete) {
             averageGrade = grades.stream().mapToDouble(SubmissionGrade::getScore).average().orElse(0.0);
+            // Retroactively mark as GRADED if threshold was previously higher.
+            if (submission.getStatus() != SubmissionStatus.GRADED) {
+                submission.setFinalGrade(averageGrade);
+                submission.setStatus(SubmissionStatus.GRADED);
+                submissionRepository.save(submission);
+                if (finalGradeCalculationService != null) {
+                    finalGradeCalculationService.recalculateGroupIfReady(submission.getGroupId());
+                }
+            }
         }
 
         List<GradeItemDTO> gradeItems = new ArrayList<>();
@@ -185,9 +187,8 @@ public class SubmissionGradeService {
         grade = gradeRepository.save(grade);
         saveCriterionScores(grade, rubricGrade.criterionScores());
 
-        int totalCommitteeMembersCount = committee != null
-                ? committee.getAdvisors().size() + committee.getJuryMembers().size()
-                : 1;
+        // Grading is complete when the direct advisor submits a grade (threshold = 1).
+        int totalCommitteeMembersCount = 1;
         List<SubmissionGrade> allGrades = gradeRepository.findBySubmissionId(submissionId);
 
         boolean isGradingComplete = false;

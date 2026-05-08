@@ -131,8 +131,14 @@ function ProfessorSubmissionsPageContent() {
                                         <td className="px-6 py-4 text-sm text-gray-300">
                                             {s.deliverableType.replace(/_/g, " ")}
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-gray-300">
-                                            {s.revisionNumber != null ? `v${s.revisionNumber}` : "v1"}
+                                        <td className="px-6 py-4 text-center">
+                                            {(s.revisionNumber ?? 1) > 1 ? (
+                                                <span className="inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-300">
+                                                    Rev. {s.revisionNumber}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-gray-600">v1</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${STATUS_COLORS[s.status] ?? "bg-gray-500/10 text-gray-400 border border-gray-500/20"}`}>

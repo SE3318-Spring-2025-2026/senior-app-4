@@ -30,6 +30,7 @@ import {
     type JiraIntegrationApiResponse,
 } from "@/lib/integrations-api";
 import { fetchFinalGrades, type FinalGradeResponse } from "@/lib/final-grading-api";
+import { fetchSubmissions, fetchSubmissionReviews, type SubmissionSummary } from "@/lib/submissions-api";
 
 function formatDate(dateString: string) {
     return new Date(dateString).toLocaleString("en-US", {
@@ -78,6 +79,8 @@ export default function GroupDetailPage() {
         useState<JiraIntegrationApiResponse | null>(null);
     const [finalGrades, setFinalGrades] =
         useState<FinalGradeResponse["data"] | null>(null);
+    const [revisionRequested, setRevisionRequested] =
+        useState<{ submission: SubmissionSummary; feedback: string } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -151,6 +154,18 @@ export default function GroupDetailPage() {
                 ]);
                 const finalGradeData = await fetchFinalGrades(groupId).catch(() => null);
 
+                // Find any submission with REVISION_REQUESTED status for this group
+                const submissionsData = await fetchSubmissions({ teamId: String(groupId), size: 50 }).catch(() => null);
+                const revisionSub = submissionsData?.data?.find((s) => s.status === "REVISION_REQUESTED") ?? null;
+                let revisionFeedback = "";
+                if (revisionSub) {
+                    const reviews = await fetchSubmissionReviews(String(revisionSub.id)).catch(() => null);
+                    const latestRevisionReview = reviews?.data
+                        ?.filter((r) => r.status === "REVISION_REQUESTED")
+                        .at(-1);
+                    revisionFeedback = latestRevisionReview?.comments ?? "";
+                }
+
                 if (cancelled) return;
 
                 setGroup({
@@ -161,6 +176,7 @@ export default function GroupDetailPage() {
                 setGithubIntegration(githubData);
                 setJiraIntegration(jiraData);
                 setFinalGrades(finalGradeData?.data ?? null);
+                setRevisionRequested(revisionSub ? { submission: revisionSub, feedback: revisionFeedback } : null);
             } catch (err) {
                 if (cancelled) return;
                 const message =
@@ -457,6 +473,43 @@ export default function GroupDetailPage() {
                                     ✗ {updateError}
                                 </p>
                             )}
+                        </div>
+                    )}
+
+                    {/* Revision Requested Banner */}
+                    {revisionRequested && (
+                        <div className="mb-6 rounded-2xl border border-orange-500/30 bg-orange-500/10 p-6 shadow-lg shadow-black/20">
+                            <div className="flex items-start gap-4">
+                                <div className="mt-0.5 flex-shrink-0 rounded-xl bg-orange-500/20 p-2">
+                                    <svg className="h-5 w-5 text-orange-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                                    </svg>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-orange-200">
+                                        Revision Requested — {revisionRequested.submission.deliverableType.replace("_", " ")}
+                                    </p>
+                                    {revisionRequested.feedback ? (
+                                        <div className="mt-2 rounded-xl border border-orange-500/20 bg-black/20 px-4 py-3">
+                                            <p className="text-xs text-gray-400 mb-1">Advisor Feedback:</p>
+                                            <p className="text-sm text-orange-100/90">{revisionRequested.feedback}</p>
+                                        </div>
+                                    ) : (
+                                        <p className="mt-1 text-sm text-orange-100/70">Your advisor has requested revisions. Please review and resubmit.</p>
+                                    )}
+                                    {isLeader && (
+                                        <Link
+                                            href={`/groups/${group.id}/submissions/new?parentSubmissionId=${revisionRequested.submission.id}`}
+                                            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-orange-400"
+                                        >
+                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                            </svg>
+                                            Submit Revision
+                                        </Link>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     )}
 
