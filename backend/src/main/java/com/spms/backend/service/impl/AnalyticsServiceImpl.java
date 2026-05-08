@@ -3,7 +3,9 @@ package com.spms.backend.service.impl;
 import com.spms.backend.dto.response.StudentPerformanceDto;
 import com.spms.backend.model.StudentPerformance;
 import com.spms.backend.model.User;
+import com.spms.backend.model.SprintIssueTracking;
 import com.spms.backend.repository.StudentPerformanceRepository;
+import com.spms.backend.repository.SprintIssueTrackingRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.AnalyticsService;
 import org.slf4j.Logger;
@@ -22,10 +24,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private static final Logger logger = LoggerFactory.getLogger(AnalyticsServiceImpl.class);
     private final StudentPerformanceRepository performanceRepository;
     private final UserRepository userRepository;
+    private final SprintIssueTrackingRepository sprintIssueTrackingRepository;
 
-    public AnalyticsServiceImpl(StudentPerformanceRepository performanceRepository, UserRepository userRepository) {
+    public AnalyticsServiceImpl(StudentPerformanceRepository performanceRepository,
+                                UserRepository userRepository,
+                                SprintIssueTrackingRepository sprintIssueTrackingRepository) {
         this.performanceRepository = performanceRepository;
         this.userRepository = userRepository;
+        this.sprintIssueTrackingRepository = sprintIssueTrackingRepository;
     }
 
     @Override
@@ -53,9 +59,19 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         List<User> students = userRepository.findAllByRoleIgnoreCase("student");
 
         for (User student : students) {
-            // Real integration logic will go here
-            int assigned = 0; 
+            int assigned = 0;
             int accomplished = 0;
+            if (student.getGithubUsername() != null && !student.getGithubUsername().isBlank()) {
+                List<SprintIssueTracking> logs = sprintIssueTrackingRepository
+                        .findByAssigneeGithubUsernameIgnoreCase(student.getGithubUsername());
+                assigned = logs.stream()
+                        .mapToInt(log -> log.getStoryPoints() != null ? log.getStoryPoints() : 0)
+                        .sum();
+                accomplished = logs.stream()
+                        .filter(log -> Boolean.TRUE.equals(log.getPrMerged()))
+                        .mapToInt(log -> log.getStoryPoints() != null ? log.getStoryPoints() : 0)
+                        .sum();
+            }
             double ratio = calculateRatio(assigned, accomplished);
 
             StudentPerformance perf = performanceRepository.findByUser_UserId(student.getUserId())

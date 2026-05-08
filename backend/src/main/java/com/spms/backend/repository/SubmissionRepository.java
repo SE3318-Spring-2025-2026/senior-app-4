@@ -17,12 +17,17 @@ import java.util.Optional;
 public interface SubmissionRepository extends JpaRepository<Submission, Long> {
 
     Optional<Submission> findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(Long groupId, DeliverableType type);
+
+    Optional<Submission> findTopByGroupIdAndDeliverableTypeAndStatusOrderByCreatedAtDesc(
+            Long groupId, DeliverableType type, SubmissionStatus status);
     
     boolean existsByGroupIdAndDeliverableTypeAndParentSubmissionIdIsNull(Long groupId, DeliverableType deliverableType);
 
     Page<Submission> findByGroupId(Long groupId, Pageable pageable);
 
     List<Submission> findAllByGroupIdAndDeliverableType(Long groupId, DeliverableType deliverableType);
+
+    List<Submission> findByGroupIdAndStatus(Long groupId, SubmissionStatus status);
 
     @Query("SELECT s FROM Submission s WHERE s.id = :rootId OR s.parentSubmissionId = :rootId ORDER BY s.version ASC")
     List<Submission> findRevisionChain(@Param("rootId") Long rootId);

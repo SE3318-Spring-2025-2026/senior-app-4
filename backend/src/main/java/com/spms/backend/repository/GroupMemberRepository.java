@@ -21,6 +21,8 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
 
     Optional<GroupMember> findFirstByUser_UserIdOrderByJoinedAtDesc(Long userId);
 
+    List<GroupMember> findByGroup_Id(Long groupId);
+
     @Query("SELECT gm FROM GroupMember gm JOIN FETCH gm.user JOIN FETCH gm.group")
     List<GroupMember> findAllWithUserAndGroup();
 }

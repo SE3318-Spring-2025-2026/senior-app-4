@@ -26,12 +26,6 @@ public class ActiveSprintServiceImpl implements ActiveSprintService {
         this.sprintRepository = sprintRepository;
     }
 
-    private String computeStatus(LocalDate start, LocalDate end, LocalDate today) {
-        if (today.isBefore(start)) return "UPCOMING";
-        if (!today.isAfter(end)) return "ACTIVE";
-        return "COMPLETED";
-    }
-
     @Override
     public ActiveSprintDto getActiveSprint() {
         LocalDate today = LocalDate.now();
@@ -45,13 +39,13 @@ public class ActiveSprintServiceImpl implements ActiveSprintService {
 
         logger.info("Found active sprint: {} (ID: {})", activeSprint.getSprintName(), activeSprint.getId());
 
-        String status = computeStatus(activeSprint.getStartDate(), activeSprint.getEndDate(), today);
         return new ActiveSprintDto(
                 activeSprint.getId(),
                 activeSprint.getSprintName(),
                 activeSprint.getStartDate(),
                 activeSprint.getEndDate(),
-                status
+                activeSprint.getStatus(),
+                activeSprint.getRequiredStoryPoints()
         );
     }
 }

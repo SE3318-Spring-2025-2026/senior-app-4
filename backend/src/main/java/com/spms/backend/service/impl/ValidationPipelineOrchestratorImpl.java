@@ -368,6 +368,11 @@ public class ValidationPipelineOrchestratorImpl implements ValidationPipelineOrc
         result.setReviewerCount(toInt(ai.get("reviewerCount")));
         result.setHasChangeRequests(toBool(ai.get("hasChangeRequests")));
         result.setHasSubstantiveComments(toBool(ai.get("hasSubstantiveComments")));
+        Boolean substantive = result.getHasSubstantiveComments();
+        Integer reviewers = result.getReviewerCount();
+        result.setHasReview((substantive != null && substantive)
+                || (reviewers != null && reviewers > 0)
+                || (result.getReviewScore() != null && result.getReviewScore().compareTo(BigDecimal.ZERO) > 0));
         result.setReviewAiFeedback((String) ai.get("aiFeedback"));
     }
 

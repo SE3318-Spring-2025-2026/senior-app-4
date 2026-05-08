@@ -47,6 +47,18 @@ public class Sprint {
         this.status = status;
     }
 
+    @PrePersist
+    void onCreate() {
+        Instant now = Instant.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = Instant.now();
+    }
+
     public Long getId() {
         return id;
     }

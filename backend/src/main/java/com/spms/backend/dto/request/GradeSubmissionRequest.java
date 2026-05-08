@@ -2,7 +2,8 @@ package com.spms.backend.dto.request;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.Valid;
 import java.util.List;
 
 public class GradeSubmissionRequest {
@@ -13,7 +14,8 @@ public class GradeSubmissionRequest {
 
     private String feedback;
 
-    private List<CriterionScoreRequest> criterionScores;
+    @Valid
+    private List<CriteriaScoreRequest> criteriaScores;
 
     public GradeSubmissionRequest() {}
 
@@ -23,6 +25,11 @@ public class GradeSubmissionRequest {
     public String getFeedback() { return feedback; }
     public void setFeedback(String feedback) { this.feedback = feedback; }
 
-    public List<CriterionScoreRequest> getCriterionScores() { return criterionScores; }
-    public void setCriterionScores(List<CriterionScoreRequest> criterionScores) { this.criterionScores = criterionScores; }
+    public List<CriteriaScoreRequest> getCriteriaScores() { return criteriaScores; }
+    public void setCriteriaScores(List<CriteriaScoreRequest> criteriaScores) { this.criteriaScores = criteriaScores; }
+
+    @AssertTrue(message = "Either grade or criteriaScores must be provided")
+    public boolean isGradeOrCriteriaScoresProvided() {
+        return grade != null || (criteriaScores != null && !criteriaScores.isEmpty());
+    }
 }

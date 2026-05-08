@@ -460,7 +460,24 @@ function GradePanel({
     return init;
   });
   const [feedbackInput, setFeedbackInput] = useState<string>(myGrade?.feedback ?? "");
+  const [criteriaGrades, setCriteriaGrades] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const hasRubric = criteria.length > 0;
+  const rubricScore = hasRubric ? calculateRubricScore(criteria, criteriaGrades) : null;
+
+  useEffect(() => {
+    setGradeInput(myGrade ? String(myGrade.grade) : "");
+    setFeedbackInput(myGrade?.feedback ?? "");
+    const scoreByCriterion = new Map((myGrade?.criteriaScores ?? []).map((score) => [String(score.criteriaId), score.score]));
+    setCriteriaGrades(Object.fromEntries(
+      criteria.map((criterion) => [
+        String(criterion.id),
+        scoreByCriterion.has(String(criterion.id))
+          ? scoreToGrade(scoreByCriterion.get(String(criterion.id)) ?? 0, criterion.gradingType)
+          : "",
+      ]),
+    ));
+  }, [myGrade, criteria]);
 
   // live weighted score preview
   const weightedPreview = useMemo(() => {
@@ -664,11 +681,89 @@ function GradeRow({ grade }: { grade: GradeItem }) {
       <td className="px-4 py-3">
         <p className="font-medium text-white">{grade.professorName}</p>
         {grade.feedback && <p className="mt-1 line-clamp-2 text-xs text-gray-500">{grade.feedback}</p>}
+        {grade.criteriaScores && grade.criteriaScores.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {grade.criteriaScores.map((score) => (
+              <span key={String(score.criteriaId)} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-gray-400">
+                {score.criteriaName}: {formatGrade(score.score)}
+              </span>
+            ))}
+          </div>
+        )}
       </td>
       <td className="px-4 py-3 text-gray-300">{formatGrade(grade.grade)}</td>
       <td className="px-4 py-3 text-xs text-gray-500">{formatDateTime(grade.gradedAt)}</td>
     </tr>
   );
+}
+
+function CriterionPicker({
+  criterion,
+  value,
+  onChange,
+}: {
+  criterion: GradingCriteriaItem;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const options = criterion.gradingType === "BINARY" ? ["S", "F"] : ["A", "B", "C", "D", "F"];
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-white">{criterion.name}</p>
+          {criterion.description && <p className="mt-1 text-xs text-gray-500">{criterion.description}</p>}
+        </div>
+        <span className="shrink-0 text-xs font-semibold text-blue-300">{criterion.weight}%</span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition ${
+              value === option
+                ? "border-amber-400/40 bg-amber-400 text-gray-950"
+                : "border-white/10 bg-white/5 text-gray-400 hover:text-white"
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function calculateRubricScore(criteria: GradingCriteriaItem[], values: Record<string, string>) {
+  if (criteria.some((criterion) => !values[String(criterion.id)])) return null;
+  return criteria.reduce((sum, criterion) => {
+    const raw = gradeToScore(values[String(criterion.id)], criterion.gradingType);
+    return sum + (raw * criterion.weight) / 100;
+  }, 0);
+}
+
+function gradeToScore(grade: string, gradingType?: "SOFT" | "BINARY" | null) {
+  if (gradingType === "BINARY") {
+    return grade === "S" ? 100 : 0;
+  }
+  switch (grade) {
+    case "A": return 100;
+    case "B": return 80;
+    case "C": return 60;
+    case "D": return 50;
+    default: return 0;
+  }
+}
+
+function scoreToGrade(score: number, gradingType?: "SOFT" | "BINARY" | null) {
+  if (gradingType === "BINARY") return score >= 100 ? "S" : "F";
+  if (score >= 100) return "A";
+  if (score >= 80) return "B";
+  if (score >= 60) return "C";
+  if (score >= 50) return "D";
+  return "F";
 }
 
 function FilePanel({ detail }: { detail: SubmissionDetail }) {

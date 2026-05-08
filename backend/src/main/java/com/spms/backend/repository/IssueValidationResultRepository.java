@@ -17,6 +17,7 @@ public interface IssueValidationResultRepository extends JpaRepository<IssueVali
 
     List<IssueValidationResult> findBySprintId(Long sprintId);
     List<IssueValidationResult> findBySprintIdAndTeamId(Long sprintId, Long teamId);
+    List<IssueValidationResult> findBySprintIdAndTeamIdAndValidationStatus(Long sprintId, Long teamId, String validationStatus);
     Optional<IssueValidationResult> findTopByIssueKeyOrderByEvaluatedAtDesc(String issueKey);
 
     @Query("SELECT r FROM IssueValidationResult r WHERE r.sprintId = :sprintId AND r.teamId = :teamId " +

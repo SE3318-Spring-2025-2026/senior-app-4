@@ -22,8 +22,8 @@ interface CriterionRow {
     key: number;
     name: string;
     description: string;
-    weight: string;
     gradingType: GradingType;
+    weight: string;
 }
 
 // ─── Page shell (auth guard) ─────────────────────────────────────────────────
@@ -167,10 +167,10 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
                 headers: buildHeaders(),
                 body: JSON.stringify({
                     deliverableType,
+                    gradingType: editingValues.gradingType,
                     name: editingValues.name.trim(),
                     description: editingValues.description.trim(),
                     weight,
-                    gradingType: editingValues.gradingType,
                 }),
             });
             if (!res.ok) throw new Error("Failed to update criterion.");
@@ -210,10 +210,10 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
                         headers: buildHeaders(),
                         body: JSON.stringify({
                             deliverableType,
+                            gradingType: r.gradingType,
                             name: r.name.trim(),
                             description: r.description.trim(),
                             weight: parseFloat(r.weight),
-                            gradingType: r.gradingType,
                         }),
                     }).then((res) => {
                         if (!res.ok) throw new Error(`Failed to save "${r.name}"`);

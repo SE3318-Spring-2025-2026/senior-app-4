@@ -18,6 +18,12 @@ import {
     type SprintSummaryResponse,
     type GroupTrackingDetail,
 } from "@/lib/sprint-tracking-api";
+import {
+    fetchAiCodeReviewSuggestion,
+    fetchSprintAdvisorGrades,
+    saveSprintAdvisorGrade,
+    type SoftGrade,
+} from "@/lib/final-grading-api";
 
 export default function MyAdviseesPage() {
     const router = useRouter();
@@ -318,6 +324,7 @@ function AdviseesTable() {
                                     onExpandClick={() => handleExpandRow(assignment.teamId)}
                                     trackingDetails={trackingDetails[assignment.teamId] || null}
                                     loadingDetails={loadingDetails[assignment.teamId] || false}
+                                    activeSprint={sprintSummary?.activeSprint ?? null}
                                 />
                             ))}
                         </tbody>
@@ -346,6 +353,7 @@ function SprintAwareAdviseeRow({
     onExpandClick,
     trackingDetails,
     loadingDetails,
+    activeSprint,
 }: {
     assignment: AdvisorAssignment;
     releasingId: number | null;
@@ -355,6 +363,7 @@ function SprintAwareAdviseeRow({
     onExpandClick: () => void;
     trackingDetails: GroupTrackingDetail | null;
     loadingDetails: boolean;
+    activeSprint: SprintSummaryResponse["activeSprint"] | null;
 }) {
     const router = useRouter();
     const status = assignment.status?.toUpperCase() ?? "UNKNOWN";
@@ -483,6 +492,13 @@ function SprintAwareAdviseeRow({
                 <tr className="bg-gray-950/50 border-t border-white/5">
                     <td colSpan={7} className="px-6 py-6">
                         <div className="space-y-6">
+                            {activeSprint?.sprintId && (
+                                <AdvisorSprintGradeForm
+                                    groupId={assignment.teamId}
+                                    sprintId={activeSprint.sprintId}
+                                />
+                            )}
+
                             {/* Per-Student Summary */}
                             {trackingDetails && (
                                 <div className="bg-gray-900 rounded-lg border border-white/5 p-4">
@@ -580,6 +596,108 @@ function SprintAwareAdviseeRow({
                 </tr>
             )}
         </>
+    );
+}
+
+function AdvisorSprintGradeForm({ groupId, sprintId }: { groupId: number; sprintId: number }) {
+    const [scrumGrade, setScrumGrade] = useState<SoftGrade>("A");
+    const [codeReviewGrade, setCodeReviewGrade] = useState<SoftGrade>("A");
+    const [saving, setSaving] = useState(false);
+    const [suggesting, setSuggesting] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchSprintAdvisorGrades(groupId)
+            .then((grades) => {
+                if (cancelled) return;
+                const current = grades.find((grade) => grade.sprintId === sprintId);
+                if (current) {
+                    setScrumGrade(current.scrumGrade);
+                    setCodeReviewGrade(current.codeReviewGrade);
+                }
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [groupId, sprintId]);
+
+    const handleSuggestion = async () => {
+        setSuggesting(true);
+        try {
+            const suggestion = await fetchAiCodeReviewSuggestion(groupId, sprintId);
+            setCodeReviewGrade(suggestion.data.suggestedGrade);
+            toast.success(`AI suggests ${suggestion.data.suggestedGrade} for code review.`);
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "AI suggestion is unavailable.");
+        } finally {
+            setSuggesting(false);
+        }
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            await saveSprintAdvisorGrade({ groupId, sprintId, scrumGrade, codeReviewGrade });
+            toast.success("Sprint grade saved.");
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Sprint grade could not be saved.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="rounded-lg border border-white/10 bg-gray-900 p-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+                <h4 className="text-sm font-semibold text-white">Sprint Grade</h4>
+                <button
+                    type="button"
+                    onClick={handleSuggestion}
+                    disabled={suggesting}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-gray-300 transition hover:bg-white/10 disabled:opacity-50"
+                >
+                    {suggesting ? "Reading..." : "AI review"}
+                </button>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+                <GradeSelect label="Scrum" value={scrumGrade} onChange={setScrumGrade} />
+                <GradeSelect label="Code Review" value={codeReviewGrade} onChange={setCodeReviewGrade} />
+            </div>
+            <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-50"
+            >
+                {saving ? "Saving..." : "Save Sprint Grade"}
+            </button>
+        </div>
+    );
+}
+
+function GradeSelect({ label, value, onChange }: { label: string; value: SoftGrade; onChange: (value: SoftGrade) => void }) {
+    const grades: SoftGrade[] = ["A", "B", "C", "D", "F"];
+    return (
+        <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">{label}</p>
+            <div className="flex flex-wrap gap-2">
+                {grades.map((grade) => (
+                    <button
+                        key={grade}
+                        type="button"
+                        onClick={() => onChange(grade)}
+                        className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition ${
+                            value === grade
+                                ? "border-blue-400/40 bg-blue-500 text-white"
+                                : "border-white/10 bg-white/5 text-gray-400 hover:text-white"
+                        }`}
+                    >
+                        {grade}
+                    </button>
+                ))}
+            </div>
+        </div>
     );
 }
 

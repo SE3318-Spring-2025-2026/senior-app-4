@@ -11,11 +11,19 @@ import {
 } from "@/lib/committees-api";
 import { Committee, CommitteeFormValues } from "@/lib/committee-types";
 import { getUser } from "@/lib/auth";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function CoordinatorCommitteesPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+            <CoordinatorCommitteesPageContent />
+        </Suspense>
+    );
+}
+
+function CoordinatorCommitteesPageContent() {
     const authStatus = useAuthGuard("coordinator");
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -179,10 +187,7 @@ export default function CoordinatorCommitteesPage() {
             toast.success("Committee deleted successfully.");
             await loadCommittees(page, statusFilter, searchQuery, sortOption, pageSize);
         } catch (err) {
-            showToast(
-                err instanceof Error ? err.message : "Failed to delete committee.",
-                "error"
-            );
+            toast.error(err instanceof Error ? err.message : "Failed to delete committee.");
         }
     }
 

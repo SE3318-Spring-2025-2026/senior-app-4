@@ -2,13 +2,21 @@
 
 import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react"; // useRef eklendi
+import { Suspense, useEffect, useState, useRef } from "react"; // useRef eklendi
 import { fetchCommittees } from "@/lib/committees-api";
 import { Committee } from "@/lib/committee-types";
 import { showToast } from "@/components/toast/ToastContext";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 export default function CommitteesPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+            <CommitteesPageContent />
+        </Suspense>
+    );
+}
+
+function CommitteesPageContent() {
     const [committees, setCommittees] = useState<Committee[]>([]);
     const [loading, setLoading] = useState(true);
 
