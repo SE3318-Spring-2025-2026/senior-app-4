@@ -21,7 +21,6 @@ type Professor = {
 export default function AssignAdvisorForm({ committeeId, onSuccess, onCancel }: AssignAdvisorFormProps) {
     const [professors, setProfessors] = useState<Professor[]>([]);
     const [selectedAdvisorId, setSelectedAdvisorId] = useState<string>("");
-    const [role, setRole] = useState<string>("MEMBER");
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
 
@@ -48,12 +47,11 @@ export default function AssignAdvisorForm({ committeeId, onSuccess, onCancel }: 
 
         setLoading(true);
         try {
-            await assignAdvisor(committeeId, Number(selectedAdvisorId), role);
+            await assignAdvisor(committeeId, Number(selectedAdvisorId), "MEMBER");
             toast.success("Advisor assigned successfully");
             onSuccess();
         } catch (error: any) {
             const msg = error?.message ?? "Failed to assign advisor";
-            console.error("Failed to assign advisor", error);
             toast.error(msg);
         } finally {
             setLoading(false);
@@ -83,20 +81,6 @@ export default function AssignAdvisorForm({ committeeId, onSuccess, onCancel }: 
                 )}
             </div>
             
-            <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Role in Committee</label>
-                <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none"
-                    required
-                >
-                    <option value="PRESIDENT">President</option>
-                    <option value="VICE_PRESIDENT">Vice President</option>
-                    <option value="MEMBER">Member</option>
-                </select>
-            </div>
-
             <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
                 <button
                     type="button"

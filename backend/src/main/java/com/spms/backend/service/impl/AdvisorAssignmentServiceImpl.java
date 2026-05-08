@@ -224,6 +224,16 @@ public class AdvisorAssignmentServiceImpl implements AdvisorAssignmentService {
             throw new BadRequestException("Advisor already assigned to this committee");
         }
 
+        // A professor can only belong to one committee
+        List<Long> existingCommitteeIds = committeeAdvisorRepository.findCommitteeIdsByAdvisorUserId(advisorId);
+        boolean inAnotherCommittee = existingCommitteeIds.stream()
+                .anyMatch(id -> !id.equals(committeeId));
+        if (inAnotherCommittee) {
+            throw new BadRequestException(
+                    "Professor '" + advisor.getFullName() + "' is already a member of another committee. " +
+                    "A professor can only be assigned to one committee at a time.");
+        }
+
         if (committee.getAdvisors().size() >= 5) {
             throw new BadRequestException("Committee cannot have more than 5 advisors");
         }
