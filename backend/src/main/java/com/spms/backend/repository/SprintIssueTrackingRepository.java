@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Collection;
 
 @Repository
 public interface SprintIssueTrackingRepository extends JpaRepository<SprintIssueTracking, Long> {
@@ -17,6 +18,8 @@ public interface SprintIssueTrackingRepository extends JpaRepository<SprintIssue
      * Find all tracking records for a group in a specific sprint
      */
     List<SprintIssueTracking> findByGroup_IdAndSprint_Id(Long groupId, Long sprintId);
+
+    List<SprintIssueTracking> findByGroup_IdAndSprint_IdIn(Long groupId, Collection<Long> sprintIds);
 
     /**
      * Delete all tracking records for a group in a specific sprint
@@ -32,4 +35,6 @@ public interface SprintIssueTrackingRepository extends JpaRepository<SprintIssue
     List<SprintIssueTracking> findBySprint_Id(Long sprintId);
 
     List<SprintIssueTracking> findByGroup_Id(Long groupId);
+
+    List<SprintIssueTracking> findByAssigneeGithubUsernameIgnoreCase(String assigneeGithubUsername);
 }

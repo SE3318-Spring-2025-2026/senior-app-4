@@ -6,11 +6,13 @@ import Sidebar from "@/components/Sidebar";
 import { buildHeaders, API_BASE } from "@/lib/api-utils";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
-type DeliverableType = "PROPOSAL" | "REVISED_PROPOSAL" | "STATEMENT_OF_WORK";
+type DeliverableType = "PROPOSAL" | "REVISED_PROPOSAL" | "STATEMENT_OF_WORK" | "DEMONSTRATION";
+type GradingType = "SOFT" | "BINARY";
 
 interface GradingCriterion {
     id?: string;
     deliverableType: DeliverableType;
+    gradingType: GradingType | null;
     name: string;
     description: string;
     weight: number;
@@ -20,6 +22,7 @@ interface CriterionRow {
     key: number;
     name: string;
     description: string;
+    gradingType: GradingType;
     weight: string;
 }
 
@@ -41,6 +44,7 @@ function RubricsLayout() {
         { value: "PROPOSAL", label: "Proposal" },
         { value: "REVISED_PROPOSAL", label: "Revised Proposal" },
         { value: "STATEMENT_OF_WORK", label: "Statement of Work" },
+        { value: "DEMONSTRATION", label: "Demonstration" },
     ];
 
     return (
@@ -97,11 +101,11 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
     const [rows, setRows] = useState<CriterionRow[]>([newRow()]);
     const [saving, setSaving] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
-    const [editingValues, setEditingValues] = useState<{ name: string; description: string; weight: string }>({ name: "", description: "", weight: "" });
+    const [editingValues, setEditingValues] = useState<{ name: string; description: string; weight: string; gradingType: GradingType }>({ name: "", description: "", weight: "", gradingType: "SOFT" });
     const [editSaving, setEditSaving] = useState(false);
 
     function newRow(): CriterionRow {
-        return { key: ++rowCounter, name: "", description: "", weight: "" };
+        return { key: ++rowCounter, name: "", description: "", weight: "", gradingType: "SOFT" };
     }
 
     useEffect(() => {
@@ -143,7 +147,7 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
 
     function startEdit(c: GradingCriterion) {
         setEditingId(c.id!);
-        setEditingValues({ name: c.name, description: c.description, weight: String(c.weight) });
+        setEditingValues({ name: c.name, description: c.description, weight: String(c.weight), gradingType: c.gradingType ?? "SOFT" });
     }
 
     function cancelEdit() {
@@ -163,6 +167,7 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
                 headers: buildHeaders(),
                 body: JSON.stringify({
                     deliverableType,
+                    gradingType: editingValues.gradingType,
                     name: editingValues.name.trim(),
                     description: editingValues.description.trim(),
                     weight,
@@ -172,7 +177,7 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
             setExisting((prev) =>
                 prev.map((c) =>
                     c.id === editingId
-                        ? { ...c, name: editingValues.name.trim(), description: editingValues.description.trim(), weight }
+                        ? { ...c, name: editingValues.name.trim(), description: editingValues.description.trim(), weight, gradingType: editingValues.gradingType }
                         : c
                 )
             );
@@ -205,6 +210,7 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
                         headers: buildHeaders(),
                         body: JSON.stringify({
                             deliverableType,
+                            gradingType: r.gradingType,
                             name: r.name.trim(),
                             description: r.description.trim(),
                             weight: parseFloat(r.weight),
@@ -259,7 +265,7 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
                         {existing.map((c) =>
                             editingId === c.id ? (
                                 <div key={c.id} className="px-6 py-4 space-y-3">
-                                    <div className="grid grid-cols-[1fr_2fr_80px] gap-3">
+                                    <div className="grid grid-cols-[1fr_2fr_100px_80px] gap-3">
                                         <input
                                             type="text"
                                             value={editingValues.name}
@@ -272,6 +278,14 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
                                             onChange={(e) => setEditingValues((v) => ({ ...v, description: e.target.value }))}
                                             className="rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/50 focus:outline-none"
                                         />
+                                        <select
+                                            value={editingValues.gradingType}
+                                            onChange={(e) => setEditingValues((v) => ({ ...v, gradingType: e.target.value as GradingType }))}
+                                            className="rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                                        >
+                                            <option value="SOFT">Soft</option>
+                                            <option value="BINARY">Binary</option>
+                                        </select>
                                         <input
                                             type="number"
                                             min={0}
@@ -307,6 +321,11 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
                                         )}
                                     </div>
                                     <div className="flex items-center gap-3 flex-shrink-0">
+                                        {c.gradingType && (
+                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${c.gradingType === "BINARY" ? "bg-amber-500/10 text-amber-300 border border-amber-500/20" : "bg-blue-500/10 text-blue-300 border border-blue-500/20"}`}>
+                                                {c.gradingType === "BINARY" ? "Binary" : "Soft"}
+                                            </span>
+                                        )}
                                         <span className="text-sm font-semibold text-blue-400">{c.weight}%</span>
                                         <button
                                             onClick={() => startEdit(c)}
@@ -338,16 +357,17 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
 
                 <div className="p-6 space-y-3">
                     {/* Column headers */}
-                    <div className="grid grid-cols-[1fr_2fr_80px_32px] gap-3 px-1">
+                    <div className="grid grid-cols-[1fr_2fr_100px_80px_32px] gap-3 px-1">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Name</p>
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Description</p>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Type</p>
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Weight %</p>
                         <span />
                     </div>
 
                     {/* Rows */}
                     {rows.map((row) => (
-                        <div key={row.key} className="grid grid-cols-[1fr_2fr_80px_32px] gap-3 items-center">
+                        <div key={row.key} className="grid grid-cols-[1fr_2fr_100px_80px_32px] gap-3 items-center">
                             <input
                                 type="text"
                                 placeholder="e.g. Technical Feasibility"
@@ -362,6 +382,14 @@ function CriteriaPanel({ deliverableType }: { deliverableType: DeliverableType }
                                 onChange={(e) => updateRow(row.key, "description", e.target.value)}
                                 className="w-full rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/50 focus:outline-none"
                             />
+                            <select
+                                value={row.gradingType}
+                                onChange={(e) => updateRow(row.key, "gradingType", e.target.value)}
+                                className="w-full rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                            >
+                                <option value="SOFT">Soft</option>
+                                <option value="BINARY">Binary</option>
+                            </select>
                             <input
                                 type="number"
                                 placeholder="0"

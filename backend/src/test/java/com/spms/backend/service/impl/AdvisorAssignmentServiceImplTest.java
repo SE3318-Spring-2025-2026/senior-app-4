@@ -10,6 +10,7 @@ import com.spms.backend.repository.AbstractStubJpaRepository;
 import com.spms.backend.repository.AuditLogRepository;
 import com.spms.backend.repository.CommitteeAdvisorRepository;
 import com.spms.backend.repository.CommitteeRepository;
+import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.CommitteeNotificationService;
@@ -37,6 +38,7 @@ class AdvisorAssignmentServiceImplTest {
     private UserRepository userRepository;
     private CommitteeAdvisorRepository committeeAdvisorRepository;
     private CommitteeNotificationService committeeNotificationService;
+    private GroupCommitteeAssignmentRepository groupCommitteeAssignmentRepository;
 
     private AdvisorAssignmentServiceImpl service;
 
@@ -49,8 +51,10 @@ class AdvisorAssignmentServiceImplTest {
         userRepository = org.mockito.Mockito.mock(UserRepository.class);
         committeeAdvisorRepository = org.mockito.Mockito.mock(CommitteeAdvisorRepository.class);
         committeeNotificationService = org.mockito.Mockito.mock(CommitteeNotificationService.class);
+        groupCommitteeAssignmentRepository = org.mockito.Mockito.mock(GroupCommitteeAssignmentRepository.class);
         service = new AdvisorAssignmentServiceImpl(groupRepository, auditLogRepository, notificationService,
-                committeeRepository, userRepository, committeeAdvisorRepository, committeeNotificationService);
+                committeeRepository, userRepository, committeeAdvisorRepository, committeeNotificationService,
+                groupCommitteeAssignmentRepository);
     }
 
     @Test

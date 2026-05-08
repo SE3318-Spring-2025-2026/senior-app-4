@@ -17,6 +17,7 @@ interface Props {
 interface FormErrors {
     githubPat?: string;
     organizationName?: string;
+    repositoryName?: string;
     jiraSpaceUrl?: string;
     jiraEmail?: string;
     jiraApiKey?: string;
@@ -26,6 +27,7 @@ interface FormErrors {
 export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
     const [githubPat, setGithubPat] = useState("");
     const [organizationName, setOrganizationName] = useState("");
+    const [repositoryName, setRepositoryName] = useState("");
     const [jiraSpaceUrl, setJiraSpaceUrl] = useState("");
     const [jiraEmail, setJiraEmail] = useState("");
     const [jiraApiKey, setJiraApiKey] = useState("");
@@ -36,12 +38,13 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
 
     function validate(): FormErrors {
         const errs: FormErrors = {};
-        const githubTouched = githubPat.trim() || organizationName.trim();
+        const githubTouched = githubPat.trim() || organizationName.trim() || repositoryName.trim();
         const jiraTouched = jiraSpaceUrl.trim() || jiraEmail.trim() || jiraApiKey.trim() || projectKey.trim();
 
         if (githubTouched) {
             if (!githubPat.trim()) errs.githubPat = "GitHub PAT is required";
             if (!organizationName.trim()) errs.organizationName = "Organization name is required";
+            if (!repositoryName.trim()) errs.repositoryName = "Repository name is required";
         }
         if (jiraTouched) {
             if (!jiraSpaceUrl.trim()) errs.jiraSpaceUrl = "JIRA Space URL is required";
@@ -72,8 +75,13 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
         try {
             const tasks: Promise<void>[] = [];
 
-            if (githubPat.trim() && organizationName.trim()) {
-                tasks.push(bindGithubIntegration(groupId, githubPat.trim(), organizationName.trim()));
+            if (githubPat.trim() && organizationName.trim() && repositoryName.trim()) {
+                tasks.push(bindGithubIntegration(
+                    groupId,
+                    githubPat.trim(),
+                    organizationName.trim(),
+                    repositoryName.trim()
+                ));
             }
             if (jiraSpaceUrl.trim() && jiraEmail.trim() && jiraApiKey.trim() && projectKey.trim()) {
                 tasks.push(bindJiraIntegration(groupId, jiraSpaceUrl.trim(), jiraEmail.trim(), jiraApiKey.trim(), projectKey.trim()));
@@ -83,6 +91,7 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
 
             setGithubPat("");
             setOrganizationName("");
+            setRepositoryName("");
             setJiraSpaceUrl("");
             setJiraEmail("");
             setJiraApiKey("");
@@ -123,7 +132,7 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
                         <input
                             name="githubPat"
                             type="password"
-                            placeholder="ghp_••••••••••••••••••••"
+                            placeholder="ghp_..."
                             value={githubPat}
                             onChange={(e) => setGithubPat(e.target.value)}
                             className="w-full bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
@@ -146,6 +155,22 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
                         />
                         {errors.organizationName && (
                             <p className="mt-1.5 text-sm text-red-400">{errors.organizationName}</p>
+                        )}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                            Repository Name
+                        </label>
+                        <input
+                            name="repositoryName"
+                            type="text"
+                            placeholder="senior-project-app"
+                            value={repositoryName}
+                            onChange={(e) => setRepositoryName(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                        />
+                        {errors.repositoryName && (
+                            <p className="mt-1.5 text-sm text-red-400">{errors.repositoryName}</p>
                         )}
                     </div>
                 </div>

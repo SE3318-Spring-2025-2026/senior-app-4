@@ -44,7 +44,8 @@ public class ActiveSprintServiceImpl implements ActiveSprintService {
                 activeSprint.getSprintName(),
                 activeSprint.getStartDate(),
                 activeSprint.getEndDate(),
-                activeSprint.getStatus()
+                activeSprint.getStatus(),
+                activeSprint.getRequiredStoryPoints()
         );
     }
 }

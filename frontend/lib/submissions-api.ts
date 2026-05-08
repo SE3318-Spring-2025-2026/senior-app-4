@@ -39,6 +39,21 @@ export interface GradeCriterionScore {
   score: number;
 }
 
+export interface GradeCriterionInput {
+  criterionId: SubmissionId;
+  score?: number;
+  grade?: string;
+}
+
+export interface GradingCriterion {
+  id: number;
+  deliverableType: DeliverableType;
+  gradingType: "SOFT" | "BINARY" | null;
+  name: string;
+  description?: string | null;
+  weight: number;
+}
+
 export interface GradeItem {
   id: SubmissionId;
   professorId: SubmissionId;
@@ -244,6 +259,21 @@ export async function fetchSubmissionGrades(submissionId: SubmissionId): Promise
   return res.json();
 }
 
+export async function fetchGradingCriteria(deliverableType: DeliverableType): Promise<GradingCriterion[]> {
+  const res = await fetch(`${API_BASE}/grading-criteria?deliverableType=${deliverableType}`, {
+    headers: buildHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const msg = await parseError(res);
+    throw new Error(msg);
+  }
+
+  const body = await res.json();
+  return body.data ?? [];
+}
+
 export async function fetchSubmissionReviews(submissionId: SubmissionId): Promise<ReviewListResponse> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 4000);
@@ -316,9 +346,40 @@ export async function createReview(
   }
 }
 
+export interface CriterionScorePayload {
+  criterionId: number;
+  score: number;
+}
+
+export interface GradePayload {
+  grade?: number;
+  feedback?: string;
+  criterionScores?: CriterionScorePayload[];
+}
+
+export interface GradingCriteriaItem {
+  id: number;
+  name: string;
+  description: string | null;
+  gradingType: "SOFT" | "BINARY" | null;
+  weight: number;
+}
+
+export async function fetchCriteriaForDeliverableType(
+  deliverableType: string,
+): Promise<GradingCriteriaItem[]> {
+  const res = await fetch(
+    `${API_BASE}/grading-criteria?deliverableType=${encodeURIComponent(deliverableType)}`,
+    { headers: buildHeaders(), cache: "no-store" },
+  );
+  if (!res.ok) return [];
+  const body = await res.json();
+  return (body.data ?? []) as GradingCriteriaItem[];
+}
+
 export async function submitGrade(
   submissionId: SubmissionId,
-  payload: { grade: number; feedback?: string },
+  payload: GradePayload,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/submissions/${submissionId}/grades`, {
     method: "POST",
@@ -334,7 +395,7 @@ export async function submitGrade(
 export async function updateGrade(
   submissionId: SubmissionId,
   gradeId: number,
-  payload: { grade: number; feedback?: string },
+  payload: GradePayload,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/submissions/${submissionId}/grades/${gradeId}`, {
     method: "PUT",

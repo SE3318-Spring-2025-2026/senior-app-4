@@ -2,8 +2,8 @@
 
 import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
+import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
 import {
     deleteCommittee,
     fetchCommitteeById,
@@ -61,6 +61,7 @@ function JuryTypeBadge({ type }: { type: string }) {
 export default function CommitteeDetailPage() {
     const params = useParams();
     const committeeId = Number(params.committeeId);
+    const router = useRouter();
 
     const [isCoordinator, setIsCoordinator] = useState(false);
     const [committee, setCommittee] = useState<CommitteeDetail | null>(null);
@@ -191,7 +192,15 @@ export default function CommitteeDetailPage() {
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-sm text-blue-300">
+                                        <span className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                                            committee.status === "ACTIVE"
+                                                ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-300"
+                                                : committee.status === "INACTIVE"
+                                                ? "border-pink-500/40 bg-pink-500/15 text-pink-400"
+                                                : committee.status === "COMPLETED"
+                                                ? "border-orange-400/40 bg-orange-400/15 text-orange-300"
+                                                : "border-gray-500/20 bg-gray-500/10 text-gray-400"
+                                        }`}>
                                             {committee.status}
                                         </span>
                                         {isCoordinator && (
@@ -240,7 +249,7 @@ export default function CommitteeDetailPage() {
                                 <h2 className="text-xl font-semibold">Committee Details</h2>
                                 <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <Info label="Committee ID" value={String(committee.committeeId)} />
-                                    <Info label="Created By" value={`User #${committee.createdBy}`} />
+                                    <Info label="Created By" value={committee.createdByName ?? `User #${committee.createdBy}`} />
                                     <Info label="Created At" value={committee.createdAt ? new Date(committee.createdAt).toLocaleString() : "-"} />
                                     <Info label="Updated At" value={committee.updatedAt ? new Date(committee.updatedAt).toLocaleString() : "-"} />
                                 </div>
@@ -314,7 +323,6 @@ export default function CommitteeDetailPage() {
                                             <thead>
                                                 <tr className="border-b border-white/10">
                                                     <Th>Name</Th>
-                                                    <Th>Email</Th>
                                                     <Th>Role</Th>
                                                     <Th>Assigned</Th>
                                                     {isCoordinator && <Th right>Actions</Th>}
@@ -326,7 +334,6 @@ export default function CommitteeDetailPage() {
                                                     return (
                                                         <tr key={aId} className="hover:bg-white/5 transition-colors">
                                                             <Td><span className="font-medium">{a.name ?? a.fullName ?? "—"}</span></Td>
-                                                            <Td><span className="text-sm text-gray-400">{a.email ?? "—"}</span></Td>
                                                             <Td><RoleBadge role={a.role ?? "ADVISOR"} /></Td>
                                                             <Td><span className="text-xs text-gray-500">{fmtDate(a.assignedAt)}</span></Td>
                                                             {isCoordinator && (
@@ -375,7 +382,6 @@ export default function CommitteeDetailPage() {
                                             <thead>
                                                 <tr className="border-b border-white/10">
                                                     <Th>Name</Th>
-                                                    <Th>Email</Th>
                                                     <Th>Type</Th>
                                                     <Th>Assigned</Th>
                                                     {isCoordinator && <Th right>Actions</Th>}
@@ -383,21 +389,21 @@ export default function CommitteeDetailPage() {
                                             </thead>
                                             <tbody className="divide-y divide-white/5">
                                                 {committee.jury.map((j: any) => {
-                                                    const jId = j.id ?? j.userId ?? j.professorId ?? j.juryMemberId;
+                                                    const jId = j.id ?? j.committeeJuryId ?? j.juryMemberId;
+                                                    const jUserId = j.userId ?? jId;
                                                     return (
                                                         <tr key={jId} className="hover:bg-white/5 transition-colors">
                                                             <Td><span className="font-medium">{j.name ?? j.fullName ?? "—"}</span></Td>
-                                                            <Td><span className="text-sm text-gray-400">{j.email ?? "—"}</span></Td>
                                                             <Td><JuryTypeBadge type={j.role ?? j.juryType ?? "JURY"} /></Td>
                                                             <Td><span className="text-xs text-gray-500">{fmtDate(j.assignedAt)}</span></Td>
                                                             {isCoordinator && (
                                                                 <Td right>
                                                                     <button
-                                                                        onClick={() => handleRemoveJury(jId)}
-                                                                        disabled={removingJuryId === jId}
+                                                                        onClick={() => handleRemoveJury(jUserId)}
+                                                                        disabled={removingJuryId === jUserId}
                                                                         className="text-sm bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
                                                                     >
-                                                                        {removingJuryId === jId ? "Removing…" : "Remove"}
+                                                                        {removingJuryId === jUserId ? "Removing…" : "Remove"}
                                                                     </button>
                                                                 </Td>
                                                             )}
@@ -412,47 +418,48 @@ export default function CommitteeDetailPage() {
 
                             {/* ── Assigned Groups ── */}
                             <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6">
-                                <h2 className="text-xl font-semibold">Assigned Groups</h2>
+                                <h2 className="text-xl font-semibold flex items-center gap-2">
+                                    Assigned Groups
+                                    <span className="text-xs font-normal text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
+                                        {committee.groups.length}
+                                    </span>
+                                </h2>
                                 <div className="mt-4 space-y-3">
                                     {committee.groups.length === 0 ? (
-                                        <p className="text-gray-400 text-sm">No groups assigned.</p>
+                                        <p className="text-gray-400 text-sm">No groups assigned yet. Groups will appear here automatically when an advisor with groups is added to this committee.</p>
                                     ) : (
                                         committee.groups.map((group) => (
-                                            <div
+                                            <button
                                                 key={group.groupId}
-                                                className="flex justify-between items-center border border-white/10 rounded-lg p-3 bg-white/5"
+                                                onClick={() => router.push(`/groups/${group.groupId}`)}
+                                                className="w-full flex justify-between items-center border border-white/10 rounded-xl p-4 bg-white/5 hover:bg-white/10 hover:border-blue-500/30 transition-all text-left cursor-pointer group"
                                             >
-                                                <div>
-                                                    <p className="font-medium">{group.groupName}</p>
-                                                    <p className="text-sm text-gray-400">Members: {group.membersCount}</p>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center text-blue-400 text-sm font-bold">
+                                                        {group.groupName.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-white group-hover:text-blue-300 transition-colors">{group.groupName}</p>
+                                                        <p className="text-xs text-gray-400">Members: {group.membersCount}</p>
+                                                    </div>
                                                 </div>
-                                                <div className="text-right text-sm text-gray-400">
-                                                    <p>{group.status}</p>
-                                                    <p>{group.examDate ? new Date(group.examDate).toLocaleString() : "No exam date"}</p>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="text-right">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium ${
+                                                            group.status === "ASSIGNED" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                                                            group.status === "SCHEDULED" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                                                            group.status === "COMPLETED" ? "bg-green-500/10 text-green-400 border-green-500/20" :
+                                                            "bg-gray-500/10 text-gray-400 border-gray-500/20"
+                                                        }`}>
+                                                            {group.status}
+                                                        </span>
+                                                        {group.examDate && (
+                                                            <p className="text-xs text-gray-500 mt-1">{new Date(group.examDate).toLocaleDateString()}</p>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-gray-500 group-hover:text-blue-400 transition-colors text-lg">→</span>
                                                 </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* ── Recent Activity ── */}
-                            <div className="rounded-2xl border border-white/10 bg-gray-900/70 p-6">
-                                <h2 className="text-xl font-semibold">Recent Activity</h2>
-                                <div className="mt-4 space-y-3">
-                                    {committee.recentAuditLogs.length === 0 ? (
-                                        <p className="text-gray-400 text-sm">No activity yet.</p>
-                                    ) : (
-                                        committee.recentAuditLogs.map((log) => (
-                                            <div key={log.id} className="border border-white/10 rounded-lg p-3 bg-white/5">
-                                                <p className="text-sm">
-                                                    <span className="font-medium">{log.userName}</span>{" "}
-                                                    {log.description}
-                                                </p>
-                                                <p className="text-xs text-gray-400 mt-1">
-                                                    {new Date(log.timestamp).toLocaleString()}
-                                                </p>
-                                            </div>
+                                            </button>
                                         ))
                                     )}
                                 </div>

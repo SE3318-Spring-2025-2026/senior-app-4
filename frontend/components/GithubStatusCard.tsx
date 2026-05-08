@@ -21,7 +21,7 @@ export default function GithubStatusCard({ integration }: Props) {
         status !== "error";
 
     return (
-        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6 shadow-lg shadow-blue-950/20 backdrop-blur transition-all hover:border-blue-400/40 hover:bg-blue-500/15">
+        <div className="bg-gray-900/80 border border-white/10 rounded-2xl p-6 shadow-lg">
             {/* Title */}
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm text-gray-400">GitHub Integration</h3>

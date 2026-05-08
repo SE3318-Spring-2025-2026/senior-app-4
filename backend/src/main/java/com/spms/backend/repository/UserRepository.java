@@ -16,6 +16,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByGithubUsername(String githubUsername);
 
+    Optional<User> findByPasswordResetToken(String passwordResetToken);
+
     List<User> findAllByRoleIgnoreCase(String role);
 
     default boolean deleteByUserId(Long userId) {

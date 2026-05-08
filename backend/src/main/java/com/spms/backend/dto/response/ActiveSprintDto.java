@@ -11,5 +11,6 @@ public record ActiveSprintDto(
     String sprintName,
     LocalDate startDate,
     LocalDate endDate,
-    String status
+    String status,
+    Integer requiredStoryPoints
 ) {}

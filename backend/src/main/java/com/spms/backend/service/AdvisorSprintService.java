@@ -37,12 +37,14 @@ public class AdvisorSprintService {
             activeSprintInfo.setStartDate(sprint.getStartDate());
             activeSprintInfo.setEndDate(sprint.getEndDate());
             activeSprintInfo.setDaysRemaining(ChronoUnit.DAYS.between(LocalDate.now(), sprint.getEndDate()));
+            activeSprintInfo.setRequiredStoryPoints(sprint.getRequiredStoryPoints());
         } else {
             activeSprintInfo.setSprintId(null);
             activeSprintInfo.setSprintName("No active sprint");
             activeSprintInfo.setStartDate(LocalDate.now());
             activeSprintInfo.setEndDate(LocalDate.now());
             activeSprintInfo.setDaysRemaining(0L);
+            activeSprintInfo.setRequiredStoryPoints(null);
         }
 
         List<GroupSprintSummaryResponse.GroupSummaryDto> groupSummaries = new ArrayList<>();

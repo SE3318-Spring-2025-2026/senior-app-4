@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getUser, clearAuth } from "@/lib/auth";
+import { getUser, clearAuth, getToken, decodeToken } from "@/lib/auth";
 
 export default function Sidebar({ activePage }: { activePage: string }) {
   const router = useRouter();
@@ -19,6 +19,9 @@ export default function Sidebar({ activePage }: { activePage: string }) {
   };
 
   if (!user) return <aside className="w-64 border-r border-white/5 bg-gray-950 shrink-0" />;
+
+  const decoded = decodeToken(getToken() ?? "");
+  const userEmail = decoded?.email as string | undefined;
 
   return (
     <aside className="w-64 border-r border-white/5 flex flex-col shrink-0 bg-gray-950">
@@ -180,6 +183,12 @@ export default function Sidebar({ activePage }: { activePage: string }) {
               href="/coordinator/rubrics"
               icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08M6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>}
             />
+            <NavItem
+              label="Final Grading"
+              active={activePage === "final-grading"}
+              href="/coordinator/final-grading"
+              icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 12h9.75M10.5 18h9.75M3.75 6h2.25M3.75 12h2.25M3.75 18h2.25" /></svg>}
+            />
             <p className="text-xs font-medium text-gray-600 px-3 mt-4 mb-2 uppercase tracking-widest">AI</p>
             <NavItem
               label="AI Validation"
@@ -232,7 +241,7 @@ export default function Sidebar({ activePage }: { activePage: string }) {
           </>
         )}
 
-        {(user.role === "coordinator" || user.role === "professor") && (
+        {user.role === "coordinator" && (
           <>
             <p className="text-xs font-medium text-gray-600 px-3 mt-4 mb-2 uppercase tracking-widest">Personnel</p>
             <NavItem
@@ -240,6 +249,12 @@ export default function Sidebar({ activePage }: { activePage: string }) {
               active={activePage === "register"}
               href="/admin/register"
               icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" /></svg>}
+            />
+            <NavItem
+              label="Password Reset"
+              active={activePage === "reset-link"}
+              href="/admin/reset-link"
+              icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>}
             />
           </>
         )}
@@ -254,7 +269,9 @@ export default function Sidebar({ activePage }: { activePage: string }) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate capitalize">{user.role}</p>
-            {user.studentId && <p className="text-xs text-gray-500 truncate">{user.studentId}</p>}
+            {(user.studentId || userEmail) && (
+              <p className="text-xs text-gray-500 truncate">{user.studentId ?? userEmail}</p>
+            )}
           </div>
         </div>
         <button onClick={handleLogout} className="w-full mt-2 flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/5 transition-colors">

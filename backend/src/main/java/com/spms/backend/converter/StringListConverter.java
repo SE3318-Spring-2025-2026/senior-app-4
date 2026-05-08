@@ -38,7 +38,7 @@ public class StringListConverter implements AttributeConverter<List<String>, Str
 
     @Override
     public List<String> convertToEntityAttribute(String dbData) {
-        if (dbData == null || dbData.trim().isEmpty()) {
+        if (dbData == null || dbData.trim().isEmpty() || "{}".equals(dbData.trim())) {
             return Collections.emptyList();
         }
         return Arrays.stream(dbData.split(DELIMITER, -1))

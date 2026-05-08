@@ -11,11 +11,19 @@ import {
 } from "@/lib/committees-api";
 import { Committee, CommitteeFormValues } from "@/lib/committee-types";
 import { getUser } from "@/lib/auth";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function CoordinatorCommitteesPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+            <CoordinatorCommitteesPageContent />
+        </Suspense>
+    );
+}
+
+function CoordinatorCommitteesPageContent() {
     const authStatus = useAuthGuard("coordinator");
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -179,10 +187,7 @@ export default function CoordinatorCommitteesPage() {
             toast.success("Committee deleted successfully.");
             await loadCommittees(page, statusFilter, searchQuery, sortOption, pageSize);
         } catch (err) {
-            showToast(
-                err instanceof Error ? err.message : "Failed to delete committee.",
-                "error"
-            );
+            toast.error(err instanceof Error ? err.message : "Failed to delete committee.");
         }
     }
 
@@ -342,9 +347,19 @@ export default function CoordinatorCommitteesPage() {
                                                     </p>
                                                 </div>
 
-                                                <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-300">
-                                                    {committee.status}
-                                                </span>
+                                                <span
+                                    className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                                        committee.status === "ACTIVE"
+                                            ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-300"
+                                            : committee.status === "INACTIVE"
+                                            ? "border-pink-500/40 bg-pink-500/15 text-pink-400"
+                                            : committee.status === "COMPLETED"
+                                            ? "border-orange-400/40 bg-orange-400/15 text-orange-300"
+                                            : "border-gray-500/20 bg-gray-500/10 text-gray-400"
+                                    }`}
+                                >
+                                    {committee.status}
+                                </span>
                                             </div>
 
                                             <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs text-gray-400">

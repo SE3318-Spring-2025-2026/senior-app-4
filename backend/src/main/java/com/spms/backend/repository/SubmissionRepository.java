@@ -17,12 +17,17 @@ import java.util.Optional;
 public interface SubmissionRepository extends JpaRepository<Submission, Long> {
 
     Optional<Submission> findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(Long groupId, DeliverableType type);
+
+    Optional<Submission> findTopByGroupIdAndDeliverableTypeAndStatusOrderByCreatedAtDesc(
+            Long groupId, DeliverableType type, SubmissionStatus status);
     
     boolean existsByGroupIdAndDeliverableTypeAndParentSubmissionIdIsNull(Long groupId, DeliverableType deliverableType);
 
     Page<Submission> findByGroupId(Long groupId, Pageable pageable);
 
     List<Submission> findAllByGroupIdAndDeliverableType(Long groupId, DeliverableType deliverableType);
+
+    List<Submission> findByGroupIdAndStatus(Long groupId, SubmissionStatus status);
 
     @Query("SELECT s FROM Submission s WHERE s.id = :rootId OR s.parentSubmissionId = :rootId ORDER BY s.version ASC")
     List<Submission> findRevisionChain(@Param("rootId") Long rootId);
@@ -45,6 +50,15 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     // C-25: submissions for groups assigned to a committee (professor view)
     @Query("SELECT s FROM Submission s WHERE s.committeeId IN :committeeIds")
     Page<Submission> findByCommitteeIdIn(@Param("committeeIds") List<Long> committeeIds, Pageable pageable);
+
+    @Query("SELECT s FROM Submission s WHERE s.groupId IN :groupIds AND " +
+           "(:status IS NULL OR s.status = :status) AND " +
+           "(:deliverableType IS NULL OR s.deliverableType = :deliverableType)")
+    Page<Submission> findByGroupIdInWithFilters(
+            @Param("groupIds") List<Long> groupIds,
+            @Param("status") SubmissionStatus status,
+            @Param("deliverableType") DeliverableType deliverableType,
+            Pageable pageable);
 
     @Query("SELECT s FROM Submission s WHERE s.committeeId IN :committeeIds AND " +
            "(:groupId IS NULL OR s.groupId = :groupId) AND " +

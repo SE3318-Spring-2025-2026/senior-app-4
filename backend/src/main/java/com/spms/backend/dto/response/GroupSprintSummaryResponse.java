@@ -25,6 +25,7 @@ public class GroupSprintSummaryResponse {
         private LocalDate startDate;
         private LocalDate endDate;
         private Long daysRemaining;
+        private Integer requiredStoryPoints;
     }
 
     @Data

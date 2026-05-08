@@ -528,6 +528,15 @@ function GradeRow({ grade }: { grade: GradeItem }) {
       <td className="px-4 py-3">
         <p className="font-medium text-white">{grade.professorName}</p>
         {grade.feedback && <p className="mt-1 line-clamp-2 text-xs text-gray-500">{grade.feedback}</p>}
+        {grade.criteriaScores && grade.criteriaScores.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {grade.criteriaScores.map((score) => (
+              <span key={String(score.criteriaId)} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-gray-400">
+                {score.criteriaName}: {formatGrade(score.score)}
+              </span>
+            ))}
+          </div>
+        )}
       </td>
       <td className="px-4 py-3 text-gray-300">{formatGrade(grade.grade)}</td>
       <td className="px-4 py-3 text-xs text-gray-500">{formatDateTime(grade.gradedAt)}</td>

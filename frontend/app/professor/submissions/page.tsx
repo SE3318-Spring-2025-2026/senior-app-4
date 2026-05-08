@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { getToken, getUser } from "@/lib/auth";
@@ -38,6 +38,14 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function ProfessorSubmissionsPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+            <ProfessorSubmissionsPageContent />
+        </Suspense>
+    );
+}
+
+function ProfessorSubmissionsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const groupId = searchParams.get("groupId");

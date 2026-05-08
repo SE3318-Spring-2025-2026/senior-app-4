@@ -9,6 +9,7 @@ public record CommitteeDetailDto(
         String description,
         String status,
         Long createdBy,
+        String createdByName,
         Instant createdAt,
         Instant updatedAt,
         List<AdvisorDto> advisors,
