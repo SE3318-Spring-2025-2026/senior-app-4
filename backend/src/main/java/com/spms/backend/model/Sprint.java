@@ -38,9 +38,6 @@ public class Sprint {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    @Column(name = "required_story_points")
-    private Integer requiredStoryPoints;
-
     public Sprint() {}
 
     public Sprint(String sprintName, LocalDate startDate, LocalDate endDate, String status) {
