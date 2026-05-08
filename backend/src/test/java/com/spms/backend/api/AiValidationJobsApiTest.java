@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -19,455 +20,731 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class AiValidationJobsApiTest extends BaseApiTest {
 
-    @Autowired private UserRepository userRepository;
-    @Autowired private GroupRepository groupRepository;
-    @Autowired private SprintRepository sprintRepository;
-    @Autowired private SprintIssueTrackingRepository sprintIssueTrackingRepository;
-    @Autowired private ValidationJobRepository validationJobRepository;
-    @Autowired private SystemLogRepository systemLogRepository;
-    @Autowired private IssueValidationResultRepository issueValidationResultRepository;
-    @Autowired private TokenService tokenService;
+        @Autowired
+        private UserRepository userRepository;
+        @Autowired
+        private GroupRepository groupRepository;
+        @Autowired
+        private SprintRepository sprintRepository;
+        @Autowired
+        private SprintIssueTrackingRepository sprintIssueTrackingRepository;
+        @Autowired
+        private ValidationJobRepository validationJobRepository;
+        @Autowired
+        private SystemLogRepository systemLogRepository;
+        @Autowired
+        private IssueValidationResultRepository issueValidationResultRepository;
+        @Autowired
+        private ValidationConfigRepository validationConfigRepository;
+        @Autowired
+        private TokenService tokenService;
 
-    private String coordinatorToken;
-    private String advisorToken;
-    private String studentToken;
-    private User coordinator;
-    private User advisor;
-    private User student;
-    private Group group;
-    private Sprint sprint;
-    private final List<Long> extraUserIds = new ArrayList<>();
+        private String coordinatorToken;
+        private String advisorToken;
+        private String studentToken;
+        private User coordinator;
+        private User advisor;
+        private User student;
+        private Group group;
+        private Sprint sprint;
+        private final List<Long> extraUserIds = new ArrayList<>();
 
-    @AfterEach
-    void cleanup() {
-        if (sprint == null) return;
-        Long sprintId = sprint.getId();
+        @AfterEach
+        void cleanup() {
+                if (sprint == null)
+                        return;
+                Long sprintId = sprint.getId();
 
-        // 1. Find all jobs for this sprint
-        List<ValidationJob> jobs = validationJobRepository.findAll().stream()
-                .filter(j -> j.getSprint() != null && sprintId.equals(j.getSprint().getId()))
-                .collect(Collectors.toList());
-        List<Long> jobIds = jobs.stream().map(ValidationJob::getJobId).collect(Collectors.toList());
+                // 1. Find all jobs for this sprint
+                List<ValidationJob> jobs = validationJobRepository.findAll().stream()
+                                .filter(j -> j.getSprint() != null && sprintId.equals(j.getSprint().getId()))
+                                .collect(Collectors.toList());
+                List<Long> jobIds = jobs.stream().map(ValidationJob::getJobId).collect(Collectors.toList());
 
-        // 2. Delete issue_validation_results first (FK child of validation_jobs)
-        jobIds.forEach(id ->
-                issueValidationResultRepository.deleteAll(
-                        issueValidationResultRepository.findByJob_JobId(id)));
+                // 2. Delete issue_validation_results first (FK child of validation_jobs)
+                jobIds.forEach(id -> issueValidationResultRepository.deleteAll(
+                                issueValidationResultRepository.findByJob_JobId(id)));
 
-        // 3. Nullify self-referencing parent_job_id before bulk delete to avoid FK violations
-        jobs.forEach(j -> j.setParentJob(null));
-        validationJobRepository.saveAll(jobs);
-        validationJobRepository.deleteAll(jobs);
+                // 3. Nullify self-referencing parent_job_id before bulk delete to avoid FK
+                // violations
+                jobs.forEach(j -> j.setParentJob(null));
+                validationJobRepository.saveAll(jobs);
+                validationJobRepository.deleteAll(jobs);
 
-        // 2. Sprint issue tracking
-        sprintIssueTrackingRepository.deleteAll(
-                sprintIssueTrackingRepository.findBySprint_Id(sprintId));
+                // 2. Sprint issue tracking
+                sprintIssueTrackingRepository.deleteAll(
+                                sprintIssueTrackingRepository.findBySprint_Id(sprintId));
 
-        // 3. Group (unset FK references first)
-        if (group != null) {
-            group.setAdvisor(null);
-            group.setLeader(null);
-            groupRepository.save(group);
-            groupRepository.deleteById(group.getId());
+                // 3. Group
+                if (group != null) {
+                        groupRepository.deleteById(group.getId());
+                }
+
+                // 4. Sprint
+                sprintRepository.deleteById(sprintId);
+
+                // 5. Core users created in @BeforeEach
+                if (student != null)
+                        userRepository.deleteById(student.getUserId());
+                if (advisor != null)
+                        userRepository.deleteById(advisor.getUserId());
+                if (coordinator != null)
+                        userRepository.deleteById(coordinator.getUserId());
+
+                // 6. Extra users created inside individual test methods
+                extraUserIds.forEach(id -> userRepository.deleteById(id));
         }
 
-        // 4. Sprint
-        sprintRepository.deleteById(sprintId);
+        @BeforeEach
+        void setupData() {
+                extraUserIds.clear();
 
-        // 5. Core users created in @BeforeEach
-        if (student != null)      userRepository.deleteById(student.getUserId());
-        if (advisor != null)      userRepository.deleteById(advisor.getUserId());
-        if (coordinator != null)  userRepository.deleteById(coordinator.getUserId());
+                coordinator = new User();
+                coordinator.setFullName("Coord");
+                coordinator.setEmail("coord-" + System.nanoTime() + "@spms.com");
+                coordinator.setRole("coordinator");
+                coordinator.setCreatedAt(Instant.now());
+                coordinator = userRepository.save(coordinator);
+                coordinatorToken = tokenService.generateToken(coordinator);
 
-        // 6. Extra users created inside individual test methods
-        extraUserIds.forEach(id -> userRepository.deleteById(id));
-    }
+                advisor = new User();
+                advisor.setFullName("Advisor");
+                advisor.setEmail("advisor-" + System.nanoTime() + "@spms.com");
+                advisor.setRole("advisor");
+                advisor.setCreatedAt(Instant.now());
+                advisor = userRepository.save(advisor);
+                advisorToken = tokenService.generateToken(advisor);
 
-    @BeforeEach
-    void setupData() {
-        extraUserIds.clear();
+                student = new User();
+                student.setFullName("Student");
+                student.setEmail("student-" + System.nanoTime() + "@spms.com");
+                student.setRole("student");
+                student.setStudentId(TestDataFactory.uniqueStudentId());
+                student.setGithubUsername(TestDataFactory.uniqueGithubUsername());
+                student.setCreatedAt(Instant.now());
+                student = userRepository.save(student);
+                studentToken = tokenService.generateToken(student);
 
-        coordinator = new User();
-        coordinator.setFullName("Coord");
-        coordinator.setEmail("coord-" + System.nanoTime() + "@spms.com");
-        coordinator.setRole("coordinator");
-        coordinator.setCreatedAt(Instant.now());
-        coordinator = userRepository.save(coordinator);
-        coordinatorToken = tokenService.generateToken(coordinator);
+                sprint = new Sprint("Sprint-" + System.nanoTime(), LocalDate.now().minusDays(2),
+                                LocalDate.now().plusDays(2), "Active");
+                sprint = sprintRepository.save(sprint);
 
-        advisor = new User();
-        advisor.setFullName("Advisor");
-        advisor.setEmail("advisor-" + System.nanoTime() + "@spms.com");
-        advisor.setRole("advisor");
-        advisor.setCreatedAt(Instant.now());
-        advisor = userRepository.save(advisor);
-        advisorToken = tokenService.generateToken(advisor);
+                group = new Group();
+                group.setGroupName("Team-" + System.nanoTime());
+                group.setLeader(student);
+                group.setAdvisor(advisor);
+                group.setStatus(GroupStatus.FORMED);
+                group = groupRepository.save(group);
+        }
 
-        student = new User();
-        student.setFullName("Student");
-        student.setEmail("student-" + System.nanoTime() + "@spms.com");
-        student.setRole("student");
-        student.setStudentId(TestDataFactory.uniqueStudentId());
-        student.setGithubUsername(TestDataFactory.uniqueGithubUsername());
-        student.setCreatedAt(Instant.now());
-        student = userRepository.save(student);
-        studentToken = tokenService.generateToken(student);
+        @Test
+        void triggerReturns404WhenSprintNotFound() {
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .post("/api/v1/ai-validation/sprints/999999/trigger")
+                                .then()
+                                .statusCode(404)
+                                .body("error", equalTo("SPRINT_NOT_FOUND"))
+                                .body("message", equalTo("Sprint not found."));
+        }
 
-        sprint = new Sprint("Sprint-" + System.nanoTime(), LocalDate.now().minusDays(2), LocalDate.now().plusDays(2), "Active");
-        sprint = sprintRepository.save(sprint);
+        @Test
+        void triggerReturns400WhenNoIssuesInSprint() {
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
+                                .then()
+                                .statusCode(400)
+                                .body("error", equalTo("NO_ISSUES_IN_SPRINT"));
+        }
 
-        group = new Group();
-        group.setGroupName("Team-" + System.nanoTime());
-        group.setLeader(student);
-        group.setAdvisor(advisor);
-        group.setStatus(GroupStatus.FORMED);
-        group = groupRepository.save(group);
-    }
+        @Test
+        void triggerReturns202AndQueuedStatus() {
+                SprintIssueTracking sit = new SprintIssueTracking(group, sprint, "P7-101");
+                sprintIssueTrackingRepository.save(sit);
 
-    @Test
-    void triggerReturns404WhenSprintNotFound() {
-        given()
-                .contentType(ContentType.JSON)
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .when()
-                .post("/api/v1/ai-validation/sprints/999999/trigger")
-                .then()
-                .statusCode(404)
-                .body("error", equalTo("SPRINT_NOT_FOUND"))
-                .body("message", equalTo("Sprint not found."));
-    }
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .body(Map.of("teamId", group.getId()))
+                                .when()
+                                .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
+                                .then()
+                                .statusCode(202)
+                                .body("data.status", equalTo("QUEUED"))
+                                .body("data.teamId", equalTo(group.getId().intValue()));
 
-    @Test
-    void triggerReturns400WhenNoIssuesInSprint() {
-        given()
-                .contentType(ContentType.JSON)
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .when()
-                .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
-                .then()
-                .statusCode(400)
-                .body("error", equalTo("NO_ISSUES_IN_SPRINT"));
-    }
+                long enqueueLogs = systemLogRepository.findAll().stream()
+                                .filter(l -> "P7_VALIDATION_ENQUEUED".equals(l.getEventType()))
+                                .count();
+                org.junit.jupiter.api.Assertions.assertTrue(enqueueLogs >= 1);
+        }
 
-    @Test
-    void triggerReturns202AndQueuedStatus() {
-        SprintIssueTracking sit = new SprintIssueTracking(group, sprint, "P7-101");
-        sprintIssueTrackingRepository.save(sit);
+        @Test
+        void triggerReturns409WhenValidationAlreadyRunning() {
+                SprintIssueTracking sit = new SprintIssueTracking(group, sprint, "P7-102");
+                sprintIssueTrackingRepository.save(sit);
 
-        given()
-                .contentType(ContentType.JSON)
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .body(Map.of("teamId", group.getId()))
-                .when()
-                .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
-                .then()
-                .statusCode(202)
-                .body("data.status", equalTo("QUEUED"))
-                .body("data.teamId", equalTo(group.getId().intValue()));
+                ValidationJob existing = new ValidationJob();
+                existing.setSprint(sprint);
+                existing.setTeam(group);
+                existing.setJobStatus(ValidationJobStatus.QUEUED);
+                existing.setCurrentStep(ValidationJobStep.LOADING_CONTEXT);
+                existing.setIssuesTotal(1);
+                existing.setStartedAt(Instant.now());
+                validationJobRepository.save(existing);
 
-        long enqueueLogs = systemLogRepository.findAll().stream()
-                .filter(l -> "P7_VALIDATION_ENQUEUED".equals(l.getEventType()))
-                .count();
-        org.junit.jupiter.api.Assertions.assertTrue(enqueueLogs >= 1);
-    }
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .body(Map.of("teamId", group.getId()))
+                                .when()
+                                .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
+                                .then()
+                                .statusCode(409)
+                                .body("error", equalTo("VALIDATION_ALREADY_RUNNING"));
+        }
 
-    @Test
-    void triggerReturns409WhenValidationAlreadyRunning() {
-        SprintIssueTracking sit = new SprintIssueTracking(group, sprint, "P7-102");
-        sprintIssueTrackingRepository.save(sit);
+        @Test
+        void getStatusReturns403ForNonAdviseeAdvisor() {
+                User otherAdvisor = new User();
+                otherAdvisor.setFullName("Other Advisor");
+                otherAdvisor.setEmail("other-advisor-" + System.nanoTime() + "@spms.com");
+                otherAdvisor.setRole("advisor");
+                otherAdvisor.setCreatedAt(Instant.now());
+                otherAdvisor = userRepository.save(otherAdvisor);
+                extraUserIds.add(otherAdvisor.getUserId());
+                String otherAdvisorToken = tokenService.generateToken(otherAdvisor);
 
-        ValidationJob existing = new ValidationJob();
-        existing.setSprint(sprint);
-        existing.setTeam(group);
-        existing.setJobStatus(ValidationJobStatus.QUEUED);
-        existing.setCurrentStep(ValidationJobStep.LOADING_CONTEXT);
-        existing.setIssuesTotal(1);
-        existing.setStartedAt(Instant.now());
-        validationJobRepository.save(existing);
+                ValidationJob job = new ValidationJob();
+                job.setSprint(sprint);
+                job.setTeam(group);
+                job.setJobStatus(ValidationJobStatus.IN_PROGRESS);
+                job.setCurrentStep(ValidationJobStep.FETCHING_DIFFS);
+                job.setProgressPercentage(45);
+                job.setIssuesTotal(10);
+                job.setIssuesCompleted(4);
+                job.setIssuesFailed(1);
+                job.setStartedAt(Instant.now());
+                job = validationJobRepository.save(job);
 
-        given()
-                .contentType(ContentType.JSON)
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .body(Map.of("teamId", group.getId()))
-                .when()
-                .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
-                .then()
-                .statusCode(409)
-                .body("error", equalTo("VALIDATION_ALREADY_RUNNING"));
-    }
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + otherAdvisorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/jobs/" + job.getJobId())
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN_TEAM_ACCESS"));
+        }
 
-    @Test
-    void getStatusReturns403ForNonAdviseeAdvisor() {
-        User otherAdvisor = new User();
-        otherAdvisor.setFullName("Other Advisor");
-        otherAdvisor.setEmail("other-advisor-" + System.nanoTime() + "@spms.com");
-        otherAdvisor.setRole("advisor");
-        otherAdvisor.setCreatedAt(Instant.now());
-        otherAdvisor = userRepository.save(otherAdvisor);
-        extraUserIds.add(otherAdvisor.getUserId());
-        String otherAdvisorToken = tokenService.generateToken(otherAdvisor);
+        @Test
+        void getStatusReturns200WithStructuredFields() {
+                ValidationJob job = new ValidationJob();
+                job.setSprint(sprint);
+                job.setTeam(group);
+                job.setJobStatus(ValidationJobStatus.IN_PROGRESS);
+                job.setCurrentStep(ValidationJobStep.FETCHING_DIFFS);
+                job.setProgressPercentage(45);
+                job.setIssuesTotal(10);
+                job.setIssuesCompleted(4);
+                job.setIssuesFailed(1);
+                job.setFailureReason(null);
+                job.setStartedAt(Instant.now());
+                job = validationJobRepository.save(job);
 
-        ValidationJob job = new ValidationJob();
-        job.setSprint(sprint);
-        job.setTeam(group);
-        job.setJobStatus(ValidationJobStatus.IN_PROGRESS);
-        job.setCurrentStep(ValidationJobStep.FETCHING_DIFFS);
-        job.setProgressPercentage(45);
-        job.setIssuesTotal(10);
-        job.setIssuesCompleted(4);
-        job.setIssuesFailed(1);
-        job.setStartedAt(Instant.now());
-        job = validationJobRepository.save(job);
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + advisorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/jobs/" + job.getJobId())
+                                .then()
+                                .statusCode(200)
+                                .body("status", equalTo("success"))
+                                .body("data.jobStatus", equalTo("IN_PROGRESS"))
+                                .body("data.currentStep", equalTo("FETCHING_DIFFS"))
+                                .body("data.progressPercentage", equalTo(45))
+                                .body("data.issuesTotal", equalTo(10))
+                                .body("data.issuesCompleted", equalTo(4))
+                                .body("data.issuesFailed", equalTo(1));
+        }
 
-        given()
-                .contentType(ContentType.JSON)
-                .header("Authorization", "Bearer " + otherAdvisorToken)
-                .when()
-                .get("/api/v1/ai-validation/jobs/" + job.getJobId())
-                .then()
-                .statusCode(403)
-                .body("error", equalTo("FORBIDDEN_TEAM_ACCESS"));
-    }
+        @Test
+        void getStatusReturns404WhenJobMissing() {
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/jobs/999999")
+                                .then()
+                                .statusCode(404)
+                                .body("error", equalTo("JOB_NOT_FOUND"));
+        }
 
-    @Test
-    void getStatusReturns200WithStructuredFields() {
-        ValidationJob job = new ValidationJob();
-        job.setSprint(sprint);
-        job.setTeam(group);
-        job.setJobStatus(ValidationJobStatus.IN_PROGRESS);
-        job.setCurrentStep(ValidationJobStep.FETCHING_DIFFS);
-        job.setProgressPercentage(45);
-        job.setIssuesTotal(10);
-        job.setIssuesCompleted(4);
-        job.setIssuesFailed(1);
-        job.setFailureReason(null);
-        job.setStartedAt(Instant.now());
-        job = validationJobRepository.save(job);
+        @Test
+        void retryFlowCoversNotRetryableAcceptedAndDedup() {
+                ValidationJob completed = new ValidationJob();
+                completed.setSprint(sprint);
+                completed.setTeam(group);
+                completed.setJobStatus(ValidationJobStatus.COMPLETED);
+                completed.setCurrentStep(ValidationJobStep.STORING_RESULTS);
+                completed.setIssuesTotal(4);
+                completed.setStartedAt(Instant.now());
+                completed.setCompletedAt(Instant.now());
+                completed = validationJobRepository.save(completed);
 
-        given()
-                .contentType(ContentType.JSON)
-                .header("Authorization", "Bearer " + advisorToken)
-                .when()
-                .get("/api/v1/ai-validation/jobs/" + job.getJobId())
-                .then()
-                .statusCode(200)
-                .body("status", equalTo("success"))
-                .body("data.jobStatus", equalTo("IN_PROGRESS"))
-                .body("data.currentStep", equalTo("FETCHING_DIFFS"))
-                .body("data.progressPercentage", equalTo(45))
-                .body("data.issuesTotal", equalTo(10))
-                .body("data.issuesCompleted", equalTo(4))
-                .body("data.issuesFailed", equalTo(1));
-    }
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .post("/api/v1/ai-validation/jobs/" + completed.getJobId() + "/retry")
+                                .then()
+                                .statusCode(400)
+                                .body("error", equalTo("JOB_NOT_RETRYABLE"));
 
-    @Test
-    void getStatusReturns404WhenJobMissing() {
-        given()
-                .contentType(ContentType.JSON)
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .when()
-                .get("/api/v1/ai-validation/jobs/999999")
-                .then()
-                .statusCode(404)
-                .body("error", equalTo("JOB_NOT_FOUND"));
-    }
+                ValidationJob failed = new ValidationJob();
+                failed.setSprint(sprint);
+                failed.setTeam(group);
+                failed.setJobStatus(ValidationJobStatus.FAILED);
+                failed.setCurrentStep(ValidationJobStep.AI_IMPLEMENTATION_VALIDATION);
+                failed.setIssuesTotal(5);
+                failed.setIssuesFailed(2);
+                failed.setStartedAt(Instant.now());
+                failed.setCompletedAt(Instant.now());
+                failed = validationJobRepository.save(failed);
 
-    @Test
-    void retryFlowCoversNotRetryableAcceptedAndDedup() {
-        ValidationJob completed = new ValidationJob();
-        completed.setSprint(sprint);
-        completed.setTeam(group);
-        completed.setJobStatus(ValidationJobStatus.COMPLETED);
-        completed.setCurrentStep(ValidationJobStep.STORING_RESULTS);
-        completed.setIssuesTotal(4);
-        completed.setStartedAt(Instant.now());
-        completed.setCompletedAt(Instant.now());
-        completed = validationJobRepository.save(completed);
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .post("/api/v1/ai-validation/jobs/" + failed.getJobId() + "/retry")
+                                .then()
+                                .statusCode(202)
+                                .body("data.status", equalTo("QUEUED"))
+                                .body("data.issueCount", equalTo(2));
 
-        given()
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .when()
-                .post("/api/v1/ai-validation/jobs/" + completed.getJobId() + "/retry")
-                .then()
-                .statusCode(400)
-                .body("error", equalTo("JOB_NOT_RETRYABLE"));
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .post("/api/v1/ai-validation/jobs/" + failed.getJobId() + "/retry")
+                                .then()
+                                .statusCode(409)
+                                .body("error", equalTo("JOB_RETRY_ALREADY_RUNNING"));
 
-        ValidationJob failed = new ValidationJob();
-        failed.setSprint(sprint);
-        failed.setTeam(group);
-        failed.setJobStatus(ValidationJobStatus.FAILED);
-        failed.setCurrentStep(ValidationJobStep.AI_IMPLEMENTATION_VALIDATION);
-        failed.setIssuesTotal(5);
-        failed.setIssuesFailed(2);
-        failed.setStartedAt(Instant.now());
-        failed.setCompletedAt(Instant.now());
-        failed = validationJobRepository.save(failed);
+                Long failedJobId = failed.getJobId();
+                List<ValidationJob> jobs = validationJobRepository.findAll().stream()
+                                .filter(j -> j.getParentJob() != null
+                                                && failedJobId.equals(j.getParentJob().getJobId()))
+                                .toList();
+                assertEquals(1, jobs.size());
+        }
 
-        given()
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .when()
-                .post("/api/v1/ai-validation/jobs/" + failed.getJobId() + "/retry")
-                .then()
-                .statusCode(202)
-                .body("data.status", equalTo("QUEUED"))
-                .body("data.issueCount", equalTo(2));
+        @Test
+        void triggerReturns403ForAdvisorAndStudent() {
+                SprintIssueTracking sit = new SprintIssueTracking(group, sprint, "P7-999");
+                sprintIssueTrackingRepository.save(sit);
 
-        given()
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .when()
-                .post("/api/v1/ai-validation/jobs/" + failed.getJobId() + "/retry")
-                .then()
-                .statusCode(409)
-                .body("error", equalTo("JOB_RETRY_ALREADY_RUNNING"));
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + advisorToken)
+                                .body(Map.of("teamId", group.getId()))
+                                .when()
+                                .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN"));
 
-        Long failedJobId = failed.getJobId();
-        List<ValidationJob> jobs = validationJobRepository.findAll().stream()
-                .filter(j -> j.getParentJob() != null && failedJobId.equals(j.getParentJob().getJobId()))
-                .toList();
-        assertEquals(1, jobs.size());
-    }
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + studentToken)
+                                .body(Map.of("teamId", group.getId()))
+                                .when()
+                                .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN"));
+        }
 
-    @Test
-    void triggerReturns403ForAdvisorAndStudent() {
-        SprintIssueTracking sit = new SprintIssueTracking(group, sprint, "P7-999");
-        sprintIssueTrackingRepository.save(sit);
+        @Test
+        void retryReturns403ForAdvisor() {
+                ValidationJob failed = new ValidationJob();
+                failed.setSprint(sprint);
+                failed.setTeam(group);
+                failed.setJobStatus(ValidationJobStatus.FAILED);
+                failed.setCurrentStep(ValidationJobStep.AI_IMPLEMENTATION_VALIDATION);
+                failed.setIssuesTotal(3);
+                failed.setIssuesFailed(1);
+                failed.setStartedAt(Instant.now());
+                failed.setCompletedAt(Instant.now());
+                failed = validationJobRepository.save(failed);
 
-        given()
-                .contentType(ContentType.JSON)
-                .header("Authorization", "Bearer " + advisorToken)
-                .body(Map.of("teamId", group.getId()))
-                .when()
-                .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
-                .then()
-                .statusCode(403)
-                .body("error", equalTo("FORBIDDEN"));
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + advisorToken)
+                                .when()
+                                .post("/api/v1/ai-validation/jobs/" + failed.getJobId() + "/retry")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN"));
+        }
 
-        given()
-                .contentType(ContentType.JSON)
-                .header("Authorization", "Bearer " + studentToken)
-                .body(Map.of("teamId", group.getId()))
-                .when()
-                .post("/api/v1/ai-validation/sprints/" + sprint.getId() + "/trigger")
-                .then()
-                .statusCode(403)
-                .body("error", equalTo("FORBIDDEN"));
-    }
+        @Test
+        void activeJobReturns204WhenNoActiveJob() {
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
+                                .then()
+                                .statusCode(204);
+        }
 
-    @Test
-    void retryReturns403ForAdvisor() {
-        ValidationJob failed = new ValidationJob();
-        failed.setSprint(sprint);
-        failed.setTeam(group);
-        failed.setJobStatus(ValidationJobStatus.FAILED);
-        failed.setCurrentStep(ValidationJobStep.AI_IMPLEMENTATION_VALIDATION);
-        failed.setIssuesTotal(3);
-        failed.setIssuesFailed(1);
-        failed.setStartedAt(Instant.now());
-        failed.setCompletedAt(Instant.now());
-        failed = validationJobRepository.save(failed);
+        @Test
+        void activeJobReturns200WithJobStatusWhenActive() {
+                ValidationJob active = new ValidationJob();
+                active.setSprint(sprint);
+                active.setTeam(group);
+                active.setJobStatus(ValidationJobStatus.IN_PROGRESS);
+                active.setCurrentStep(ValidationJobStep.AI_REVIEW_VERIFICATION);
+                active.setProgressPercentage(60);
+                active.setIssuesTotal(5);
+                active.setIssuesCompleted(3);
+                active.setIssuesFailed(0);
+                active.setStartedAt(Instant.now());
+                validationJobRepository.save(active);
 
-        given()
-                .contentType(ContentType.JSON)
-                .header("Authorization", "Bearer " + advisorToken)
-                .when()
-                .post("/api/v1/ai-validation/jobs/" + failed.getJobId() + "/retry")
-                .then()
-                .statusCode(403)
-                .body("error", equalTo("FORBIDDEN"));
-    }
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
+                                .then()
+                                .statusCode(200)
+                                .body("status", equalTo("success"))
+                                .body("data.jobStatus", equalTo("IN_PROGRESS"))
+                                .body("data.currentStep", equalTo("AI_REVIEW_VERIFICATION"))
+                                .body("data.progressPercentage", equalTo(60));
+        }
 
-    @Test
-    void activeJobReturns204WhenNoActiveJob() {
-        given()
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .when()
-                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
-                .then()
-                .statusCode(204);
-    }
+        @Test
+        void activeJobReturns404WhenSprintNotFound() {
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/sprints/999999/active-job")
+                                .then()
+                                .statusCode(404)
+                                .body("error", equalTo("SPRINT_NOT_FOUND"));
+        }
 
-    @Test
-    void activeJobReturns200WithJobStatusWhenActive() {
-        ValidationJob active = new ValidationJob();
-        active.setSprint(sprint);
-        active.setTeam(group);
-        active.setJobStatus(ValidationJobStatus.IN_PROGRESS);
-        active.setCurrentStep(ValidationJobStep.AI_REVIEW_VERIFICATION);
-        active.setProgressPercentage(60);
-        active.setIssuesTotal(5);
-        active.setIssuesCompleted(3);
-        active.setIssuesFailed(0);
-        active.setStartedAt(Instant.now());
-        validationJobRepository.save(active);
+        @Test
+        void activeJobReturns403ForStudent() {
+                given()
+                                .header("Authorization", "Bearer " + studentToken)
+                                .when()
+                                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN"));
+        }
 
-        given()
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .when()
-                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
-                .then()
-                .statusCode(200)
-                .body("status", equalTo("success"))
-                .body("data.jobStatus", equalTo("IN_PROGRESS"))
-                .body("data.currentStep", equalTo("AI_REVIEW_VERIFICATION"))
-                .body("data.progressPercentage", equalTo(60));
-    }
+        @Test
+        void activeJobReturns403ForAdvisorOnNonAdviseeTeam() {
+                User otherAdvisor = new User();
+                otherAdvisor.setFullName("Other Advisor");
+                otherAdvisor.setEmail("other-advisor2-" + System.nanoTime() + "@spms.com");
+                otherAdvisor.setRole("advisor");
+                otherAdvisor.setCreatedAt(Instant.now());
+                otherAdvisor = userRepository.save(otherAdvisor);
+                extraUserIds.add(otherAdvisor.getUserId());
+                String otherToken = tokenService.generateToken(otherAdvisor);
 
-    @Test
-    void activeJobReturns404WhenSprintNotFound() {
-        given()
-                .header("Authorization", "Bearer " + coordinatorToken)
-                .when()
-                .get("/api/v1/ai-validation/sprints/999999/active-job")
-                .then()
-                .statusCode(404)
-                .body("error", equalTo("SPRINT_NOT_FOUND"));
-    }
+                ValidationJob active = new ValidationJob();
+                active.setSprint(sprint);
+                active.setTeam(group);
+                active.setJobStatus(ValidationJobStatus.QUEUED);
+                active.setCurrentStep(ValidationJobStep.LOADING_CONTEXT);
+                active.setProgressPercentage(0);
+                active.setIssuesTotal(3);
+                active.setIssuesCompleted(0);
+                active.setIssuesFailed(0);
+                active.setStartedAt(Instant.now());
+                validationJobRepository.save(active);
 
-    @Test
-    void activeJobReturns403ForStudent() {
-        given()
-                .header("Authorization", "Bearer " + studentToken)
-                .when()
-                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
-                .then()
-                .statusCode(403)
-                .body("error", equalTo("FORBIDDEN"));
-    }
+                given()
+                                .header("Authorization", "Bearer " + otherToken)
+                                .when()
+                                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN_TEAM_ACCESS"));
+        }
 
-    @Test
-    void activeJobReturns403ForAdvisorOnNonAdviseeTeam() {
-        User otherAdvisor = new User();
-        otherAdvisor.setFullName("Other Advisor");
-        otherAdvisor.setEmail("other-advisor2-" + System.nanoTime() + "@spms.com");
-        otherAdvisor.setRole("advisor");
-        otherAdvisor.setCreatedAt(Instant.now());
-        otherAdvisor = userRepository.save(otherAdvisor);
-        extraUserIds.add(otherAdvisor.getUserId());
-        String otherToken = tokenService.generateToken(otherAdvisor);
+        @Test
+        void getResultsReturns200ForCoordinator() {
+                ValidationJob job = new ValidationJob();
+                job.setSprint(sprint);
+                job.setTeam(group);
+                job.setJobStatus(ValidationJobStatus.COMPLETED);
+                job.setStartedAt(Instant.now());
+                validationJobRepository.save(job);
 
-        ValidationJob active = new ValidationJob();
-        active.setSprint(sprint);
-        active.setTeam(group);
-        active.setJobStatus(ValidationJobStatus.QUEUED);
-        active.setCurrentStep(ValidationJobStep.LOADING_CONTEXT);
-        active.setProgressPercentage(0);
-        active.setIssuesTotal(3);
-        active.setIssuesCompleted(0);
-        active.setIssuesFailed(0);
-        active.setStartedAt(Instant.now());
-        validationJobRepository.save(active);
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/results")
+                                .then()
+                                .statusCode(200)
+                                .body("status", equalTo("success"))
+                                .body("data.teams", notNullValue());
+        }
 
-        given()
-                .header("Authorization", "Bearer " + otherToken)
-                .when()
-                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/active-job")
-                .then()
-                .statusCode(403)
-                .body("error", equalTo("FORBIDDEN_TEAM_ACCESS"));
-    }
+        @Test
+        void getResultsReturns200ForAdvisorOwnTeam() {
+                ValidationJob job = new ValidationJob();
+                job.setSprint(sprint);
+                job.setTeam(group);
+                job.setJobStatus(ValidationJobStatus.COMPLETED);
+                job.setStartedAt(Instant.now());
+                validationJobRepository.save(job);
+
+                given()
+                                .header("Authorization", "Bearer " + advisorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/results")
+                                .then()
+                                .statusCode(200)
+                                .body("status", equalTo("success"));
+        }
+
+        @Test
+        void getResultsReturns403ForAdvisorOtherTeam() {
+                User otherAdvisor = new User();
+                otherAdvisor.setFullName("Other Advisor");
+                otherAdvisor.setEmail("other-adv-" + System.nanoTime() + "@spms.com");
+                otherAdvisor.setRole("advisor");
+                otherAdvisor.setCreatedAt(Instant.now());
+                otherAdvisor = userRepository.save(otherAdvisor);
+                extraUserIds.add(otherAdvisor.getUserId());
+                String otherToken = tokenService.generateToken(otherAdvisor);
+
+                given()
+                                .header("Authorization", "Bearer " + otherToken)
+                                .queryParam("teamId", group.getId())
+                                .when()
+                                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/results")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN_TEAM_ACCESS"));
+        }
+
+        @Test
+        void getResultsReturns403ForStudent() {
+                given()
+                                .header("Authorization", "Bearer " + studentToken)
+                                .when()
+                                .get("/api/v1/ai-validation/sprints/" + sprint.getId() + "/results")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN"));
+        }
+
+        @Test
+        void getResultsReturns404WhenSprintNotFound() {
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/sprints/999999/results")
+                                .then()
+                                .statusCode(404)
+                                .body("error", equalTo("SPRINT_NOT_FOUND"));
+        }
+
+        @Test
+        void getIssueDetailsReturns200ForCoordinator() {
+                ValidationJob job = new ValidationJob();
+                job.setSprint(sprint);
+                job.setTeam(group);
+                job.setJobStatus(ValidationJobStatus.COMPLETED);
+                job.setStartedAt(Instant.now());
+                job = validationJobRepository.save(job);
+
+                IssueValidationResult res = new IssueValidationResult();
+                res.setJob(job);
+                res.setIssueKey("P7-TEST-1");
+                res.setValidationStatus("PASSED");
+                res.setEvaluatedAt(Instant.now());
+                issueValidationResultRepository.save(res);
+
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/issues/P7-TEST-1/details")
+                                .then()
+                                .statusCode(200)
+                                .body("status", equalTo("success"))
+                                .body("data.issueKey", equalTo("P7-TEST-1"));
+        }
+
+        @Test
+        void getIssueDetailsReturns403ForAdvisorOtherTeam() {
+                User otherAdvisor = new User();
+                otherAdvisor.setFullName("Other Advisor");
+                otherAdvisor.setEmail("other-adv-issue-" + System.nanoTime() + "@spms.com");
+                otherAdvisor.setRole("advisor");
+                otherAdvisor.setCreatedAt(Instant.now());
+                otherAdvisor = userRepository.save(otherAdvisor);
+                extraUserIds.add(otherAdvisor.getUserId());
+                String otherToken = tokenService.generateToken(otherAdvisor);
+
+                ValidationJob job = new ValidationJob();
+                job.setSprint(sprint);
+                job.setTeam(group);
+                job.setJobStatus(ValidationJobStatus.COMPLETED);
+                job.setStartedAt(Instant.now());
+                job = validationJobRepository.save(job);
+
+                IssueValidationResult res = new IssueValidationResult();
+                res.setJob(job);
+                res.setIssueKey("P7-TEST-2");
+                res.setValidationStatus("PASSED");
+                res.setEvaluatedAt(Instant.now());
+                issueValidationResultRepository.save(res);
+
+                given()
+                                .header("Authorization", "Bearer " + otherToken)
+                                .when()
+                                .get("/api/v1/ai-validation/issues/P7-TEST-2/details")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN_TEAM_ACCESS"));
+        }
+
+        @Test
+        void getIssueDetailsReturns403ForStudent() {
+                given()
+                                .header("Authorization", "Bearer " + studentToken)
+                                .when()
+                                .get("/api/v1/ai-validation/issues/P7-ANY/details")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN"));
+        }
+
+        @Test
+        void getIssueDetailsReturns404ForNonexistentIssue() {
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/issues/NONEXISTENT-999/details")
+                                .then()
+                                .statusCode(404)
+                                .body("error", equalTo("ISSUE_NOT_FOUND"));
+        }
+
+        @Test
+        void getConfigReturns200ForCoordinator() {
+                if (!validationConfigRepository.existsById(1L)) {
+                        ValidationConfig config = new ValidationConfig();
+                        config.setId(1L);
+                        config.setReviewWeight(50);
+                        config.setImplementationWeight(50);
+                        config.setOpenaiModel("gpt-4");
+                        config.setMaxDiffLines(1000);
+                        validationConfigRepository.save(config);
+                }
+
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/config")
+                                .then()
+                                .statusCode(200)
+                                .body("status", equalTo("success"))
+                                .body("data.reviewWeight", notNullValue())
+                                .body("data.implementationWeight", notNullValue());
+        }
+
+        @Test
+        void getConfigReturns403ForNonCoordinator() {
+                given()
+                                .header("Authorization", "Bearer " + advisorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/config")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN"));
+        }
+
+        @Test
+        void putConfigReturns400WhenWeightsDontSumTo100() {
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .body(Map.of("reviewWeight", 60, "implementationWeight", 60))
+                                .when()
+                                .put("/api/v1/ai-validation/config")
+                                .then()
+                                .statusCode(400)
+                                .body("error", equalTo("INVALID_WEIGHTS"));
+        }
+
+        @Test
+        void putConfigReturns400WhenModelInvalid() {
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .body(Map.of(
+                                                "reviewWeight", 40,
+                                                "implementationWeight", 60,
+                                                "openaiModel", "banana-model"))
+                                .when()
+                                .put("/api/v1/ai-validation/config")
+                                .then()
+                                .statusCode(400)
+                                .body("error", equalTo("INVALID_OPENAI_MODEL"));
+        }
+
+        @Test
+        void putConfigReturns403ForNonCoordinator() {
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + advisorToken)
+                                .body(Map.of("reviewWeight", 50, "implementationWeight", 50))
+                                .when()
+                                .put("/api/v1/ai-validation/config")
+                                .then()
+                                .statusCode(403)
+                                .body("error", equalTo("FORBIDDEN"));
+        }
+
+        @Test
+        void putConfigReturns200AndPersistsUpdate() {
+                given()
+                                .contentType(ContentType.JSON)
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .body(Map.of(
+                                                "reviewWeight", 40,
+                                                "implementationWeight", 60,
+                                                "openaiModel", "gpt-4",
+                                                "maxDiffLines", 500))
+                                .when()
+                                .put("/api/v1/ai-validation/config")
+                                .then()
+                                .statusCode(200);
+
+                given()
+                                .header("Authorization", "Bearer " + coordinatorToken)
+                                .when()
+                                .get("/api/v1/ai-validation/config")
+                                .then()
+                                .statusCode(200)
+                                .body("data.reviewWeight", equalTo(40))
+                                .body("data.implementationWeight", equalTo(60));
+        }
 }
