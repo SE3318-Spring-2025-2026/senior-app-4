@@ -1,0 +1,244 @@
+openapi: 3.0.3
+info:
+  title: Senior Project Management System API
+  version: 1.0.0
+  description: |
+    OpenAPI specification for Process 6: Scrum Sync and Integration
+    based on the Level-2 DFD.
+
+    This specification includes:
+    - Triggering Scrum Synchronization
+    - Fetching Jira Metrics
+    - Discovering GitHub Branches
+    - PR Verification & Branch List
+    - Evaluating Story Points
+    - Updating Sprint Data
+
+servers:
+  - url: /api/v1
+    description: Base API URL
+
+tags:
+  - name: Scrum Synchronization
+    description: Endpoints for triggering and managing the scrum synchronization pipeline
+  - name: Jira Metrics
+    description: Endpoints for initializing and fetching issues from Jira
+  - name: GitHub Discovery
+    description: Endpoints for discovering and querying GitHub branches
+  - name: PR Verification
+    description: Endpoints for verifying Pull Request merge status
+  - name: Story Points
+    description: Endpoints for validating story points and merge status
+  - name: Sprint Data
+    description: Endpoints for managing sprint data records
+  - name: Integrations
+    description: Endpoints for managing credentials
+
+paths:
+  /scrum-sync/trigger:
+    post:
+      tags:
+        - Scrum Synchronization
+      summary: Trigger Scrum Synchronization
+      description: Initiates asynchronous synchronization of JIRA and GitHub data for the active sprint.
+      operationId: triggerSync
+      responses:
+        '202':
+          description: Synchronization pipeline started
+        '409':
+          description: Sync already in progress
+  
+  /scrum-sync/trigger/group/{groupId}:
+    post:
+      tags:
+        - Scrum Synchronization
+      summary: Trigger Scrum Synchronization for a specific group
+      description: Initiates asynchronous synchronization of JIRA and GitHub data for the specified group in the active sprint.
+      operationId: triggerSyncForGroup
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '202':
+          description: Synchronization pipeline started
+        '409':
+          description: Sync already in progress
+          
+  /scrum-sync/records:
+    get:
+      tags:
+        - Scrum Synchronization
+      summary: Get all synchronized sprint issue tracking records
+      description: Returns all tracked issues synchronized from Jira and GitHub.
+      operationId: getAllSyncRecords
+      responses:
+        '200':
+          description: OK
+          
+  /jira-metrics/initialize:
+    post:
+      tags:
+        - Jira Metrics
+      summary: Initialize Jira Connection
+      operationId: initializeJiraConnection
+      responses:
+        '200':
+          description: OK
+
+  /jira-metrics/issue-query:
+    post:
+      tags:
+        - Jira Metrics
+      summary: Query Issues by JQL
+      operationId: issueQuery
+      responses:
+        '200':
+          description: OK
+
+  /jira-metrics/callback:
+    post:
+      tags:
+        - Jira Metrics
+      summary: Handle Jira Callback
+      operationId: handleCallback
+      responses:
+        '200':
+          description: OK
+
+  /jira-metrics/issue-details:
+    post:
+      tags:
+        - Jira Metrics
+      summary: Get Issue Details
+      operationId: getIssueDetails
+      responses:
+        '200':
+          description: OK
+
+  /github-discovery/start:
+    post:
+      tags:
+        - GitHub Discovery
+      summary: Start GitHub Discovery
+      operationId: startDiscovery
+      responses:
+        '200':
+          description: OK
+
+  /github/branch-query:
+    get:
+      tags:
+        - GitHub Discovery
+      summary: Query GitHub Branches
+      operationId: queryBranches
+      parameters:
+        - name: owner
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: jiraIds
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          description: OK
+
+  /pr-verification/verify:
+    post:
+      tags:
+        - PR Verification
+      summary: Verify PR Status
+      operationId: verifyPrStatus
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+
+  /pr-verification/branch-list:
+    post:
+      tags:
+        - PR Verification
+      summary: Get Branch List
+      operationId: getBranchList
+      responses:
+        '200':
+          description: OK
+
+  /story-points/validate:
+    post:
+      tags:
+        - Story Points
+      summary: Validate Story Points
+      operationId: validateStoryPoints
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+
+  /story-points/merge-status:
+    post:
+      tags:
+        - Story Points
+      summary: Check Merge Status
+      operationId: checkMergeStatus
+      responses:
+        '200':
+          description: OK
+
+  /sprint-data/bulk-update:
+    put:
+      tags:
+        - Sprint Data
+      summary: Bulk Update Sprint Data
+      operationId: bulkUpdateSprintData
+      responses:
+        '200':
+          description: OK
+
+  /sprint-data/records:
+    get:
+      tags:
+        - Sprint Data
+      summary: Get Sprint Data Records
+      operationId: getSprintDataRecords
+      responses:
+        '200':
+          description: OK
+
+  /integrations/{teamId}/credentials:
+    get:
+      tags:
+        - Integrations
+      summary: Get Credentials
+      operationId: getCredentials
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-Team-Token
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '403':
+          description: Forbidden
