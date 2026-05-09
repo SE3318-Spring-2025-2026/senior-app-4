@@ -5,6 +5,7 @@ import com.spms.backend.dto.response.ReviewDto;
 import com.spms.backend.exception.BadRequestException;
 import com.spms.backend.exception.ForbiddenException;
 import com.spms.backend.exception.NotFoundException;
+import com.spms.backend.model.Committee;
 import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupMember;
 import com.spms.backend.model.Review;
@@ -12,6 +13,7 @@ import com.spms.backend.model.Submission;
 import com.spms.backend.model.User;
 import com.spms.backend.model.enums.ReviewStatus;
 import com.spms.backend.model.enums.SubmissionStatus;
+import com.spms.backend.repository.CommitteeRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.ReviewRepository;
@@ -34,19 +36,22 @@ public class ReviewServiceImpl implements ReviewService {
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
     private final NotificationService notificationService;
+    private final CommitteeRepository committeeRepository;
 
     public ReviewServiceImpl(ReviewRepository reviewRepository,
                              SubmissionRepository submissionRepository,
                              GroupMemberRepository groupMemberRepository,
                              UserRepository userRepository,
                              GroupRepository groupRepository,
-                             NotificationService notificationService) {
+                             NotificationService notificationService,
+                             CommitteeRepository committeeRepository) {
         this.reviewRepository = reviewRepository;
         this.submissionRepository = submissionRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
         this.groupRepository = groupRepository;
         this.notificationService = notificationService;
+        this.committeeRepository = committeeRepository;
     }
 
     @Override
@@ -79,6 +84,20 @@ public class ReviewServiceImpl implements ReviewService {
 
         if (!"PROFESSOR".equalsIgnoreCase(reviewerRole) && !"COORDINATOR".equalsIgnoreCase(reviewerRole)) {
             throw new ForbiddenException("Only professors and coordinators can post reviews.");
+        }
+
+        if ("PROFESSOR".equalsIgnoreCase(reviewerRole)) {
+            Committee committee = committeeRepository.findById(submission.getCommitteeId())
+                    .orElseThrow(() -> new ForbiddenException("Committee not found for this submission."));
+
+            boolean isAuthorized = committee.getAdvisors().stream()
+                    .anyMatch(adv -> adv.getAdvisor().getUserId().equals(reviewerId)) ||
+                    committee.getJuryMembers().stream()
+                    .anyMatch(jury -> jury.getJuryMember().getUserId().equals(reviewerId));
+
+            if (!isAuthorized) {
+                throw new ForbiddenException("Professor is not a member of the assigned committee.");
+            }
         }
 
         ReviewStatus status;
