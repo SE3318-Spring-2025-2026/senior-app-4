@@ -383,12 +383,12 @@ paths:
             schema:
               $ref: '#/components/schemas/ReviewCreateRequest'
       responses:
-        '200':
+        '201':
           description: Review submitted successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: '#/components/schemas/ReviewCreateResponse'
         '400':
           description: |
             Validation error. Possible causes:
@@ -700,9 +700,9 @@ components:
 
     ReviewCreateRequest:
       type: object
-      required: [comments, status]
+      required: [comment, status]
       properties:
-        comments:
+        comment:
           type: string
           example: "Please revise section 2 with more detailed analysis."
           description: Review comments and feedback
@@ -775,6 +775,15 @@ components:
         message:
           type: string
           example: Operation completed successfully.
+
+    ReviewCreateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          $ref: '#/components/schemas/ReviewDto'
 
     ErrorResponse:
       type: object
