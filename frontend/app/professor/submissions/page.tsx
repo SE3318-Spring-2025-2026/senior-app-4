@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { getToken, getUser } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
 import { fetchSubmissions, type SubmissionSummary } from "@/lib/submissions-api";
+import { initializeDemonstration } from "@/lib/final-grading-api";
 
 function Spinner() {
     return (
@@ -67,7 +68,28 @@ function ProfessorSubmissionsPageContent() {
         setLoading(true);
         try {
             const res = await fetchSubmissions({ size: 100, teamId: groupId ?? undefined });
-            setSubmissions(res.data ?? []);
+            let data = res.data ?? [];
+
+            // Inject virtual DEMONSTRATION row if missing, but only if PROPOSAL and STATEMENT_OF_WORK exist
+            if (groupId && !data.some(s => s.deliverableType === "DEMONSTRATION")) {
+                const hasProposal = data.some(s => s.deliverableType === "PROPOSAL");
+                const hasSow = data.some(s => s.deliverableType === "STATEMENT_OF_WORK");
+
+                if (hasProposal && hasSow) {
+                    data.push({
+                        id: -1, // Special ID for virtual row
+                        teamId: parseInt(groupId),
+                        teamName: data[0]?.teamName,
+                        deliverableType: "DEMONSTRATION",
+                        status: "PENDING_REVIEW",
+                        submittedAt: new Date().toISOString(),
+                        assignedCommitteeId: null,
+                        revisionNumber: 1
+                    } as any);
+                }
+            }
+
+            setSubmissions(data);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Failed to load submissions.");
         } finally {
@@ -78,6 +100,23 @@ function ProfessorSubmissionsPageContent() {
     useEffect(() => {
         if (role === "professor") loadSubmissions();
     }, [role, loadSubmissions]);
+
+    const handleViewGrade = async (s: SubmissionSummary) => {
+        if (s.id === -1 && s.deliverableType === "DEMONSTRATION") {
+            const loadingToast = toast.loading("Initializing demonstration...");
+            try {
+                const newId = await initializeDemonstration(s.teamId);
+                toast.dismiss(loadingToast);
+                router.push(`/submissions/${newId}`);
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : "Failed to initialize demonstration.";
+                toast.error(msg);
+                toast.dismiss(loadingToast);
+            }
+        } else {
+            router.push(`/submissions/${s.id}`);
+        }
+    };
 
     if (role === null) return <div className="min-h-screen bg-gray-950" />;
     if (role === "denied") return <p className="p-8 text-red-400">Access denied.</p>;
@@ -101,6 +140,8 @@ function ProfessorSubmissionsPageContent() {
                         {groupId && <p className="text-xs text-gray-500 mt-0.5">Group #{groupId}</p>}
                     </div>
                 </div>
+
+
 
                 {loading ? (
                     <Spinner />
@@ -150,7 +191,7 @@ function ProfessorSubmissionsPageContent() {
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <button
-                                                onClick={() => router.push(`/submissions/${s.id}`)}
+                                                onClick={() => handleViewGrade(s)}
                                                 className="text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors"
                                             >
                                                 View &amp; Grade

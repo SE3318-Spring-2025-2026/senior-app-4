@@ -39,6 +39,7 @@ import {
   fetchDemonstrationGrade,
   saveDemonstrationGrade,
 } from "@/lib/final-grading-api";
+import { PresentationGradePanel } from "@/components/PresentationGradePanel";
 
 const AnnotatedDocumentViewer = dynamic(
   () => import("@/components/AnnotatedDocumentViewer"),
@@ -165,7 +166,7 @@ function SubmissionDetailWorkspace() {
         <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-8 py-4">
           <div className="min-w-0">
             <Link
-              href="/professor/submissions"
+              href={detail ? `/professor/submissions?groupId=${detail.teamId}` : "/professor/submissions"}
               className="inline-flex items-center gap-2 text-xs text-gray-500 transition hover:text-blue-300"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
@@ -701,10 +702,10 @@ function GradePanel({
                         type="button"
                         onClick={() => setCriterionInputs((prev) => ({ ...prev, [c.id]: score }))}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition border ${criterionInputs[c.id] === score
-                            ? label === "S"
-                              ? "bg-green-500/20 border-green-500/40 text-green-300"
-                              : "bg-red-500/20 border-red-500/40 text-red-300"
-                            : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
+                          ? label === "S"
+                            ? "bg-green-500/20 border-green-500/40 text-green-300"
+                            : "bg-red-500/20 border-red-500/40 text-red-300"
+                          : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
                           }`}
                       >
                         {label} ({score})
@@ -719,8 +720,8 @@ function GradePanel({
                         type="button"
                         onClick={() => setCriterionInputs((prev) => ({ ...prev, [c.id]: label }))}
                         className={`px-3 py-2 rounded-lg text-sm font-medium transition border ${criterionInputs[c.id] === label
-                            ? "bg-blue-500/20 border-blue-500/40 text-blue-200"
-                            : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
+                          ? "bg-blue-500/20 border-blue-500/40 text-blue-200"
+                          : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
                           }`}
                       >
                         {label} ({score})
@@ -820,8 +821,8 @@ function CriterionPicker({
             type="button"
             onClick={() => onChange(option)}
             className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition ${value === option
-                ? "border-amber-400/40 bg-amber-400 text-gray-950"
-                : "border-white/10 bg-white/5 text-gray-400 hover:text-white"
+              ? "border-amber-400/40 bg-amber-400 text-gray-950"
+              : "border-white/10 bg-white/5 text-gray-400 hover:text-white"
               }`}
           >
             {option}
@@ -853,164 +854,7 @@ function gradeToScore(grade: string, gradingType?: "SOFT" | "BINARY" | null) {
   }
 }
 
-function scoreToGrade(score: number, gradingType?: "SOFT" | "BINARY" | null) {
-  if (gradingType === "BINARY") return score >= 100 ? "S" : "F";
-  if (score >= 100) return "A";
-  if (score >= 80) return "B";
-  if (score >= 60) return "C";
-  if (score >= 50) return "D";
-  return "F";
-}
 
-const PRES_SOFT_OPTIONS = [
-  { label: "A", score: 100 },
-  { label: "B", score: 80 },
-  { label: "C", score: 60 },
-  { label: "D", score: 50 },
-  { label: "F", score: 0 },
-] as const;
-
-function presLetterToScore(letter: string): number {
-  return PRES_SOFT_OPTIONS.find((o) => o.label === letter)?.score ?? 0;
-}
-
-function PresentationGradePanel({ groupId, onSaved }: { groupId: number; onSaved: () => void }) {
-  const [criteria, setCriteria] = useState<GradingCriteriaItem[]>([]);
-  const [inputs, setInputs] = useState<Record<number, string>>({});
-  const [savedGrade, setSavedGrade] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetchCriteriaForDeliverableType("DEMONSTRATION"),
-      fetchDemonstrationGrade(groupId),
-    ]).then(([crit, existing]) => {
-      if (cancelled) return;
-      setCriteria(crit);
-      setInputs(Object.fromEntries(crit.map((c) => [c.id, ""])));
-      setSavedGrade(existing);
-    }).catch(() => undefined).finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [groupId]);
-
-  const weightedScore: number | null = (() => {
-    if (criteria.some((c) => !inputs[c.id])) return null;
-    let totalWeight = 0;
-    let weightedSum = 0;
-    for (const c of criteria) {
-      const val = inputs[c.id];
-      const score = c.gradingType === "BINARY" ? (val === "100" ? 100 : 0) : presLetterToScore(val);
-      totalWeight += c.weight;
-      weightedSum += score * c.weight;
-    }
-    return totalWeight === 0 ? null : weightedSum / totalWeight;
-  })();
-
-  const allFilled = criteria.length > 0 && criteria.every((c) => !!inputs[c.id]);
-
-  const handleSave = async () => {
-    if (weightedScore === null) { toast.error("Fill all criteria first."); return; }
-    setSaving(true);
-    try {
-      const grade = parseFloat(weightedScore.toFixed(2));
-      await saveDemonstrationGrade(groupId, grade);
-      setSavedGrade(grade);
-      toast.success("Presentation grade saved.");
-      onSaved();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save grade.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex h-32 items-center justify-center rounded-2xl border border-white/8 bg-gray-900">
-        <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border border-white/8 bg-gray-900 p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Star className="h-4 w-4 text-purple-300" />
-          <h3 className="text-sm font-semibold text-white">Presentation Grade (Sunum Puanı)</h3>
-        </div>
-        {savedGrade !== null && (
-          <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-xs font-medium text-purple-300">
-            Current: {savedGrade.toFixed(1)} / 100
-          </span>
-        )}
-      </div>
-
-      {criteria.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/10 bg-white/4 px-4 py-8 text-center">
-          <p className="text-sm font-medium text-white">No rubric criteria defined</p>
-          <p className="mt-1 text-xs text-gray-500">Add DEMONSTRATION criteria in the coordinator rubrics page first.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {criteria.map((c) => (
-            <div key={c.id} className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-white">{c.name}</p>
-                  {c.description && <p className="mt-0.5 text-xs text-gray-500">{c.description}</p>}
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className={`rounded border px-2 py-0.5 text-xs font-medium ${c.gradingType === "BINARY" ? "border-amber-500/20 bg-amber-500/10 text-amber-300" : "border-blue-500/20 bg-blue-500/10 text-blue-300"}`}>
-                    {c.gradingType === "BINARY" ? "Binary" : "Soft"}
-                  </span>
-                  <span className="text-xs text-gray-500">{c.weight}%</span>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {c.gradingType === "BINARY" ? (
-                  [{ label: "S", score: "100" }, { label: "F", score: "0" }].map(({ label, score }) => (
-                    <button key={label} type="button"
-                      onClick={() => setInputs((prev) => ({ ...prev, [c.id]: score }))}
-                      className={`rounded-lg border px-5 py-2 text-sm font-medium transition ${inputs[c.id] === score
-                        ? label === "S" ? "border-green-500/40 bg-green-500/20 text-green-300" : "border-red-500/40 bg-red-500/20 text-red-300"
-                        : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"}`}>
-                      {label}
-                    </button>
-                  ))
-                ) : (
-                  PRES_SOFT_OPTIONS.map(({ label }) => (
-                    <button key={label} type="button"
-                      onClick={() => setInputs((prev) => ({ ...prev, [c.id]: label }))}
-                      className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${inputs[c.id] === label
-                        ? "border-purple-500/40 bg-purple-500/20 text-purple-200"
-                        : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"}`}>
-                      {label}
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          ))}
-
-          {weightedScore !== null && (
-            <div className="flex items-center justify-between rounded-xl border border-purple-500/20 bg-purple-500/10 px-4 py-3">
-              <span className="text-xs text-purple-200">Weighted score preview</span>
-              <span className="text-sm font-semibold text-purple-300">{weightedScore.toFixed(1)} / 100</span>
-            </div>
-          )}
-
-          <button type="button" onClick={handleSave} disabled={saving || !allFilled}
-            className="w-full rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50">
-            {saving ? "Saving…" : "Save Presentation Grade"}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function FilePanel({ detail }: { detail: SubmissionDetail }) {
   return (
@@ -1255,3 +1099,12 @@ function reviewDecisionLabel(value: string) {
   };
   return labels[value as SubmissionStatus] ?? value;
 }
+function scoreToGrade(score: number, gradingType?: "SOFT" | "BINARY" | null) {
+  if (gradingType === "BINARY") return score >= 100 ? "S" : "F";
+  if (score >= 100) return "A";
+  if (score >= 80) return "B";
+  if (score >= 60) return "C";
+  if (score >= 50) return "D";
+  return "F";
+}
+
