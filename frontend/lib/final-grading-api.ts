@@ -194,6 +194,20 @@ export async function saveDemonstrationGrade(groupId: number, grade: number): Pr
   }
 }
 
+export async function initializeDemonstration(groupId: number): Promise<number> {
+  const res = await fetch(`${API_BASE}/final-grading/groups/${groupId}/initialize-demonstration`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const msg = await parseError(res);
+    throw new Error(msg);
+  }
+  const body = await res.json() as { data: { id: number } };
+  return body.data.id;
+}
+
 export async function fetchAiCodeReviewSuggestion(groupId: number, sprintId: number): Promise<AiCodeReviewSuggestion> {
   const res = await fetch(`${API_BASE}/final-grading/groups/${groupId}/sprints/${sprintId}/ai-code-review-suggestion`, {
     headers: buildHeaders(),

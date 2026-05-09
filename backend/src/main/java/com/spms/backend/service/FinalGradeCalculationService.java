@@ -789,6 +789,29 @@ public class FinalGradeCalculationService {
         recalculateGroupIfReady(groupId);
     }
 
+    @Transactional
+    public Long initializeDemonstration(Long groupId) {
+        groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found: " + groupId));
+
+        Optional<Submission> existing = submissionRepository
+                .findTopByGroupIdAndDeliverableTypeOrderByCreatedAtDesc(groupId, DeliverableType.DEMONSTRATION);
+
+        if (existing.isPresent()) {
+            return existing.get().getId();
+        }
+
+        Submission s = new Submission();
+        s.setGroupId(groupId);
+        s.setDeliverableType(DeliverableType.DEMONSTRATION);
+        s.setContent("");
+        s.setVersion(1);
+        s.setStatus(SubmissionStatus.PENDING_REVIEW);
+        s.setCreatedAt(java.time.LocalDateTime.now());
+        s = submissionRepository.save(s);
+        return s.getId();
+    }
+
     @Transactional(readOnly = true)
     public Double getDemonstrationGrade(Long groupId) {
         return submissionRepository
