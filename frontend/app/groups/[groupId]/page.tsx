@@ -19,7 +19,8 @@ import {
     leaveGroupApi,
     addMemberApi,
     coordinatorAddMemberApi,
-    deleteGroupApi
+    deleteGroupApi,
+    updateGroupStatusApi
 } from "@/lib/groups-api";
 //import { inviteMemberApi } from "@/lib/notifications-api";
 import { getUser, getToken, decodeToken } from "@/lib/auth";
@@ -110,6 +111,8 @@ export default function GroupDetailPage() {
 
     const [coordInviteId, setCoordInviteId] = useState("");
     const [coordInviting, setCoordInviting] = useState(false);
+
+    const [updatingStatus, setUpdatingStatus] = useState(false);
 
     const currentUser = getUser();
     const token = getToken();
@@ -420,9 +423,38 @@ export default function GroupDetailPage() {
                                 Advisor: {group.advisorId ? `Advisor #${group.advisorId}` : "Not Assigned"}
                             </p>
                         </div>
-                        <StatusBadge
-                            status={group.status.toLowerCase() as "forming" | "formed" | "advised" | "disbanded"}
-                        />
+                        {isCoordinator ? (
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm text-gray-400">Status:</span>
+                                <select
+                                    value={group.status}
+                                    disabled={updatingStatus}
+                                    onChange={async (e) => {
+                                        const newStatus = e.target.value;
+                                        setUpdatingStatus(true);
+                                        try {
+                                            await updateGroupStatusApi(groupId, newStatus);
+                                            setGroup(prev => prev ? { ...prev, status: newStatus } : prev);
+                                            showToast("Group status updated successfully!", "success");
+                                        } catch (err) {
+                                            showToast(err instanceof Error ? err.message : "Failed to update status", "error");
+                                        } finally {
+                                            setUpdatingStatus(false);
+                                        }
+                                    }}
+                                    className="rounded-lg border border-white/10 bg-gray-900 px-3 py-1.5 text-sm font-medium text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                                >
+                                    <option value="FORMING">Forming</option>
+                                    <option value="FORMED">Formed</option>
+                                    <option value="ADVISED">Advised</option>
+                                    <option value="DISBANDED">Disbanded</option>
+                                </select>
+                            </div>
+                        ) : (
+                            <StatusBadge
+                                status={group.status.toLowerCase() as "forming" | "formed" | "advised" | "disbanded"}
+                            />
+                        )}
                     </div>
 
                     {isLeader && (

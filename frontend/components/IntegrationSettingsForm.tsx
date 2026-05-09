@@ -6,7 +6,7 @@ import { showToast } from "@/components/toast/ToastContext";
 import {
     bindGithubIntegration,
     bindJiraIntegration,
-    triggerScrumSync,
+    triggerGroupScrumSync,
 } from "@/lib/integrations-api";
 
 interface Props {
@@ -107,9 +107,13 @@ export default function IntegrationSettingsForm({ groupId, onSuccess }: Props) {
     }
 
     async function handleSyncNow() {
+        if (!groupId) {
+            showToast("Group not found.", "error");
+            return;
+        }
         setSyncing(true);
         try {
-            await triggerScrumSync();
+            await triggerGroupScrumSync(groupId);
             showToast("Sync started successfully", "success");
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : "Sync failed";

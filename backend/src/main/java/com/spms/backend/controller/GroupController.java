@@ -74,6 +74,37 @@ public class GroupController {
         return ResponseEntity.ok().build();
     }
 
+    @PutMapping("/{groupId}/status")
+    public ResponseEntity<?> updateGroupStatus(
+            @PathVariable Long groupId,
+            @RequestBody java.util.Map<String, String> payload,
+            @RequestAttribute("jwt_role") Object role) {
+
+        if (!"coordinator".equalsIgnoreCase(role.toString())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only coordinators can update group status.");
+        }
+
+        String newStatusStr = payload.get("status");
+        if (newStatusStr == null || newStatusStr.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Status is required.");
+        }
+
+        com.spms.backend.model.GroupStatus statusEnum;
+        try {
+            statusEnum = com.spms.backend.model.GroupStatus.valueOf(newStatusStr.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body("Invalid status value.");
+        }
+
+        groupService.updateGroupStatus(groupId, statusEnum);
+
+        return ResponseEntity.ok().body(java.util.Map.of(
+                "success", true,
+                "message", "Group status updated successfully"
+        ));
+    }
+
+
     @GetMapping
     public ResponseEntity<Page<GroupResponseDto>> getGroups(
             @ParameterObject Pageable pageable,

@@ -19,6 +19,14 @@ public interface ScrumSyncService {
     ScrumSyncResponse triggerSync();
 
     /**
+     * Trigger synchronization pipeline asynchronously for a specific group.
+     * @param groupId the ID of the group to sync
+     * @return ScrumSyncResponse containing status and sync ID
+     * @throws SyncAlreadyRunningException if a sync is already in progress
+     */
+    ScrumSyncResponse triggerSyncForGroup(Long groupId);
+
+    /**
      * Execute the actual synchronization (called by cron or triggerSync).
      * Should be resilient to concurrent calls and prevent duplicate execution.
      */
