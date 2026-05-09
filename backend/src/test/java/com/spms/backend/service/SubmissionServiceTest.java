@@ -16,6 +16,7 @@ import com.spms.backend.model.User;
 import com.spms.backend.model.enums.DeliverableType;
 import com.spms.backend.model.enums.SubmissionStatus;
 import com.spms.backend.repository.CommitteeAdvisorRepository;
+import com.spms.backend.repository.CommitteeJuryRepository;
 import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
@@ -65,6 +66,8 @@ class SubmissionServiceTest {
     private FileStorageService fileStorageService;
     @Mock
     private CommitteeAdvisorRepository committeeAdvisorRepository;
+    @Mock
+    private CommitteeJuryRepository committeeJuryRepository;
 
     private SubmissionService submissionService;
     private Pageable pageable;
@@ -80,7 +83,8 @@ class SubmissionServiceTest {
                 groupMemberRepository,
                 scheduleRepository,
                 fileStorageService,
-                committeeAdvisorRepository);
+                committeeAdvisorRepository,
+                committeeJuryRepository);
         pageable = PageRequest.of(0, 10);
     }
 

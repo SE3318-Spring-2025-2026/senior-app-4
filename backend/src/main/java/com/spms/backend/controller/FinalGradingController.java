@@ -113,6 +113,16 @@ public class FinalGradingController {
         return ResponseEntity.ok(Map.of("status", "success"));
     }
 
+    @PostMapping("/groups/{groupId}/initialize-demonstration")
+    public ResponseEntity<Map<String, Object>> initializeDemonstration(
+            @PathVariable Long groupId,
+            @RequestAttribute("jwt_userId") Object userId,
+            @RequestAttribute("jwt_role") Object role) {
+        requireAdvisorAccess(role, Long.valueOf(userId.toString()), groupId);
+        Long submissionId = finalGradeCalculationService.initializeDemonstration(groupId);
+        return ResponseEntity.ok(Map.of("status", "success", "data", Map.of("id", submissionId)));
+    }
+
     @GetMapping("/groups/{groupId}/demonstration-grade")
     public ResponseEntity<Map<String, Object>> getDemonstrationGrade(
             @PathVariable Long groupId,
@@ -209,7 +219,8 @@ public class FinalGradingController {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new NotFoundException("Group not found: " + groupId));
         if (group.getAdvisor() == null || !userId.equals(group.getAdvisor().getUserId())) {
-            throw new ForbiddenException("Professor is not the advisor of this group.");
+            String advisorName = group.getAdvisor() != null ? group.getAdvisor().getFullName() : "none";
+            throw new ForbiddenException("Access denied. You are not the advisor of this group (Advisor: " + advisorName + ").");
         }
     }
 

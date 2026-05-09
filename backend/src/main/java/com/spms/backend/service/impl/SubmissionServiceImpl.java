@@ -19,6 +19,7 @@ import com.spms.backend.model.Submission;
 import com.spms.backend.model.enums.DeliverableType;
 import com.spms.backend.model.enums.SubmissionStatus;
 import com.spms.backend.repository.CommitteeAdvisorRepository;
+import com.spms.backend.repository.CommitteeJuryRepository;
 import com.spms.backend.repository.GroupCommitteeAssignmentRepository;
 import com.spms.backend.repository.GroupMemberRepository;
 import com.spms.backend.repository.GroupRepository;
@@ -51,6 +52,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final ScheduleRepository scheduleRepository;
     private final FileStorageService fileStorageService;
     private final CommitteeAdvisorRepository committeeAdvisorRepository;
+    private final CommitteeJuryRepository committeeJuryRepository;
 
     public SubmissionServiceImpl(SubmissionRepository submissionRepository,
                                  GroupRepository groupRepository,
@@ -60,7 +62,8 @@ public class SubmissionServiceImpl implements SubmissionService {
                                  GroupMemberRepository groupMemberRepository,
                                  ScheduleRepository scheduleRepository,
                                  FileStorageService fileStorageService,
-                                 CommitteeAdvisorRepository committeeAdvisorRepository) {
+                                 CommitteeAdvisorRepository committeeAdvisorRepository,
+                                 CommitteeJuryRepository committeeJuryRepository) {
         this.submissionRepository = submissionRepository;
         this.groupRepository = groupRepository;
         this.assignmentRepository = assignmentRepository;
@@ -70,6 +73,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         this.scheduleRepository = scheduleRepository;
         this.fileStorageService = fileStorageService;
         this.committeeAdvisorRepository = committeeAdvisorRepository;
+        this.committeeJuryRepository = committeeJuryRepository;
     }
 
     @Override
@@ -184,7 +188,15 @@ public class SubmissionServiceImpl implements SubmissionService {
         } else if ("PROFESSOR".equalsIgnoreCase(role)) {
             // C-25: professor sees submissions for groups in their assigned committees
             // Also include submissions for groups they directly advise (groups.advisor_id)
-            List<Long> committeeIds = committeeAdvisorRepository.findCommitteeIdsByAdvisorUserId(userId);
+            // Jury members use committee_jury_members table — merge both committee ID lists
+            List<Long> advisorCommitteeIds = committeeAdvisorRepository.findCommitteeIdsByAdvisorUserId(userId);
+            List<Long> juryCommitteeIds = committeeJuryRepository.findCommitteeIdsByJuryMemberId(userId);
+            List<Long> committeeIds = new java.util.ArrayList<>();
+            committeeIds.addAll(advisorCommitteeIds);
+            juryCommitteeIds.stream()
+                    .filter(id -> !committeeIds.contains(id))
+                    .forEach(committeeIds::add);
+
             List<Long> adviseeGroupIds = groupRepository.findByAdvisorId(userId)
                     .stream().map(g -> g.getId()).toList();
 
