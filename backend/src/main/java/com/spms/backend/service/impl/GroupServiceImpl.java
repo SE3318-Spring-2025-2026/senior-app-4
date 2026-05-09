@@ -167,8 +167,22 @@ public class GroupServiceImpl implements GroupService {
         group.setUpdatedAt(Instant.now());
 
         groupRepository.save(group);
-
     }
+
+    @Override
+    @Transactional
+    @AuditableOperation(actionType = ActionType.GROUP_UPDATED)
+    public void updateGroupStatus(Long groupId, GroupStatus newStatus) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new NotFoundException("Group not found."));
+
+        group.setStatus(newStatus);
+        group.setUpdatedAt(Instant.now());
+
+        groupRepository.save(group);
+        log.info("Group {} status updated to {}", groupId, newStatus);
+    }
+
 
     @Override
     @Transactional(readOnly = true)

@@ -19,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 
 
 import com.spms.backend.dto.response.MemberResponseDto;
+import com.spms.backend.model.GroupStatus;
 import java.util.List;
 
 public interface GroupService {
@@ -28,6 +29,8 @@ public interface GroupService {
     
     //Rol bazlı sorgulama yapabilmek için requesterId ve requesterRole ekledim
     Page<GroupResponseDto> getGroups(Pageable pageable, Long requesterId, String requesterRole, String status, String advisorAssigned, String groupName);
+    
+    void updateGroupStatus(Long groupId, GroupStatus newStatus);
     
     List<java.util.Map<String, Object>> getGroupLookup();
     

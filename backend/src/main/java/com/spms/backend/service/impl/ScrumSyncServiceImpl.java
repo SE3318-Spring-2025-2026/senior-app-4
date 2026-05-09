@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * ISSUE #395: Implementation of Scrum Sync Service
@@ -84,7 +85,7 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
         logger.info("Sync triggered with ID: {}", syncId);
 
         // Execute async without blocking
-        executeSyncAsync(syncId);
+        CompletableFuture.runAsync(() -> executeSyncAsync(syncId));
 
         return new ScrumSyncResponse(
             "STARTED",
@@ -92,6 +93,64 @@ public class ScrumSyncServiceImpl implements ScrumSyncService {
             syncId,
             startedAt
         );
+    }
+
+    @Override
+    public ScrumSyncResponse triggerSyncForGroup(Long groupId) {
+        if (!syncInProgress.compareAndSet(false, true)) {
+            logger.warn("Group Scrum sync trigger rejected - synchronization already in progress");
+            throw new SyncAlreadyRunningException("A synchronization process is currently running.");
+        }
+
+        String syncId = UUID.randomUUID().toString();
+        logger.info("Triggering async Scrum synchronization for group {} with ID: {}", groupId, syncId);
+
+        // Run sync asynchronously
+        CompletableFuture.runAsync(() -> executeSyncForGroup(groupId));
+
+        return new ScrumSyncResponse(
+            "ACCEPTED",
+            "Group Scrum synchronization started.",
+            syncId,
+            Instant.now()
+        );
+    }
+
+    /**
+     * Executes sync only for a single group.
+     */
+    protected void executeSyncForGroup(Long groupId) {
+        try {
+            logger.info("Executing Scrum sync pipeline for group: {}", groupId);
+
+            logger.debug("Phase 1: Searching for active sprint context");
+            var activeSprint = sprintRepository.findActiveSprintByDate(java.time.LocalDate.now());
+            if (activeSprint.isEmpty()) {
+                logger.warn("No active sprint found, skipping sync for group {}", groupId);
+                return;
+            }
+
+            var sprint = activeSprint.get();
+            var groupOpt = groupRepository.findById(groupId);
+            
+            if (groupOpt.isEmpty()) {
+                logger.warn("Group not found with id: {}", groupId);
+                return;
+            }
+
+            try {
+                processSingleGroup(groupOpt.get(), sprint);
+            } catch (Exception e) {
+                logger.error("Failed to sync group: {}", groupId, e);
+            }
+
+            logger.info("Sync pipeline execution completed for group {}", groupId);
+        } catch (Exception e) {
+            logger.error("Critical error in group sync pipeline execution", e);
+        } finally {
+            syncInProgress.set(false);
+            logger.debug("Group Sync lock released");
+        }
     }
 
     @Async

@@ -25,7 +25,8 @@ export default function LeaderboardTable() {
             setData(res.content);
             setTotalPages(res.totalPages || 1);
         } catch (err) {
-            console.error("Failed to load leaderboard:", err);
+            // Log as string to prevent Next.js dev overlay from intercepting the raw Error
+            console.error("Failed to load leaderboard: " + (err instanceof Error ? err.message : String(err)));
             setError("Failed to load performance data from server.");
             setData([]);
         } finally {

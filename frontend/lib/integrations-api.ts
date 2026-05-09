@@ -233,19 +233,48 @@ export async function bindJiraIntegration(
     }
 }
 
-export async function triggerScrumSync(): Promise<{ status: string }> {
+export async function triggerScrumSync() {
     const token = getToken();
 
     const res = await fetch(`${API_BASE}/scrum-sync/trigger`, {
         method: "POST",
         headers: {
+            "Content-Type": "application/json",
             Authorization: `Bearer ${token ?? ""}`,
         },
     });
 
-    if (!res.ok) {
-        throw new Error(await parseError(res));
-    }
+    if (!res.ok) throw new Error(await parseError(res));
+    return res.json();
+}
 
+export async function triggerGroupScrumSync(groupId: number) {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/scrum-sync/trigger/group/${groupId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+    });
+
+    if (!res.ok) throw new Error(await parseError(res));
+    return res.json();
+}
+
+export async function fetchSyncRecords() {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/scrum-sync/records`, {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        cache: "no-store",
+    });
+
+    if (!res.ok) throw new Error(await parseError(res));
     return res.json();
 }

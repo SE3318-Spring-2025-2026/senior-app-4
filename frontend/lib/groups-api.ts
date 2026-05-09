@@ -208,6 +208,26 @@ export async function updateGroupNameApi(
     }
 }
 
+export async function updateGroupStatusApi(
+    groupId: number,
+    status: string
+) {
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/groups/${groupId}/status`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token ?? ""}`,
+        },
+        body: JSON.stringify({ status }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+}
+
 /* ===================== MEMBERS ===================== */
 
 export async function addMemberApi(
