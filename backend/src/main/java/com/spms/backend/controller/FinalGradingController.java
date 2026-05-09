@@ -38,9 +38,7 @@ public class FinalGradingController {
     }
 
     @GetMapping("/sprints")
-    public ResponseEntity<Map<String, Object>> listSprints(
-            @RequestAttribute("jwt_role") Object role) {
-        requireCoordinatorOrProfessor(role);
+    public ResponseEntity<Map<String, Object>> listSprints() {
         List<SprintConfigResponse> sprints = finalGradeCalculationService.listSprints();
         return ResponseEntity.ok(Map.of("status", "success", "data", sprints));
     }
@@ -152,6 +150,14 @@ public class FinalGradingController {
             @RequestAttribute("jwt_role") Object role) {
         requireCoordinator(role);
         return ResponseEntity.ok(finalGradeCalculationService.publishGroup(groupId));
+    }
+
+    @GetMapping("/groups")
+    public ResponseEntity<Map<String, Object>> listAllGroupGrades(
+            @RequestAttribute("jwt_role") Object role) {
+        requireCoordinator(role);
+        return ResponseEntity.ok(Map.of("status", "success",
+                "data", finalGradeCalculationService.listAllGroupGrades()));
     }
 
     @GetMapping("/groups/{groupId}")

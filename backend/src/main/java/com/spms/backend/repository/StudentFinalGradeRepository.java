@@ -2,6 +2,7 @@ package com.spms.backend.repository;
 
 import com.spms.backend.model.StudentFinalGrade;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -12,4 +13,7 @@ public interface StudentFinalGradeRepository extends JpaRepository<StudentFinalG
     List<StudentFinalGrade> findByGroup_IdOrderByUser_FullNameAsc(Long groupId);
     Optional<StudentFinalGrade> findByGroup_IdAndUser_UserId(Long groupId, Long userId);
     List<StudentFinalGrade> findByUser_UserId(Long userId);
+
+    @Query("SELECT s.group.id, COUNT(s) FROM StudentFinalGrade s GROUP BY s.group.id")
+    List<Object[]> countStudentsPerGroup();
 }

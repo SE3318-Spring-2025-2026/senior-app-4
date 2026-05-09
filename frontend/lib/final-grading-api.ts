@@ -41,6 +41,15 @@ export interface SprintAdvisorGrade {
   updatedAt: string;
 }
 
+export interface GroupGradeSummary {
+  groupId: number;
+  groupName: string;
+  teamGrade: number | null;
+  published: boolean;
+  publishedAt: string | null;
+  studentCount: number;
+}
+
 export interface FinalGradeResponse {
   status: string;
   data: {
@@ -215,4 +224,13 @@ export async function fetchFinalGrades(groupId: number): Promise<FinalGradeRespo
     cache: "no-store",
   });
   return jsonOrThrow<FinalGradeResponse>(res);
+}
+
+export async function fetchAllGroupGrades(): Promise<GroupGradeSummary[]> {
+  const res = await fetch(`${API_BASE}/final-grading/groups`, {
+    headers: buildHeaders(),
+    cache: "no-store",
+  });
+  const body = await jsonOrThrow<{ data: GroupGradeSummary[] }>(res);
+  return body.data ?? [];
 }

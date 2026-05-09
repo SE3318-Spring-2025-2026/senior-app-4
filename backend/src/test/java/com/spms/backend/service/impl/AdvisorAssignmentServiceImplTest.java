@@ -207,6 +207,13 @@ class AdvisorAssignmentServiceImplTest {
         }
 
         @Override
+        public Optional<Group> findByLeader_UserId(Long leaderId) {
+            return store.values().stream()
+                    .filter(g -> g.getLeader() != null && leaderId.equals(g.getLeader().getUserId()))
+                    .findFirst();
+        }
+
+        @Override
         public Page<Group> findAllWithStudentGroupFirst(Long studentId, Pageable pageable) {
             throw new UnsupportedOperationException();
         }

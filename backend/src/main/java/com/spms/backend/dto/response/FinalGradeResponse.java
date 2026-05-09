@@ -38,4 +38,13 @@ public record FinalGradeResponse(
             BigDecimal spRatio,
             boolean published
     ) {}
+
+    public record GroupGradeSummary(
+            Long groupId,
+            String groupName,
+            BigDecimal teamGrade,
+            boolean published,
+            java.time.Instant publishedAt,
+            int studentCount
+    ) {}
 }

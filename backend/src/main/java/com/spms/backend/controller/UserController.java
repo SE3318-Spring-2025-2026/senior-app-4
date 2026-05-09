@@ -8,9 +8,11 @@ import com.spms.backend.dto.response.UserCreateResponse;
 import com.spms.backend.dto.response.UserListResponse;
 import com.spms.backend.dto.response.UserResponse;
 import com.spms.backend.exception.BadRequestException;
+import com.spms.backend.model.Group;
 import com.spms.backend.model.GroupMember;
 import com.spms.backend.model.User;
 import com.spms.backend.repository.GroupMemberRepository;
+import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.UserRepository;
 import com.spms.backend.service.StudentRegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,24 +30,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Tag(name = "User Store")
 @RestController
 @RequestMapping("/api/v1/users")
 public class UserController {
 
+    private static final Logger log = LoggerFactory.getLogger(UserController.class);
     private static final String USER_NOT_FOUND = "User not found.";
 
     private final StudentRegistrationService studentRegistrationService;
     private final UserRepository userRepository;
     private final GroupMemberRepository groupMemberRepository;
+    private final GroupRepository groupRepository;
 
     public UserController(StudentRegistrationService studentRegistrationService,
                           UserRepository userRepository,
-                          GroupMemberRepository groupMemberRepository) {
+                          GroupMemberRepository groupMemberRepository,
+                          GroupRepository groupRepository) {
         this.studentRegistrationService = studentRegistrationService;
         this.userRepository = userRepository;
         this.groupMemberRepository = groupMemberRepository;
+        this.groupRepository = groupRepository;
     }
 
     @Operation(summary = "Get the currently authenticated user's profile")
@@ -63,6 +71,14 @@ public class UserController {
         Optional<GroupMember> membership = groupMemberRepository.findTopByUser_UserId(userId);
         Long groupId = membership.map(m -> m.getGroup().getId()).orElse(null);
         String groupName = membership.map(m -> m.getGroup().getGroupName()).orElse(null);
+        log.info("[/me] userId={} membership={}", userId, groupId);
+
+        if (groupId == null) {
+            Optional<Group> ledGroup = groupRepository.findByLeader_UserId(userId);
+            groupId = ledGroup.map(Group::getId).orElse(null);
+            groupName = ledGroup.map(Group::getGroupName).orElse(null);
+            log.info("[/me] userId={} leaderOf={}", userId, groupId);
+        }
 
         UserResponse.UserData userData = new UserResponse.UserData(
                 user.getUserId(), user.getFullName(), user.getEmail(),

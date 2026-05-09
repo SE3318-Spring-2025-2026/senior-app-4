@@ -53,6 +53,7 @@ export type ApiGroupDetail = {
     groupName: string;
     leaderId: number;
     advisorId: number | null;
+    advisorName: string | null;
     status: string;
     createdAt: string;
     updatedAt: string;
@@ -91,6 +92,22 @@ export async function fetchCurrentUserGroupId(): Promise<number | null> {
     } catch {
         return null;
     }
+}
+
+/* ===================== LOOKUP (lightweight: id + name only) ===================== */
+
+export type GroupLookupItem = { id: number; groupName: string };
+
+export async function fetchGroupLookup(): Promise<GroupLookupItem[]> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/groups/lookup`, {
+        headers: { Authorization: `Bearer ${token ?? ""}` },
+        cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    // response is a plain array [{id, groupName}]
+    return Array.isArray(data) ? data : [];
 }
 
 /* ===================== GET ===================== */

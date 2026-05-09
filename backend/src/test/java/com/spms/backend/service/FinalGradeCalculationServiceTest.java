@@ -34,6 +34,7 @@ class FinalGradeCalculationServiceTest {
     @Mock private StudentFinalGradeRepository studentFinalGradeRepository;
     @Mock private SprintIssueTrackingRepository sprintIssueTrackingRepository;
     @Mock private IssueValidationResultRepository issueValidationResultRepository;
+    @Mock private NotificationService notificationService;
 
     private FinalGradeCalculationService service;
 
@@ -54,7 +55,8 @@ class FinalGradeCalculationServiceTest {
                 teamFinalGradeRepository,
                 studentFinalGradeRepository,
                 sprintIssueTrackingRepository,
-                issueValidationResultRepository);
+                issueValidationResultRepository,
+                notificationService);
 
         student = new User();
         student.setUserId(7L);

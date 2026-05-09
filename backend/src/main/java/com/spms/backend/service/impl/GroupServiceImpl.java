@@ -222,6 +222,7 @@ public class GroupServiceImpl implements GroupService {
                 group.getGroupName(),
                 group.getLeader().getUserId(),
                 group.getAdvisor() != null ? group.getAdvisor().getUserId() : null,
+                group.getAdvisor() != null ? group.getAdvisor().getFullName() : null,
                 group.getStatus().name(),
                 group.getCreatedAt(),
                 group.getUpdatedAt(),
