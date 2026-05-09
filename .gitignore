@@ -15,6 +15,12 @@ backend/application.yml
 *.iml
 .vscode/
 
+node_modules/
+.next/
+dist/
+build/
+.env
+
 # OS
 Thumbs.db
 
