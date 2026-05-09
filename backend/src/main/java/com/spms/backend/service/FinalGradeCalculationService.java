@@ -45,6 +45,7 @@ public class FinalGradeCalculationService {
     private final StudentFinalGradeRepository studentFinalGradeRepository;
     private final SprintIssueTrackingRepository sprintIssueTrackingRepository;
     private final IssueValidationResultRepository issueValidationResultRepository;
+    private final NotificationService notificationService;
 
     public FinalGradeCalculationService(
             GroupRepository groupRepository,
@@ -57,7 +58,8 @@ public class FinalGradeCalculationService {
             TeamFinalGradeRepository teamFinalGradeRepository,
             StudentFinalGradeRepository studentFinalGradeRepository,
             SprintIssueTrackingRepository sprintIssueTrackingRepository,
-            IssueValidationResultRepository issueValidationResultRepository) {
+            IssueValidationResultRepository issueValidationResultRepository,
+            NotificationService notificationService) {
         this.groupRepository = groupRepository;
         this.userRepository = userRepository;
         this.sprintRepository = sprintRepository;
@@ -69,6 +71,7 @@ public class FinalGradeCalculationService {
         this.studentFinalGradeRepository = studentFinalGradeRepository;
         this.sprintIssueTrackingRepository = sprintIssueTrackingRepository;
         this.issueValidationResultRepository = issueValidationResultRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional(readOnly = true)
@@ -283,7 +286,39 @@ public class FinalGradeCalculationService {
         List<StudentFinalGrade> students = studentFinalGradeRepository.findByGroup_IdOrderByUser_FullNameAsc(groupId);
         students.forEach(s -> s.setPublished(true));
         studentFinalGradeRepository.saveAll(students);
+
+        String groupName = team.getGroup().getGroupName();
+        for (StudentFinalGrade s : students) {
+            String grade = s.getFinalGrade() != null ? scale2(s.getFinalGrade()).toPlainString() : "-";
+            String message = "Your final grade for project \"" + groupName + "\" has been published: " + grade + " / 100";
+            try {
+                notificationService.createSystemAlert(s.getUser().getUserId(), message, "FINAL_GRADE_PUBLISHED", null);
+            } catch (Exception ex) {
+                logger.warn("Could not send final grade notification to user {}: {}", s.getUser().getUserId(), ex.getMessage());
+            }
+        }
+
         return getGroupFinalGrades(groupId, true);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FinalGradeResponse.GroupGradeSummary> listAllGroupGrades() {
+        // Single COUNT query — no N+1 from lazy group access
+        Map<Long, Integer> studentCounts = studentFinalGradeRepository.countStudentsPerGroup()
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> ((Long) row[1]).intValue()));
+
+        return teamFinalGradeRepository.findAllWithGroup().stream()
+                .map(t -> new FinalGradeResponse.GroupGradeSummary(
+                        t.getGroup().getId(),
+                        t.getGroup().getGroupName(),
+                        t.getTeamGrade(),
+                        t.isPublished(),
+                        t.getPublishedAt(),
+                        studentCounts.getOrDefault(t.getGroup().getId(), 0)))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -302,6 +337,7 @@ public class FinalGradeCalculationService {
                 .toList();
 
         Group group = team.getGroup();
+        List<FinalGradeResponse.DeliverableBreakdown> deliverables = computeDeliverablesReadOnly(groupId);
         return new FinalGradeResponse("success", new FinalGradeResponse.Data(
                 group.getId(),
                 group.getGroupName(),
@@ -309,8 +345,83 @@ public class FinalGradeCalculationService {
                 team.isPublished(),
                 team.getComputedAt(),
                 team.getPublishedAt(),
-                List.of(),
+                deliverables,
                 students));
+    }
+
+    private List<FinalGradeResponse.DeliverableBreakdown> computeDeliverablesReadOnly(Long groupId) {
+        try {
+            List<SprintDeliverableWeight> weights = sprintDeliverableWeightRepository.findAllByOrderByDeliverableTypeAscSprint_IdAsc();
+            if (weights.isEmpty()) return List.of();
+
+            // Pre-fetch all sprints and all advisor grades for this group in one shot
+            List<Sprint> allSprints = sprintRepository.findAllByOrderByStartDateAscIdAsc();
+            List<SprintAdvisorGrade> allAdvisorGrades = sprintAdvisorGradeRepository.findByGroup_Id(groupId);
+
+            // Index advisor grades by sprintId for O(1) lookup
+            Map<Long, List<SprintAdvisorGrade>> advisorBySprintId = allAdvisorGrades.stream()
+                    .collect(Collectors.groupingBy(g -> g.getSprint().getId()));
+
+            Map<DeliverableType, List<SprintDeliverableWeight>> byDeliverable = weights.stream()
+                    .collect(Collectors.groupingBy(SprintDeliverableWeight::getDeliverableType,
+                            () -> new EnumMap<>(DeliverableType.class), Collectors.toList()));
+
+            List<FinalGradeResponse.DeliverableBreakdown> breakdowns = new ArrayList<>();
+            for (Map.Entry<DeliverableType, List<SprintDeliverableWeight>> entry : byDeliverable.entrySet()) {
+                DeliverableType type = entry.getKey();
+                List<SprintDeliverableWeight> rows = entry.getValue();
+                BigDecimal finalWeight = sumWeights(rows);
+                BigDecimal rawGrade = resolveRawDeliverableGrade(groupId, type);
+                BigDecimal scrumAvg = resolveWeightedSprintAverageFast(rows, allSprints, advisorBySprintId, SprintMetric.SCRUM);
+                BigDecimal codeReviewAvg = resolveWeightedSprintAverageFast(rows, allSprints, advisorBySprintId, SprintMetric.CODE_REVIEW);
+                BigDecimal scalar = scrumAvg.add(codeReviewAvg)
+                        .divide(BigDecimal.valueOf(2), 4, RoundingMode.HALF_UP)
+                        .divide(HUNDRED, 4, RoundingMode.HALF_UP);
+                BigDecimal scaledGrade = rawGrade.multiply(scalar).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal contribution = scaledGrade.multiply(finalWeight).divide(HUNDRED, 2, RoundingMode.HALF_UP);
+                breakdowns.add(new FinalGradeResponse.DeliverableBreakdown(
+                        type.name(), scale2(rawGrade), scale2(scrumAvg), scale2(codeReviewAvg),
+                        scalar.setScale(4, RoundingMode.HALF_UP), scaledGrade, scale2(finalWeight), contribution));
+            }
+            return breakdowns;
+        } catch (Exception e) {
+            logger.debug("Could not compute deliverable breakdown for group {}: {}", groupId, e.getMessage());
+            return List.of();
+        }
+    }
+
+    private BigDecimal resolveWeightedSprintAverageFast(
+            List<SprintDeliverableWeight> rows,
+            List<Sprint> allSprints,
+            Map<Long, List<SprintAdvisorGrade>> advisorBySprintId,
+            SprintMetric metric) {
+
+        java.time.LocalDate latestDate = rows.stream()
+                .map(w -> w.getSprint().getStartDate())
+                .max(Comparator.naturalOrder())
+                .orElseThrow(() -> new BadRequestException("Deliverable has no sprint associations."));
+
+        List<Sprint> cumulativeSprints = allSprints.stream()
+                .filter(s -> !s.getStartDate().isAfter(latestDate))
+                .toList();
+
+        if (cumulativeSprints.isEmpty()) {
+            throw new BadRequestException("No sprints found up to the associated sprint date.");
+        }
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (Sprint sprint : cumulativeSprints) {
+            List<SprintAdvisorGrade> grades = advisorBySprintId.getOrDefault(sprint.getId(), List.of());
+            List<Integer> scores = grades.stream()
+                    .map(g -> metric == SprintMetric.SCRUM ? g.getScrumGrade() : g.getCodeReviewGrade())
+                    .map(this::softGradeToScore)
+                    .toList();
+            if (scores.isEmpty()) {
+                throw new BadRequestException("Missing " + metric.label + " grade for group sprint " + sprint.getId());
+            }
+            total = total.add(BigDecimal.valueOf(scores.stream().mapToInt(Integer::intValue).average().orElse(0.0)));
+        }
+        return total.divide(BigDecimal.valueOf(cumulativeSprints.size()), 4, RoundingMode.HALF_UP);
     }
 
     private TeamFinalGrade upsertTeamGrade(Group group, BigDecimal teamGrade) {
@@ -401,18 +512,26 @@ public class FinalGradeCalculationService {
     }
 
     private BigDecimal resolveWeightedSprintAverage(Long groupId, List<SprintDeliverableWeight> rows, SprintMetric metric) {
-        BigDecimal weighted = BigDecimal.ZERO;
-        BigDecimal totalWeight = BigDecimal.ZERO;
-        for (SprintDeliverableWeight row : rows) {
-            Long sprintId = row.getSprint().getId();
-            BigDecimal score = resolveSprintMetricScore(groupId, sprintId, metric);
-            weighted = weighted.add(score.multiply(row.getWeight()));
-            totalWeight = totalWeight.add(row.getWeight());
+        // Find the latest sprint date among this deliverable's associations
+        java.time.LocalDate latestDate = rows.stream()
+                .map(w -> w.getSprint().getStartDate())
+                .max(Comparator.naturalOrder())
+                .orElseThrow(() -> new BadRequestException("Deliverable has no sprint associations."));
+
+        // Cumulative: include all sprints whose start date is <= the deliverable's latest sprint
+        List<Sprint> cumulativeSprints = sprintRepository.findAllByOrderByStartDateAscIdAsc().stream()
+                .filter(s -> !s.getStartDate().isAfter(latestDate))
+                .toList();
+
+        if (cumulativeSprints.isEmpty()) {
+            throw new BadRequestException("No sprints found up to the associated sprint date.");
         }
-        if (totalWeight.compareTo(BigDecimal.ZERO) == 0) {
-            throw new BadRequestException("Deliverable has zero sprint weight.");
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (Sprint sprint : cumulativeSprints) {
+            total = total.add(resolveSprintMetricScore(groupId, sprint.getId(), metric));
         }
-        return weighted.divide(totalWeight, 4, RoundingMode.HALF_UP);
+        return total.divide(BigDecimal.valueOf(cumulativeSprints.size()), 4, RoundingMode.HALF_UP);
     }
 
     private BigDecimal resolveSprintMetricScore(Long groupId, Long sprintId, SprintMetric metric) {
@@ -477,8 +596,11 @@ public class FinalGradeCalculationService {
             return BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
         }
 
-        Set<Long> sprintIds = rows.stream().map(w -> w.getSprint().getId()).collect(Collectors.toCollection(LinkedHashSet::new));
-        List<SprintIssueTracking> logs = sprintIssueTrackingRepository.findByGroup_IdAndSprint_IdIn(groupId, sprintIds);
+        // Global ratio: completed SP / required SP across ALL sprints (not per-deliverable)
+        List<Sprint> allSprints = sprintRepository.findAllByOrderByStartDateAscIdAsc();
+        Set<Long> allSprintIds = allSprints.stream().map(Sprint::getId).collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<SprintIssueTracking> logs = sprintIssueTrackingRepository.findByGroup_IdAndSprint_IdIn(groupId, allSprintIds);
         List<SprintIssueTracking> ownLogs = logs.stream()
                 .filter(log -> log.getAssigneeGithubUsername() != null)
                 .filter(log -> log.getAssigneeGithubUsername().equalsIgnoreCase(githubUsername))
@@ -489,11 +611,7 @@ public class FinalGradeCalculationService {
                 .mapToInt(log -> log.getStoryPoints() != null ? log.getStoryPoints() : 0)
                 .sum();
 
-        int target = rows.stream()
-                .map(SprintDeliverableWeight::getSprint)
-                .collect(Collectors.toMap(Sprint::getId, Function.identity(), (a, b) -> a))
-                .values()
-                .stream()
+        int target = allSprints.stream()
                 .mapToInt(s -> s.getRequiredStoryPoints() != null ? s.getRequiredStoryPoints() : 0)
                 .sum();
 

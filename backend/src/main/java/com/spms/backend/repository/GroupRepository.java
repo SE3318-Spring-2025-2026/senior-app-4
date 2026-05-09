@@ -36,4 +36,6 @@ public interface GroupRepository extends JpaRepository<Group, Long>, JpaSpecific
     List<Group> findByStatusNot(com.spms.backend.model.GroupStatus status);
 
     long countByAdvisor_UserId(Long advisorId);
+
+    java.util.Optional<Group> findByLeader_UserId(Long leaderId);
 }

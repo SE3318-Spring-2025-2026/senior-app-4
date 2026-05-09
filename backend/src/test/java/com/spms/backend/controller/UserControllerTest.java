@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spms.backend.dto.request.StudentUserCreateRequest;
 import com.spms.backend.exception.GlobalExceptionHandler;
 import com.spms.backend.repository.GroupMemberRepository;
+import com.spms.backend.repository.GroupRepository;
 import com.spms.backend.repository.InMemoryUserRepository;
 import com.spms.backend.repository.InMemoryValidStudentIdRepository;
 import com.spms.backend.service.StudentRegistrationService;
@@ -40,12 +41,16 @@ class UserControllerTest {
         GroupMemberRepository groupMemberRepository = mock(GroupMemberRepository.class);
         when(groupMemberRepository.findTopByUser_UserId(anyLong())).thenReturn(Optional.empty());
 
+        GroupRepository groupRepository = mock(GroupRepository.class);
+        when(groupRepository.findByLeader_UserId(anyLong())).thenReturn(Optional.empty());
+
         UserController userController = new UserController(
                 new StudentRegistrationService(
                         userRepository,
                         new InMemoryValidStudentIdRepository()),
                 userRepository,
-                groupMemberRepository
+                groupMemberRepository,
+                groupRepository
         );
 
         mockMvc = MockMvcBuilders.standaloneSetup(userController)

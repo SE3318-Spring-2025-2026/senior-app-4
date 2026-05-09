@@ -5,7 +5,7 @@ import { Calculator, Check, Plus, RefreshCw, Save, Send, SlidersHorizontal } fro
 import { toast } from "sonner";
 import Sidebar from "@/components/Sidebar";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
-import { fetchGroups, type ApiGroupListItem } from "@/lib/groups-api";
+import { fetchGroupLookup, type GroupLookupItem } from "@/lib/groups-api";
 import {
   createFinalGradingSprint,
   fetchFinalGradingSprints,
@@ -52,7 +52,7 @@ export default function CoordinatorFinalGradingPage() {
 
 function FinalGradingWorkspace() {
   const [sprints, setSprints] = useState<SprintConfig[]>([]);
-  const [groups, setGroups] = useState<ApiGroupListItem[]>([]);
+  const [groups, setGroups] = useState<GroupLookupItem[]>([]);
   const [weights, setWeights] = useState<WeightRow[]>([]);
   const [sprintEdits, setSprintEdits] = useState<Record<number, SprintEdit>>({});
   const [newSprint, setNewSprint] = useState<SprintEdit>({
@@ -70,13 +70,13 @@ function FinalGradingWorkspace() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [sprintData, weightData, groupPage] = await Promise.all([
+      const [sprintData, weightData, groupList] = await Promise.all([
         fetchFinalGradingSprints(),
         fetchSprintDeliverableWeights(),
-        fetchGroups(0, 100, "all", "", "all"),
+        fetchGroupLookup(),
       ]);
       setSprints(sprintData);
-      setGroups(groupPage.content ?? []);
+      setGroups(groupList);
       setSprintEdits(Object.fromEntries(sprintData.map((sprint) => [sprint.id, toSprintEdit(sprint)])));
       setWeights(weightData.length > 0 ? weightData.map(toWeightRow) : [emptyWeightRow(sprintData[0]?.id)]);
     } catch (err) {
@@ -266,22 +266,36 @@ function FinalGradingWorkspace() {
                           );
                         })}
                       </tbody>
+                      <tfoot>
+                        <tr className="border-t border-white/5">
+                          <td className="px-5 py-3">
+                            <input className="field min-w-40" placeholder="Sprint name" value={newSprint.sprintName} onChange={(e) => setNewSprint((prev) => ({ ...prev, sprintName: e.target.value }))} />
+                          </td>
+                          <td className="px-5 py-3">
+                            <input className="field" type="date" value={newSprint.startDate} onChange={(e) => setNewSprint((prev) => ({ ...prev, startDate: e.target.value }))} />
+                          </td>
+                          <td className="px-5 py-3">
+                            <input className="field" type="date" value={newSprint.endDate} onChange={(e) => setNewSprint((prev) => ({ ...prev, endDate: e.target.value }))} />
+                          </td>
+                          <td className="px-5 py-3">
+                            <select className="field" value={newSprint.status} onChange={(e) => setNewSprint((prev) => ({ ...prev, status: e.target.value }))}>
+                              <option>Planned</option>
+                              <option>Active</option>
+                              <option>Completed</option>
+                            </select>
+                          </td>
+                          <td className="px-5 py-3">
+                            <input className="field w-24" type="number" min={0} value={newSprint.requiredStoryPoints} onChange={(e) => setNewSprint((prev) => ({ ...prev, requiredStoryPoints: e.target.value }))} />
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <button className="primaryButton" onClick={createSprint} disabled={saving === "new-sprint"}>
+                              <Plus className="h-4 w-4" />
+                              Add
+                            </button>
+                          </td>
+                        </tr>
+                      </tfoot>
                     </table>
-                  </div>
-                  <div className="grid gap-3 border-t border-white/5 p-5 md:grid-cols-[1.2fr_repeat(4,1fr)_auto]">
-                    <input className="field" placeholder="Sprint name" value={newSprint.sprintName} onChange={(e) => setNewSprint((prev) => ({ ...prev, sprintName: e.target.value }))} />
-                    <input className="field" type="date" value={newSprint.startDate} onChange={(e) => setNewSprint((prev) => ({ ...prev, startDate: e.target.value }))} />
-                    <input className="field" type="date" value={newSprint.endDate} onChange={(e) => setNewSprint((prev) => ({ ...prev, endDate: e.target.value }))} />
-                    <select className="field" value={newSprint.status} onChange={(e) => setNewSprint((prev) => ({ ...prev, status: e.target.value }))}>
-                      <option>Planned</option>
-                      <option>Active</option>
-                      <option>Completed</option>
-                    </select>
-                    <input className="field" type="number" min={0} value={newSprint.requiredStoryPoints} onChange={(e) => setNewSprint((prev) => ({ ...prev, requiredStoryPoints: e.target.value }))} />
-                    <button className="primaryButton" onClick={createSprint} disabled={saving === "new-sprint"}>
-                      <Plus className="h-4 w-4" />
-                      Add
-                    </button>
                   </div>
                 </section>
 

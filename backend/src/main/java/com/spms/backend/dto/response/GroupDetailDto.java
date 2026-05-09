@@ -7,6 +7,7 @@ public record GroupDetailDto(
         String groupName,
         Long leaderId,
         Long advisorId,
+        String advisorName,
         String status,
         Instant createdAt,
         Instant updatedAt,
