@@ -77,8 +77,16 @@ public class SubmissionGradeService {
 
         List<SubmissionGrade> grades = gradeRepository.findBySubmissionId(submissionId);
 
-        // Grading is complete when the direct advisor submits a grade (threshold = 1).
-        final int[] totalCommitteeMembers = {1};
+        // Find if group has an assigned committee
+        int totalCommitteeMembersCount = assignmentRepository
+                .findTopByGroupIdAndStatusOrderByAssignedAtDesc(submission.getGroupId(), "ASSIGNED")
+                .map(assignment -> {
+                    Committee committee = assignment.getCommittee();
+                    return committee.getAdvisors().size() + committee.getJuryMembers().size();
+                })
+                .orElse(1);
+
+        final int[] totalCommitteeMembers = {totalCommitteeMembersCount};
 
         int gradeCount = grades.size();
         boolean isGradingComplete = (gradeCount >= totalCommitteeMembers[0]);
@@ -187,8 +195,11 @@ public class SubmissionGradeService {
         grade = gradeRepository.save(grade);
         saveCriterionScores(grade, rubricGrade.criterionScores());
 
-        // Grading is complete when the direct advisor submits a grade (threshold = 1).
+        // Grading is complete when the required threshold of members submits a grade.
         int totalCommitteeMembersCount = 1;
+        if (committee != null) {
+            totalCommitteeMembersCount = committee.getAdvisors().size() + committee.getJuryMembers().size();
+        }
         List<SubmissionGrade> allGrades = gradeRepository.findBySubmissionId(submissionId);
 
         boolean isGradingComplete = false;
@@ -261,12 +272,26 @@ public class SubmissionGradeService {
 
         assignmentRepository
                 .findTopByGroupIdAndStatusOrderByAssignedAtDesc(submission.getGroupId(), "ASSIGNED")
-                .ifPresent(assignment -> {
+                .ifPresentOrElse(assignment -> {
                     Committee committee = assignment.getCommittee();
                     int totalMembers = committee.getAdvisors().size() + committee.getJuryMembers().size();
                     List<SubmissionGrade> allGrades = gradeRepository.findBySubmissionId(submissionId);
 
                     if (allGrades.size() >= totalMembers) {
+                        double average = allGrades.stream()
+                                .mapToDouble(SubmissionGrade::getScore)
+                                .average()
+                                .orElse(0.0);
+                        submission.setFinalGrade(average);
+                        submission.setStatus(SubmissionStatus.GRADED);
+                        submissionRepository.save(submission);
+                        if (finalGradeCalculationService != null) {
+                            finalGradeCalculationService.recalculateGroupIfReady(submission.getGroupId());
+                        }
+                    }
+                }, () -> {
+                    List<SubmissionGrade> allGrades = gradeRepository.findBySubmissionId(submissionId);
+                    if (allGrades.size() >= 1) {
                         double average = allGrades.stream()
                                 .mapToDouble(SubmissionGrade::getScore)
                                 .average()

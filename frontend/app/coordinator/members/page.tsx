@@ -145,13 +145,13 @@ function DashboardLayout() {
 
                 <div className="flex-1 p-8">
                     <div className="max-w-4xl mx-auto space-y-6">
-                        
+
                         <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 shadow-xl shadow-black/20">
                             <h2 className="text-lg font-semibold text-white mb-4">Search Students</h2>
                             <div className="flex gap-3">
                                 <input
                                     type="text"
-                                    placeholder="Search by name, email, or ID..."
+                                    placeholder="Search by name or ID..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     className="flex-1 bg-black/40 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-1 focus:ring-blue-500 outline-none"

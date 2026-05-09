@@ -611,7 +611,7 @@ function GradePanel({
             score: c.gradingType === "SOFT" ? letterToScore(val) : Number(val),
           };
         });
-        payload = { feedback: feedbackInput || undefined, criteriaScores: criterionScores };
+        payload = { feedback: feedbackInput || undefined, criteriaScores: criteriaScores };
       } else {
         const gradeNum = parseFloat(gradeInput);
         if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 100) {
@@ -700,13 +700,12 @@ function GradePanel({
                         key={label}
                         type="button"
                         onClick={() => setCriterionInputs((prev) => ({ ...prev, [c.id]: score }))}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition border ${
-                          criterionInputs[c.id] === score
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition border ${criterionInputs[c.id] === score
                             ? label === "S"
                               ? "bg-green-500/20 border-green-500/40 text-green-300"
                               : "bg-red-500/20 border-red-500/40 text-red-300"
                             : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
-                        }`}
+                          }`}
                       >
                         {label} ({score})
                       </button>
@@ -719,11 +718,10 @@ function GradePanel({
                         key={label}
                         type="button"
                         onClick={() => setCriterionInputs((prev) => ({ ...prev, [c.id]: label }))}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition border ${
-                          criterionInputs[c.id] === label
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition border ${criterionInputs[c.id] === label
                             ? "bg-blue-500/20 border-blue-500/40 text-blue-200"
                             : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
-                        }`}
+                          }`}
                       >
                         {label} ({score})
                       </button>
@@ -821,11 +819,10 @@ function CriterionPicker({
             key={option}
             type="button"
             onClick={() => onChange(option)}
-            className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition ${
-              value === option
+            className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition ${value === option
                 ? "border-amber-400/40 bg-amber-400 text-gray-950"
                 : "border-white/10 bg-white/5 text-gray-400 hover:text-white"
-            }`}
+              }`}
           >
             {option}
           </button>

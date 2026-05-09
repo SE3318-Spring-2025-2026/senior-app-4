@@ -71,7 +71,7 @@ function DashboardLayout() {
           <div className="max-w-2xl mx-auto space-y-5">
             <StudentList />
             <UploadCard />
-            
+
           </div>
         </div>
       </main>
@@ -154,7 +154,7 @@ function UploadCard() {
               "flex flex-col items-center justify-center gap-4 py-14 px-8 text-center",
               status === "dragging" ? "border-blue-500 bg-blue-500/5"
                 : file ? "border-blue-500/50 bg-blue-500/5"
-                : "border-white/10 hover:border-blue-500/40 hover:bg-blue-500/3",
+                  : "border-white/10 hover:border-blue-500/40 hover:bg-blue-500/3",
             ].join(" ")}
           >
             <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
@@ -261,9 +261,9 @@ function StudentList() {
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
-        const res = await fetch(`${API_BASE}/student-ids`, { 
-        method: "GET",
-        headers,
+        const res = await fetch(`${API_BASE}/student-ids`, {
+          method: "GET",
+          headers,
         });
 
         if (!res.ok) {
@@ -272,7 +272,7 @@ function StudentList() {
         }
 
         const data = await res.json();
-        
+
         if (Array.isArray(data)) setUsers(data);
         else if (data && Array.isArray(data.content)) setUsers(data.content);
         else if (data && Array.isArray(data.data)) setUsers(data.data);
@@ -291,7 +291,7 @@ function StudentList() {
     if (searchTerm.trim() === "") return false;
 
     const query = searchTerm.toLowerCase();
-    
+
     const id = u.studentId ? String(u.studentId).toLowerCase() : "";
     const name = u.fullName ? String(u.fullName).toLowerCase() : "";
 
@@ -300,35 +300,13 @@ function StudentList() {
 
   return (
     <div className="h-full">
-      <h2 className="text-lg font-semibold text-white mb-4">Student List</h2>
-
-      {/* studentId search barı */}
-      <div className="mb-4 relative">
-        <input
-          type="text"
-          placeholder="Search by Student ID or Full Name..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-3 pl-11 rounded-xl text-sm outline-none transition-all focus:ring-2 bg-gray-900 border border-white/10 text-white focus:border-blue-500 focus:ring-blue-500/20 placeholder-gray-500"
-        />
-        <svg
-          className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      </div>
-
-
       {searchTerm.trim() !== "" && (
         <div className="rounded-xl border border-white/10 bg-gray-900 overflow-hidden shadow-xl">
           {filteredUsers.length > 0 ? (
             <ul className="divide-y divide-white/5 max-h-[300px] overflow-y-auto custom-scrollbar">
               {filteredUsers.map((u, index) => (
                 <li key={index} className="px-4 py-3 flex justify-between items-center hover:bg-white/5 transition-colors cursor-default">
-                  
+
 
                   <div className="flex flex-col">
                     <span className="font-medium text-gray-200">
@@ -338,7 +316,7 @@ function StudentList() {
                       {u.studentId || "No ID"}
                     </span>
                   </div>
-                  
+
                 </li>
               ))}
             </ul>
