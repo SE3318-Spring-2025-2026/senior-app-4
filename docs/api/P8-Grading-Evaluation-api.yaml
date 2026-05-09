@@ -1,0 +1,289 @@
+openapi: 3.0.3
+info:
+  title: Senior Project Management System API
+  version: 1.0.0
+  description: |
+    OpenAPI specification for Process 8: Grading & Evaluation
+    based on the Level-2 DFD.
+
+    This specification includes:
+    - Sprint Configurations & Deliverable Weights
+    - Sprint Advisor Grades
+    - Demonstration Grades
+    - Final Grade Calculation and Publishing
+    - Grading Criteria Management
+    - Analytics & Leaderboard
+
+servers:
+  - url: /api/v1
+    description: Base API URL
+
+tags:
+  - name: Final Grading
+    description: Endpoints for sprint evaluation, grade calculations, and publishing grades
+  - name: Grading Criteria
+    description: Endpoints for managing grading criteria definitions
+  - name: Analytics
+    description: Endpoints for leaderboard and student performance metrics
+
+paths:
+  /final-grading/sprints:
+    get:
+      tags:
+        - Final Grading
+      summary: List Sprints
+      operationId: listSprints
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Final Grading
+      summary: Create Sprint
+      operationId: createSprint
+      responses:
+        '201':
+          description: Created
+          
+  /final-grading/sprints/{sprintId}:
+    put:
+      tags:
+        - Final Grading
+      summary: Update Sprint
+      operationId: updateSprint
+      parameters:
+        - name: sprintId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+
+  /final-grading/sprint-deliverable-weights:
+    get:
+      tags:
+        - Final Grading
+      summary: Get Sprint Deliverable Weights
+      operationId: getSprintDeliverableWeights
+      responses:
+        '200':
+          description: OK
+    put:
+      tags:
+        - Final Grading
+      summary: Replace Sprint Deliverable Weights
+      operationId: replaceSprintDeliverableWeights
+      responses:
+        '200':
+          description: OK
+
+  /final-grading/sprint-advisor-grades:
+    post:
+      tags:
+        - Final Grading
+      summary: Save Sprint Advisor Grade
+      operationId: saveSprintAdvisorGrade
+      responses:
+        '200':
+          description: OK
+
+  /final-grading/groups/{groupId}/sprint-advisor-grades:
+    get:
+      tags:
+        - Final Grading
+      summary: Get Sprint Advisor Grades
+      operationId: getSprintAdvisorGrades
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+
+  /final-grading/groups/{groupId}/demonstration-grade:
+    get:
+      tags:
+        - Final Grading
+      summary: Get Demonstration Grade
+      operationId: getDemonstrationGrade
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Final Grading
+      summary: Save Demonstration Grade
+      operationId: saveDemonstrationGrade
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+
+  /final-grading/groups/{groupId}/sprints/{sprintId}/ai-code-review-suggestion:
+    get:
+      tags:
+        - Final Grading
+      summary: Get AI Code Review Suggestion
+      operationId: getAiCodeReviewSuggestion
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: sprintId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+
+  /final-grading/groups/{groupId}/recalculate:
+    post:
+      tags:
+        - Final Grading
+      summary: Recalculate Group Grade
+      operationId: recalculateGroup
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+
+  /final-grading/groups/{groupId}/publish:
+    post:
+      tags:
+        - Final Grading
+      summary: Publish Group Grade
+      operationId: publishGroup
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+
+  /final-grading/groups:
+    get:
+      tags:
+        - Final Grading
+      summary: List All Group Grades
+      operationId: listAllGroupGrades
+      responses:
+        '200':
+          description: OK
+
+  /final-grading/groups/{groupId}:
+    get:
+      tags:
+        - Final Grading
+      summary: Get Group Final Grades
+      operationId: getGroupFinalGrades
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+
+  /grading-criteria:
+    get:
+      tags:
+        - Grading Criteria
+      summary: List Grading Criteria
+      operationId: listCriteria
+      parameters:
+        - name: deliverableType
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Grading Criteria
+      summary: Create Grading Criteria
+      operationId: createCriteria
+      responses:
+        '201':
+          description: Created
+
+  /grading-criteria/{id}:
+    put:
+      tags:
+        - Grading Criteria
+      summary: Update Grading Criteria
+      operationId: updateCriteria
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Grading Criteria
+      summary: Delete Grading Criteria
+      operationId: deleteCriteria
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: No Content
+
+  /analytics/leaderboard:
+    get:
+      tags:
+        - Analytics
+      summary: Get Leaderboard
+      operationId: getLeaderboard
+      responses:
+        '200':
+          description: OK
+
+  /analytics/recalculate:
+    post:
+      tags:
+        - Analytics
+      summary: Recalculate All Performances
+      operationId: recalculate
+      responses:
+        '200':
+          description: OK
