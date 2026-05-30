@@ -50,7 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * no DB. Scope: exactly the 8 deliverable requirements across 7 tests.
  */
 @ExtendWith(MockitoExtension.class)
-class GroupWorkflowControllerTest {
+class GroupWorkflowApiTest {
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
