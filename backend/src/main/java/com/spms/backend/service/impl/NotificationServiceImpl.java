@@ -348,7 +348,24 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public void sendMembershipInvite(Long toUserId, Long groupId, String groupName) {
-        log.info("Membership invite notification sent to user {} for group {}", toUserId, groupName);
+        // Check if user exists
+        User toUser = userRepository.findById(toUserId)
+            .orElseThrow(() -> new com.spms.backend.exception.BadRequestException("User not found."));
+    
+        // Check if group exists
+        groupRepository.findById(groupId)
+            .orElseThrow(() -> new com.spms.backend.exception.BadRequestException("Group not found."));
+    
+        // Create and save notification
+        com.spms.backend.model.notification.Notification notification = new com.spms.backend.model.notification.Notification();
+        notification.setType(com.spms.backend.model.notification.NotificationType.MEMBERSHIP_INVITE);
+        notification.setStatus(com.spms.backend.model.notification.NotificationStatus.PENDING);
+        notification.setMessage("You are invited to join group: " + groupName);
+        notification.setGroupId(groupId); 
+        notification.setToUser(toUser);
+    
+        notificationRepository.save(notification);
     }
 }
