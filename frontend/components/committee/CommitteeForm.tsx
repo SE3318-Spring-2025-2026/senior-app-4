@@ -25,7 +25,7 @@ export default function CommitteeForm({
         initialValues?.description ?? ""
     );
     const [status, setStatus] = useState<CommitteeStatus>(
-        initialValues?.status ?? "FORMING"
+        initialValues?.status ?? "ACTIVE"
     );
     const [validationError, setValidationError] = useState("");
 
@@ -115,7 +115,6 @@ export default function CommitteeForm({
                     disabled={isSubmitting}
                     className="w-full rounded-xl border border-white/10 bg-gray-900 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
                 >
-                    <option value="FORMING">FORMING</option>
                     <option value="ACTIVE">ACTIVE</option>
                     <option value="INACTIVE">INACTIVE</option>
                     <option value="COMPLETED">COMPLETED</option>
